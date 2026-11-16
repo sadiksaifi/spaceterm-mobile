@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#MISE description="Download the Gradle distribution into the wrapper cache with curl"
+set -euo pipefail
+
+# The Gradle wrapper downloads with Java, which tries only the first address DNS returns,
+# so one unreachable CDN address fails the build. curl falls through to the next address.
+
+properties=android/gradle/wrapper/gradle-wrapper.properties
+[[ -f $properties ]] || pnpm expo prebuild --platform android --no-install
+
+url=$(sed -n 's/^distributionUrl=//p' "$properties" | sed 's/\\:/:/g')
+zip=${url##*/}
+hash=$(node -e 'const c = require("node:crypto"); console.log(BigInt("0x" + c.createHash("md5").update(process.argv[1]).digest("hex")).toString(36))' "$url")
+dir="${GRADLE_USER_HOME:-$HOME/.gradle}/wrapper/dists/${zip%.zip}/$hash"
+
+[[ -f $dir/$zip.ok || -f $dir/$zip ]] && exit 0
+
+mkdir -p "$dir"
+tmp=$(mktemp "$dir/$zip.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+curl -fsSL --retry 3 -o "$tmp" "$url"
+expected=$(curl -fsSL --retry 3 "$url.sha256")
+actual=$(shasum -a 256 "$tmp" | cut -d' ' -f1)
+[[ $expected == "$actual" ]] || { echo "SHA-256 mismatch for $zip" >&2; exit 1; }
+rm -f "$dir/$zip.part" "$dir/$zip.lck"
+mv "$tmp" "$dir/$zip"
+echo "Cached $zip in $dir"

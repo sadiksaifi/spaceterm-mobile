@@ -25,6 +25,10 @@ pnpm ios       # iPhone 18 Pro simulator
 pnpm android   # running Android emulator
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 SpaceTerm Mobile is open source under the [GNU GPL v3](LICENSE).

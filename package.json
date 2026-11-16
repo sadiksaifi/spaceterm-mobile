@@ -58,8 +58,8 @@
     "vitest": "^5.1.0"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,yaml,yml}": "oxfmt",
-    "*.{js,jsx,ts,tsx}": "oxlint"
+    "*.{js,jsx,ts,tsx,json,jsonc,css,yaml,yml}": "oxfmt --no-error-on-unmatched-pattern",
+    "*.{js,jsx,ts,tsx}": "oxlint --no-error-on-unmatched-pattern"
   },
   "commitlint": {
     "extends": [

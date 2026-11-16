@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "SpaceTerm",
   slug: "SpaceTerm",
-  version: "1.0.0",
+  version: "0.0.0",
   platforms: ["ios", "android"],
   orientation: "portrait",
   icon: "./assets/brand/ios/appearances/Default.png",

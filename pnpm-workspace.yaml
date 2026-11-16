@@ -1,2 +1,6 @@
 allowBuilds:
   "@parcel/watcher": false
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - "ua-parser-js@0.7.41 || 1.0.41"
+trustPolicyExcludePrune: true

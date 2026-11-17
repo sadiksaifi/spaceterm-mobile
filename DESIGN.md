@@ -4,9 +4,11 @@ The decisions behind every screen. Layouts, spacing and sample content live in t
 
 ## Principles
 
-- **System first.** Each platform looks as if its maker built it. Check a system component on the simulator or emulator before building it. A deviation is taste, and [Taste](#taste) lists each one with its reason.
-- **The desktop owns the words.** Every command, label, alert and state name comes from SpaceTerm Desktop, under the same name. Read the string from the desktop source before writing it. Its [CONTEXT.md](https://github.com/sadiksaifi/SpaceTerm/blob/main/CONTEXT.md) defines the terms.
-- **Show what the desktop shows.** A row carries what the desktop's row for the same object carries: a Workspace row has name, Machine, directory and branch. Status, counts and data come only from the desktop.
+- **System first.** Each platform looks as if its maker built it. iOS has the look of iOS 26 and later, as Apple's Human Interface Guidelines describe it. Android has the look of Material 3 Expressive. Check a system component on the simulator or emulator before building it. A deviation is taste, and [Taste](#taste) lists each one with its reason.
+- **The newest release decides.** iOS 26 and iOS 27 look alike and differ in details, and so do Android releases. Where they differ, a mockup follows the newest release, as its own apps show it. The app uses system components, so each OS version draws its own.
+- **The desktop owns the features and the terms.** A feature on the phone is a feature of SpaceTerm Desktop: create a Workspace, rename it, kill it. Its [CONTEXT.md](https://github.com/sadiksaifi/SpaceTerm/blob/main/CONTEXT.md) defines the terms, and they keep their names: Workspace, Machine, Tab, Pane. The desktop's layouts, states and sentences are not a reference. Each platform shows and words a feature its own way, in Apple's writing style on iOS and Google's on Android.
+- **Both platforms do the same things.** Every feature and every state on one platform exists on the other, each in its own way.
+- **Real data only.** A Workspace row has name, Machine, directory and branch. Status, counts and data come from the Machine. Nothing is invented.
 - **Minimal.** The phone keeps what a person does away from the desk. [Not on the phone](#not-on-the-phone) lists what stays on the desktop.
 - **Every gesture has a visible twin.** Each command on a swipe or a touch and hold is also on a visible control.
 
@@ -61,10 +63,9 @@ Inside a Pane, the key row takes the bar's place.
 
 ## Alerts and menus
 
-- An alert is the desktop's alert, word for word: title, text and button names.
 - **Ask when the desktop asks.** Closing an idle Tab or Pane is immediate. The alert shows when a command is running or another client controls the Pane.
 - Where one button is destructive, Cancel is the default.
-- A menu holds the commands of the desktop's menu for the same object, under the same names.
+- A menu holds the commands the desktop offers for the same object.
 
 ## Taste
 

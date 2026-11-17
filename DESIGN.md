@@ -9,7 +9,7 @@ The direction behind every screen. What a screen shows and how it behaves lives 
 - **Same features and words on both platforms.** Every feature and state on one exists on the other, in the same words. Our text names no platform or device type: "this device", not "this iPhone". Capitalization and the system's own text follow the platform.
 - **Minimal.** The phone keeps what a person does away from the desk. A desktop feature stays off the phone until the owner asks for it.
 - **Frequent first.** What a person does most takes the fewest taps and sits under the thumb. Tabs are used more than Panes. Adding a Machine is rare.
-- **Real data only.** A screen shows what the Machine reports. It has no status or count the Machine does not supply.
+- **Real data only.** A screen shows what the Machine or another real source reports. It has no status or count that a source does not supply.
 - **Ask before a loss.** An action that ends a running command or a Terminal Session asks first. Closing an idle Tab or Pane does not ask.
 - **Every gesture has a visible twin.** Each command on a swipe or a touch and hold is also on a visible control. Reordering is the exception: the drag is its control. A row swipes from its trailing side only.
 

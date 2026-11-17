@@ -23,8 +23,7 @@ src/
 
 ## Platform experience
 
-- Target **iOS and Android only**. Follow [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/) and [Android design guidelines](https://developer.android.com/design/ui/mobile), including Material Design.
-- Respect each platform's native appearance, navigation, interactions, typography, motion, accessibility, and adaptive behavior. Prefer `@expo/ui` with SwiftUI/Jetpack Compose. Share logic, not forced visual uniformity.
+- Target **iOS and Android only**. Prefer `@expo/ui` with SwiftUI/Jetpack Compose. Share logic, not forced visual uniformity.
 - Read `DESIGN.md` before building or changing a screen, a control, or user-facing text.
 
 ## Documentation

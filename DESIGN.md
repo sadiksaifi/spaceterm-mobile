@@ -1,6 +1,6 @@
 # Design
 
-The direction behind every screen. What a screen shows and how it behaves lives in the mockups: https://claude.ai/artifact/5uXC4LrFk7PhFsWYQbSbxA
+The direction behind every screen. What a screen shows and how it behaves lives in the mockups: https://claude.ai/artifact/DxZcSmC5WMuXB6vzbpCNMm
 
 ## Principles
 

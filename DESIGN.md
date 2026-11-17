@@ -4,7 +4,7 @@ The decisions behind every screen. Layouts, spacing and sample content live in t
 
 ## Principles
 
-- **System first.** Each platform looks as if its maker built it. Check a system component on the newest simulator or emulator before building it, because OS releases differ in details. A deviation is taste, and [Taste](#taste) lists each one with its reason.
+- **System first.** Each platform looks as if its maker built it. A deviation is taste, and [Taste](#taste) lists each one with its reason.
 - **The desktop owns the features and the terms.** A feature on the phone is a feature of SpaceTerm Desktop, and its [CONTEXT.md](https://github.com/sadiksaifi/SpaceTerm/blob/main/CONTEXT.md) defines the terms. Its layouts, states and sentences are not a reference: each platform shows and words a feature its own way.
 - **Same features on both platforms.** Every feature and state on one exists on the other.
 - **Real data only.** A Workspace row has name, Machine, directory and branch. Status, counts and data come from the Machine.

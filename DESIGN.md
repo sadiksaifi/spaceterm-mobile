@@ -6,7 +6,7 @@ The direction behind every screen. What a screen shows and how it behaves lives 
 
 - **System first.** iOS follows [Apple's HIG](https://developer.apple.com/design/human-interface-guidelines/) for iOS 26 and later. Android follows [Material 3 Expressive](https://m3.material.io/). Each platform looks and behaves as if its maker (Apple or Google) built it. A deviation is taste, and [Taste](#taste) lists each one with its reason.
 - **The desktop owns the features and the terms.** A feature on the phone is a feature of SpaceTerm Desktop, and its [CONTEXT.md](https://github.com/sadiksaifi/SpaceTerm/blob/main/CONTEXT.md) defines the terms. Its layouts, states and sentences are not a reference: each platform shows a feature its own way.
-- **Same features and words on both platforms.** Every feature and state on one exists on the other, in the same words. Capitalization and the system's own text follow the platform.
+- **Same features and words on both platforms.** Every feature and state on one exists on the other, in the same words. Our text names no platform or device type: "this device", not "this iPhone". Capitalization and the system's own text follow the platform.
 - **Minimal.** The phone keeps what a person does away from the desk. A desktop feature stays off the phone until the owner asks for it.
 - **Frequent first.** What a person does most takes the fewest taps and sits under the thumb. Tabs are used more than Panes. Adding a Machine is rare.
 - **Real data only.** A screen shows what the Machine reports. It has no status or count the Machine does not supply.

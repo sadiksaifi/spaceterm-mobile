@@ -11,14 +11,14 @@ The direction behind every screen. What a screen shows and how it behaves lives 
 - **Frequent first.** What a person does most takes the fewest taps and sits under the thumb. Tabs are used more than Panes. Adding a Machine is rare.
 - **Real data only.** A screen shows what the Machine reports. It has no status or count the Machine does not supply.
 - **Ask before a loss.** An action that ends a running command or a Terminal Session asks first. Closing an idle Tab or Pane does not ask.
-- **Every gesture has a visible twin.** Each command on a swipe or a touch and hold is also on a visible control.
+- **Every gesture has a visible twin.** Each command on a swipe or a touch and hold is also on a visible control. Reordering is the exception: the drag is its control. A row swipes from its trailing side only.
 
 ## Colors and icons
 
 - Colors are system colors: semantic colors on iOS, Material color roles on Android. Light, dark and contrast settings follow the system.
 - Icons are system icons: SF Symbols on iOS, Material Symbols on Android.
 - A color or icon of our own is an exception, listed here with its reason. So far: the colors inside a terminal, which belong to the Terminal Theme.
-- Destructive actions take the system's destructive color. Nothing else does.
+- Destructive actions look the way the system marks them. Nothing else takes that look.
 
 ## Taste
 

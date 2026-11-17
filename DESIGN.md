@@ -25,3 +25,4 @@ The direction behind every screen. What a screen shows and how it behaves lives 
 - **The pill bar.** The floating bar at the bottom of a Workspace is ours. It keeps switching Workspaces under the thumb.
 - **The stick.** Neither system has one. It replaces four arrow keys with one control and frees the row for other keys.
 - **A lit modifier takes the fill of the selected Workspace in the bar,** so "selected" looks the same everywhere.
+- **New Tab and New Pane are part of their grid,** not a button in a bar, so they cannot be mistaken for New Workspace in the pill bar.

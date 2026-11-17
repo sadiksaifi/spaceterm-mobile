@@ -4,7 +4,7 @@ The direction behind every screen. What a screen shows and how it behaves lives 
 
 ## Principles
 
-- **System first.** iOS follows [Apple's HIG](https://developer.apple.com/design/human-interface-guidelines/) for iOS 26 and later. Android follows [Material 3 Expressive](https://m3.material.io/). Each platform looks and behaves as if its maker built it. A deviation is taste, and [Taste](#taste) lists each one with its reason.
+- **System first.** iOS follows [Apple's HIG](https://developer.apple.com/design/human-interface-guidelines/) for iOS 26 and later. Android follows [Material 3 Expressive](https://m3.material.io/). Each platform looks and behaves as if its maker (Apple or Google) built it. A deviation is taste, and [Taste](#taste) lists each one with its reason.
 - **The desktop owns the features and the terms.** A feature on the phone is a feature of SpaceTerm Desktop, and its [CONTEXT.md](https://github.com/sadiksaifi/SpaceTerm/blob/main/CONTEXT.md) defines the terms. Its layouts, states and sentences are not a reference: each platform shows and words a feature its own way.
 - **Same features on both platforms.** Every feature and state on one exists on the other.
 - **Minimal.** The phone keeps what a person does away from the desk. A desktop feature stays off the phone until the owner asks for it.

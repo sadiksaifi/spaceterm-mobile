@@ -23,8 +23,7 @@ src/
 
 ## Platform experience
 
-- Target **iOS and Android only**. iOS follows the [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/) in the look of iOS 26 and later. Android follows [Material 3 Expressive](https://m3.material.io/).
-- iOS 26 and iOS 27 differ in details, and so do Android releases. Verify a component on the newest simulator or emulator, and build with system components so each OS version draws its own.
+- Target **iOS and Android only**: [Apple's HIG](https://developer.apple.com/design/human-interface-guidelines/) for iOS 26 and later, and [Material 3 Expressive](https://m3.material.io/) for Android.
 - Respect each platform's native appearance, navigation, interactions, typography, motion, accessibility, and adaptive behavior. Prefer `@expo/ui` with SwiftUI/Jetpack Compose. Share logic, not forced visual uniformity.
 - Read `DESIGN.md` before building or changing a screen, a control, or user-facing text.
 

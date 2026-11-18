@@ -1,0 +1,86 @@
+import { Box, Column, Icon, Text, useMaterialColors } from "@expo/ui/jetpack-compose";
+import {
+  background,
+  clip,
+  fillMaxSize,
+  padding,
+  Shapes,
+  size,
+} from "@expo/ui/jetpack-compose/modifiers";
+import type { ReactNode } from "react";
+
+import { heading } from "@/modules/compose-modifiers";
+import { useColors } from "@/shared/theme/colors";
+
+/** Empty states sit above center: clear of New Workspace on the page, just above the keyboard in search. */
+export const EMPTY_BOTTOM = 120;
+export const EMPTY_BOTTOM_IN_SEARCH = 40;
+
+/** Fills the space it has and centers its content, keeping `bottom` free below it. */
+export function Centered({ children, bottom }: { children: ReactNode; bottom: number }) {
+  return (
+    <Column
+      horizontalAlignment="center"
+      verticalArrangement="center"
+      modifiers={[fillMaxSize(), padding(40, 0, 40, bottom)]}
+    >
+      {children}
+    </Column>
+  );
+}
+
+/** A state's icon on a tile: the error container after an attempt failed, the secondary container otherwise. */
+export function StateTile({ icon, failed = false }: { icon: number; failed?: boolean }) {
+  const colors = useMaterialColors();
+  return (
+    <Box
+      contentAlignment="center"
+      modifiers={[
+        padding(0, 0, 0, 20),
+        size(80, 80),
+        clip(Shapes.RoundedCorner(28)),
+        background(failed ? colors.errorContainer : colors.secondaryContainer),
+      ]}
+    >
+      <Icon
+        source={icon}
+        size={40}
+        tint={failed ? colors.onErrorContainer : colors.onSecondaryContainer}
+      />
+    </Box>
+  );
+}
+
+export function StateTitle({ children }: { children: string }) {
+  return (
+    <Text style={{ typography: "titleLarge", textAlign: "center" }} modifiers={[heading()]}>
+      {children}
+    </Text>
+  );
+}
+
+export function StateBody({ children }: { children: ReactNode }) {
+  const colors = useColors();
+  return (
+    <Text
+      style={{ typography: "bodyMedium", textAlign: "center" }}
+      color={colors.secondaryText}
+      modifiers={[padding(0, 8, 0, 0)]}
+    >
+      {children}
+    </Text>
+  );
+}
+
+/** The column of buttons under a state's text. */
+export function StateActions({ children }: { children: ReactNode }) {
+  return (
+    <Column
+      horizontalAlignment="center"
+      verticalArrangement={{ spacedBy: 4 }}
+      modifiers={[padding(0, 24, 0, 0)]}
+    >
+      {children}
+    </Column>
+  );
+}

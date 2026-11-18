@@ -80,6 +80,10 @@ describe("a command the Machine refuses", () => {
 
     expect(result.current.alert).toMatchObject({ kind: "rename" });
     expect(result.current.failure).toEqual({ command: "kill", row: app });
+
+    // iOS shows the refusal once Rename closes, so renaming another Workspace keeps it.
+    await act(async () => result.current.rename("site"));
+    expect(result.current.failure).toEqual({ command: "kill", row: app });
   });
 
   it("does nothing on Try Again once a newer command has started", async () => {

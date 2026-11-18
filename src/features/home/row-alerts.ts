@@ -15,7 +15,7 @@ export type RowFailure =
 
 export type RowAlerts = {
   alert: RowAlert | null;
-  /** The last refusal, until Try Again, Cancel, or the next command. */
+  /** The last refusal, until Try Again, Cancel, or the next command for the same Workspace. */
   failure: RowFailure | null;
   /** What each row's menu and swipe start. */
   handlers: RowHandlers;
@@ -60,17 +60,26 @@ export function useRowAlerts(actions: HomeActions): RowAlerts {
         ? { ...state, alert: null, closed: state.closed + 1 }
         : state,
     );
-  /** Clears `which`, if it still shows, or any failure. */
-  const clearFailure = (which?: RowFailure) =>
+  /** Clears the failure, if it is still `which`. */
+  const clearFailure = (which: RowFailure) =>
+    setState((state) => (state.failure === which ? { ...state, failure: null } : state));
+  /**
+   * A new command makes a refusal for the same Workspace out of date. A refusal for another one
+   * stays: iOS may not have shown it yet, as it waits for the open alert to close.
+   */
+  const supersede = (row: WorkspaceRow) =>
     setState((state) =>
-      which === undefined || state.failure === which ? { ...state, failure: null } : state,
+      state.failure !== null &&
+      state.failure.row.machineId === row.machineId &&
+      state.failure.row.workspace.id === row.workspace.id
+        ? { ...state, failure: null }
+        : state,
     );
   const fail = (next: RowFailure) => setState((state) => ({ ...state, failure: next }));
 
-  // A new command makes any earlier refusal out of date.
   const runRename = (row: WorkspaceRow, name: string) => {
     if (renameWorkspace === undefined) return;
-    clearFailure();
+    supersede(row);
     void renameWorkspace(row.machineId, row.workspace.id, name).then((result) => {
       if (result.kind === "failed") fail({ command: "rename", row, name });
     });
@@ -78,7 +87,7 @@ export function useRowAlerts(actions: HomeActions): RowAlerts {
 
   const runKill = (row: WorkspaceRow) => {
     if (killWorkspace === undefined) return;
-    clearFailure();
+    supersede(row);
     void killWorkspace(row.machineId, row.workspace.id).then((result) => {
       if (result.kind === "failed") fail({ command: "kill", row });
     });

@@ -8,5 +8,47 @@
   "env": {
     "builtin": true
   },
-  "ignorePatterns": [".agents/", ".claude/skills/"]
+  "ignorePatterns": [".agents/", ".claude/skills/"],
+  "overrides": [
+    {
+      "files": ["src/**/*.android.ts", "src/**/*.android.tsx", "src/**/android/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)ios(/|$)",
+                "message": "Android code imports only Android and shared code."
+              },
+              {
+                "regex": "^@expo/ui/swift-ui",
+                "message": "SwiftUI views exist only on iOS."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/**/*.ios.ts", "src/**/*.ios.tsx", "src/**/ios/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)android(/|$)",
+                "message": "iOS code imports only iOS and shared code."
+              },
+              {
+                "regex": "^@expo/ui/jetpack-compose",
+                "message": "Jetpack Compose views exist only on Android."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

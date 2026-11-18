@@ -24,5 +24,9 @@ export const text = {
   create: "Create",
   /** The Machine refused to open a Workspace there: an alert on iOS, a snackbar on Android. */
   failedTitle: (directory: string) =>
-    cased(`Couldn’t Open “${directory}”`, `Couldn’t open ${directory}`),
+    cased(`Couldn’t Open “${asWorkspace(directory)}”`, `Couldn’t open ${asWorkspace(directory)}`),
 };
+
+/** A directory as Home writes a Workspace's: without the trailing slash a listing gives it. */
+const asWorkspace = (directory: string) =>
+  directory.length > 1 && directory.endsWith("/") ? directory.slice(0, -1) : directory;

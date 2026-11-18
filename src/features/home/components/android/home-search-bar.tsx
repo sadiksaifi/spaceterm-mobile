@@ -1,6 +1,6 @@
 import { Box, Text } from "@expo/ui/jetpack-compose";
 import { fillMaxSize, fillMaxWidth, imePadding, padding } from "@expo/ui/jetpack-compose/modifiers";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar } from "@/modules/search-bar";
@@ -20,11 +20,16 @@ export function HomeSearchBar({
   actions,
   controls,
   alerts,
+  onSearchingChange,
+  overResults,
 }: {
   snapshot: MachinesSnapshot;
   actions: HomeActions;
   controls: HomeControls;
   alerts: RowAlerts;
+  onSearchingChange: (searching: boolean) => void;
+  /** What shows over the results while search is open, such as the snackbar. */
+  overResults: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const insets = useSafeAreaInsets();
@@ -32,6 +37,7 @@ export function HomeSearchBar({
   return (
     <SearchBar
       onQueryChange={setQuery}
+      onExpandedChange={onSearchingChange}
       backLabel={text.back}
       clearLabel={text.clearText}
       modifiers={[fillMaxWidth(), padding(16, insets.top + 4, 16, 0)]}
@@ -52,6 +58,7 @@ export function HomeSearchBar({
             bottomPadding={insets.bottom + 16}
             emptyBottom={EMPTY_BOTTOM_IN_SEARCH}
           />
+          {overResults}
         </Box>
       </SearchBar.Results>
     </SearchBar>

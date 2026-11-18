@@ -46,17 +46,25 @@ data class SearchBarProps(
 @Composable
 fun FunctionalComposableScope.SearchBarContent(
   props: SearchBarProps,
-  onQueryChange: (GenericEventPayload1<String>) -> Unit
+  onQueryChange: (GenericEventPayload1<String>) -> Unit,
+  onExpandedChange: (GenericEventPayload1<Boolean>) -> Unit
 ) {
   val searchBarState = rememberSearchBarState()
   val textFieldState = rememberTextFieldState()
   val scope = rememberCoroutineScope()
   val expanded = searchBarState.targetValue == SearchBarValue.Expanded
   val currentOnQueryChange by rememberUpdatedState(onQueryChange)
+  val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
 
   LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
       .collect { currentOnQueryChange(GenericEventPayload1(it)) }
+  }
+
+  // The full-screen search is a window of its own, so anything meant to show over it, such as a
+  // snackbar, has to move into it while it is open.
+  LaunchedEffect(expanded) {
+    currentOnExpandedChange(GenericEventPayload1(expanded))
   }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.

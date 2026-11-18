@@ -2,6 +2,7 @@ import { Host } from "@expo/ui";
 import { Box, Column } from "@expo/ui/jetpack-compose";
 import { background, fillMaxSize } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
+import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
@@ -40,6 +41,8 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   );
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  // Full-screen search is a window above the page, so the snackbar moves into it while it is open.
+  const [searching, setSearching] = useState(false);
 
   return (
     <>
@@ -55,6 +58,10 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
                 actions={actions}
                 controls={controls}
                 alerts={alerts}
+                onSearchingChange={setSearching}
+                overResults={
+                  searching && <SnackbarSlot {...snackbar} bottom={insets.bottom + LIST_MARGIN} />
+                }
               />
             ) : (
               <HomeTopBar controls={controls} />
@@ -68,10 +75,12 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
           </Column>
           {controls.newWorkspace && <NewWorkspaceButton control={controls.newWorkspace} />}
           <RowAlertsView alerts={alerts} />
-          <SnackbarSlot
-            {...snackbar}
-            bottom={insets.bottom + (controls.newWorkspace ? ABOVE_BUTTON : LIST_MARGIN)}
-          />
+          {!searching && (
+            <SnackbarSlot
+              {...snackbar}
+              bottom={insets.bottom + (controls.newWorkspace ? ABOVE_BUTTON : LIST_MARGIN)}
+            />
+          )}
         </Box>
       </Host>
     </>

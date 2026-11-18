@@ -19,7 +19,10 @@ type NativeSearchBarProps = Omit<SearchBarProps, "onQueryChange"> & {
   onQueryChange?: (event: NativeSyntheticEvent<{ value: string }>) => void;
 };
 
-const NativeSearchBar = requireNativeView<NativeSearchBarProps>("SearchBar", "SearchBarView");
+const NativeSearchBar = requireNativeView<NativeSearchBarProps>(
+  "SpaceTermSearchBar",
+  "SearchBarView",
+);
 
 const NativeSlot = requireNativeView<{ slotName: string; children: ReactNode }>(
   "ExpoUI",

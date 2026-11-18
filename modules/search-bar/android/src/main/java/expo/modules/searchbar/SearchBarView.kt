@@ -4,10 +4,6 @@ package expo.modules.searchbar
 
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExpandedFullScreenSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -19,8 +15,11 @@ import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.res.painterResource
 import expo.modules.kotlin.views.ComposeProps
 import expo.modules.kotlin.views.FunctionalComposableScope
 import expo.modules.kotlin.views.OptimizedComposeProps
@@ -53,10 +52,11 @@ fun FunctionalComposableScope.SearchBarContent(
   val textFieldState = rememberTextFieldState()
   val scope = rememberCoroutineScope()
   val expanded = searchBarState.targetValue == SearchBarValue.Expanded
+  val currentOnQueryChange by rememberUpdatedState(onQueryChange)
 
-  LaunchedEffect(Unit) {
+  LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
-      .collect { onQueryChange(GenericEventPayload1(it)) }
+      .collect { currentOnQueryChange(GenericEventPayload1(it)) }
   }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.
@@ -78,10 +78,10 @@ fun FunctionalComposableScope.SearchBarContent(
         leadingIcon = {
           if (expanded) {
             IconButton(onClick = { scope.launch { searchBarState.animateToCollapsed() } }) {
-              Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = props.backLabel)
+              Icon(painterResource(R.drawable.search_bar_arrow_back), contentDescription = props.backLabel)
             }
           } else {
-            Icon(Icons.Default.Search, contentDescription = null)
+            Icon(painterResource(R.drawable.search_bar_search), contentDescription = null)
           }
         },
         trailingIcon = {
@@ -89,7 +89,7 @@ fun FunctionalComposableScope.SearchBarContent(
             Children(UIComposableScope(), filter = { isSlotWithName(it, "trailingIcon") })
           } else if (textFieldState.text.isNotEmpty()) {
             IconButton(onClick = { textFieldState.clearText() }) {
-              Icon(Icons.Default.Close, contentDescription = props.clearLabel)
+              Icon(painterResource(R.drawable.search_bar_close), contentDescription = props.clearLabel)
             }
           }
         }

@@ -23,7 +23,8 @@ export default function HomeRoute() {
   return (
     <HomeScreen
       snapshot={snapshot}
-      onNewWorkspace={() => router.push(newWorkspaceHref(snapshot))}
+      // Navigate, not push: a second tap before the flow shows must not open it twice.
+      onNewWorkspace={() => router.navigate(newWorkspaceHref(snapshot))}
       renameWorkspace={client.renameWorkspace}
       killWorkspace={client.killWorkspace}
       onOpenWorkspace={stayOnHome}

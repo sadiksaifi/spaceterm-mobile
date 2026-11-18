@@ -11,8 +11,9 @@ export default function MachineStepRoute() {
   return (
     <MachineStepScreen
       machines={machines}
+      // Navigate, not push: a second tap before the step shows must not stack it twice.
       onPick={(machineId) =>
-        router.push({ pathname: "/new-workspace/[machineId]", params: { machineId } })
+        router.navigate({ pathname: "/new-workspace/[machineId]", params: { machineId } })
       }
       // Cancel returns to the screen the flow was opened from.
       onCancel={() => router.back()}

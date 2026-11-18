@@ -1,6 +1,7 @@
-import { Centered, StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
+import { StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
 
 import { text } from "../../../text";
+import { Centered } from "./layout";
 
 /** Search keeps the keyboard up, and the search field sits on it in the toolbar's place. */
 const ABOVE_SEARCH_FIELD = -60;

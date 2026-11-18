@@ -2,9 +2,9 @@ import { ProgressView, Text, VStack } from "@expo/ui/swift-ui";
 import { font, textCase } from "@expo/ui/swift-ui/modifiers";
 
 import { secondary } from "@/shared/ui/ios/modifiers";
-import { Centered } from "@/shared/ui/ios/state";
 
 import { text } from "../../../text";
+import { Centered } from "./layout";
 
 export function Loading() {
   return (

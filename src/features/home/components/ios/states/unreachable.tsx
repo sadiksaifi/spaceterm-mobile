@@ -2,18 +2,12 @@ import { ProgressView } from "@expo/ui/swift-ui";
 import { accessibilityLabel, controlSize, padding } from "@expo/ui/swift-ui/modifiers";
 
 import { secondary } from "@/shared/ui/ios/modifiers";
-import {
-  ActionButton,
-  Centered,
-  StateActions,
-  StateBody,
-  StateIcon,
-  StateTitle,
-} from "@/shared/ui/ios/state";
+import { ActionButton, StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
 
 import { unreachableControls, type HomeActions } from "../../../actions";
 import type { HomeView } from "../../../model";
 import { text, unreachableText } from "../../../text";
+import { Centered, StateActions } from "./layout";
 
 export function Unreachable({
   view,

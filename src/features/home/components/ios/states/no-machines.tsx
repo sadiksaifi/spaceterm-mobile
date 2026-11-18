@@ -5,9 +5,6 @@ import { useColors } from "@/shared/theme/colors";
 import {
   ACTION_HEIGHT,
   ActionButton,
-  Centered,
-  commandText,
-  StateActions,
   StateBody,
   StateIcon,
   StateTitle,
@@ -16,6 +13,7 @@ import { useLargeText } from "@/shared/ui/large-text";
 
 import type { HomeActions } from "../../../actions";
 import { text } from "../../../text";
+import { Centered, commandText, StateActions } from "./layout";
 
 export function NoMachines({ actions }: { actions: HomeActions }) {
   const colors = useColors();

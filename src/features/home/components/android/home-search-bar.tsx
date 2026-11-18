@@ -5,13 +5,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar } from "@/modules/search-bar";
 import type { MachinesSnapshot } from "@/shared/machines/model";
-import { EMPTY_BOTTOM_IN_SEARCH } from "@/shared/ui/android/state";
 
 import type { HomeActions, HomeControls } from "../../actions";
 import { homeView } from "../../model";
 import type { RowAlerts } from "../../row-alerts";
 import { text } from "../../text";
 import { HomeContent } from "./home-content";
+import { EMPTY_BOTTOM_IN_SEARCH } from "./states/empty-state";
 import { MoreMenu } from "./more-menu";
 
 /** The search pill in the header's place. It opens a full-screen search of the Workspaces. */

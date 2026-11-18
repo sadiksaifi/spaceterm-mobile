@@ -1,9 +1,7 @@
-import { EMPTY_BOTTOM } from "@/shared/ui/android/state";
-
 import type { HomeActions } from "../../actions";
 import type { HomeView } from "../../model";
 import type { RowAlerts } from "../../row-alerts";
-import { EmptyState } from "./states/empty-state";
+import { EMPTY_BOTTOM, EmptyState } from "./states/empty-state";
 import { WorkspaceList } from "./workspace-list";
 
 /** The Workspace rows, or the state that takes their place. */

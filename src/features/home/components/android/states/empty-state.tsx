@@ -6,6 +6,10 @@ import { NoResults } from "./no-results";
 import { NoWorkspaces } from "./no-workspaces";
 import { Unreachable } from "./unreachable";
 
+/** Home's states sit above center: clear of New Workspace on the page, just above the keyboard in search. */
+export const EMPTY_BOTTOM = 120;
+export const EMPTY_BOTTOM_IN_SEARCH = 40;
+
 /** What Home shows when it has no Workspace rows. `bottom` is the space kept free below it. */
 export function EmptyState({
   view,

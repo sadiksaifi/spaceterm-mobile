@@ -14,9 +14,7 @@ export type SwipeRowProps = PrimitiveBaseProps & {
   children?: ReactNode;
 };
 
-type NativeSwipeRowProps = Omit<SwipeRowProps, "onSwipe"> & { onSwipe?: () => void };
-
-const NativeSwipeRow = requireNativeView<NativeSwipeRowProps>("SpaceTermSwipeRow", "SwipeRowView");
+const NativeSwipeRow = requireNativeView<SwipeRowProps>("SpaceTermSwipeRow", "SwipeRowView");
 
 const NativeSlot = requireNativeView<{ slotName: string; children: ReactNode }>(
   "ExpoUI",
@@ -27,13 +25,12 @@ const NativeSlot = requireNativeView<{ slotName: string; children: ReactNode }>(
  * A row that swipes from its end side to reveal what is behind it, Material 3's swipe to dismiss.
  * Children are Expo UI Jetpack Compose views, so it goes inside a `Host`.
  */
-export function SwipeRow({ modifiers, onSwipe, children, ...props }: SwipeRowProps) {
+export function SwipeRow({ modifiers, children, ...props }: SwipeRowProps) {
   return (
     <NativeSwipeRow
       {...props}
       modifiers={modifiers}
       {...(modifiers ? createViewModifierEventListener(modifiers) : undefined)}
-      onSwipe={() => onSwipe?.()}
     >
       {children}
     </NativeSwipeRow>

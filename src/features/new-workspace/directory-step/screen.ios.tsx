@@ -38,6 +38,7 @@ import { useWindowDimensions } from "react-native";
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
 import { ActionButton, StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
+import { useLargeText } from "@/shared/ui/large-text";
 
 import { SectionHeader } from "../components/ios/section-header";
 import type { PickerView } from "../picker";
@@ -209,7 +210,10 @@ function PathField({
   );
 }
 
-/** Parent Directory, or a directory: a folder in the tint color, with a chevron. */
+/**
+ * Parent Directory, or a directory: a folder in the tint color, with a chevron. The name keeps to
+ * one line; at an accessibility size it wraps, so sibling names that start alike stay apart.
+ */
 function DirectoryRow({
   label,
   symbol,
@@ -225,6 +229,7 @@ function DirectoryRow({
 }) {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
+  const largeText = useLargeText();
   return (
     <Button onPress={onPress} modifiers={[disabled(!enabled)]}>
       <HStack spacing={12} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
@@ -237,7 +242,7 @@ function DirectoryRow({
             accessibilityHidden(),
           ]}
         />
-        <Text modifiers={[lineLimit(1)]}>{label}</Text>
+        <Text modifiers={largeText ? [] : [lineLimit(1)]}>{label}</Text>
         <Spacer />
         {tinted && (
           <Image

@@ -1,6 +1,8 @@
+import { EMPTY_BOTTOM } from "@/shared/ui/android/state";
+
 import type { HomeActions } from "../../actions";
 import type { HomeView } from "../../model";
-import { EMPTY_BOTTOM } from "@/shared/ui/android/state";
+import type { RowAlerts } from "../../row-alerts";
 import { EmptyState } from "./states/empty-state";
 import { WorkspaceList } from "./workspace-list";
 
@@ -8,11 +10,13 @@ import { WorkspaceList } from "./workspace-list";
 export function HomeContent({
   view,
   actions,
+  alerts,
   bottomPadding,
   emptyBottom = EMPTY_BOTTOM,
 }: {
   view: HomeView;
   actions: HomeActions;
+  alerts: RowAlerts;
   /** Space below the last row. */
   bottomPadding: number;
   /** Space an empty state keeps below itself. */
@@ -23,6 +27,7 @@ export function HomeContent({
       <WorkspaceList
         rows={view.rows}
         onOpen={actions.onOpenWorkspace}
+        alerts={alerts}
         bottomPadding={bottomPadding}
       />
     );

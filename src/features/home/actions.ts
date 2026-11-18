@@ -1,4 +1,6 @@
-import { isSearchable, type HomeSnapshot, type HomeView } from "./model";
+import type { MachinesSnapshot } from "@/shared/machines/model";
+
+import { isSearchable, type HomeView, type WorkspaceRow } from "./model";
 
 /**
  * What Home can lead to. A control whose handler is absent is unavailable,
@@ -6,6 +8,9 @@ import { isSearchable, type HomeSnapshot, type HomeView } from "./model";
  */
 export type HomeActions = {
   onOpenWorkspace?: (machineId: string, workspaceId: string) => void;
+  onNewTab?: (machineId: string, workspaceId: string) => void;
+  renameWorkspace?: (machineId: string, workspaceId: string, name: string) => Promise<void>;
+  killWorkspace?: (machineId: string, workspaceId: string) => Promise<void>;
   onNewWorkspace?: () => void;
   onAddMachine?: () => void;
   onScanQrCode?: () => void;
@@ -16,7 +21,7 @@ export type HomeActions = {
   onGetDesktop: () => void;
 };
 
-export type HomeScreenProps = HomeActions & { snapshot: HomeSnapshot };
+export type HomeScreenProps = HomeActions & { snapshot: MachinesSnapshot };
 
 /** A control that shows, with its handler, `undefined` while it is unavailable. */
 export type Control = { onPress: (() => void) | undefined };
@@ -69,4 +74,48 @@ export function unreachableControls(
           : onMachineSettings && (() => onMachineSettings(machine.id)),
     },
   };
+}
+
+/** What a row's touch and hold menu and swipe start. Rename and Kill open their alerts. */
+export type RowHandlers = {
+  onNewTab?: (row: WorkspaceRow) => void;
+  onRenameWorkspace?: (row: WorkspaceRow) => void;
+  onKillWorkspace?: (row: WorkspaceRow) => void;
+};
+
+/** The commands on a row's touch and hold menu; Rename and Kill are also on its swipe. */
+export type RowCommands = {
+  /** A row swipes only while its Machine is connected. */
+  swipes: boolean;
+  newTab: Control;
+  rename: Control;
+  kill: Control;
+};
+
+/** Every command needs the Machine, so a row whose Machine is not connected offers none. */
+export function rowCommands(row: WorkspaceRow, handlers: RowHandlers): RowCommands {
+  const connected = row.connection === "connected";
+  const control = (handler: ((row: WorkspaceRow) => void) | undefined): Control => ({
+    onPress: connected && handler ? () => handler(row) : undefined,
+  });
+  return {
+    swipes: connected,
+    newTab: control(handlers.onNewTab),
+    rename: control(handlers.onRenameWorkspace),
+    kill: control(handlers.onKillWorkspace),
+  };
+}
+
+export type RenameOutcome =
+  | { kind: "unavailable" }
+  /** Rename closes the alert and sends nothing. */
+  | { kind: "unchanged" }
+  | { kind: "rename"; name: string };
+
+/** What Rename does with the field's text. A name is never empty or only spaces. */
+export function renameOutcome(current: string, typed: string): RenameOutcome {
+  const name = typed.trim();
+  if (name === "") return { kind: "unavailable" };
+  if (name === current) return { kind: "unchanged" };
+  return { kind: "rename", name };
 }

@@ -1,8 +1,11 @@
 import { Stack } from "expo-router";
 import { useState } from "react";
 
+import type { MachinesSnapshot } from "@/shared/machines/model";
+
 import type { Control, HomeActions } from "../../actions";
-import { homeView, type HomeSnapshot } from "../../model";
+import { homeView } from "../../model";
+import type { RowAlerts } from "../../row-alerts";
 import { text } from "../../text";
 import { HomeContent } from "./home-content";
 
@@ -14,10 +17,12 @@ export function HomeSearch({
   snapshot,
   actions,
   newWorkspace,
+  alerts,
 }: {
-  snapshot: HomeSnapshot;
+  snapshot: MachinesSnapshot;
   actions: HomeActions;
   newWorkspace: Control | null;
+  alerts: RowAlerts;
 }) {
   const [query, setQuery] = useState("");
   // Search hides the navigation bar. When it comes back, a long SwiftUI List keeps the offset it
@@ -27,7 +32,12 @@ export function HomeSearch({
 
   return (
     <>
-      <HomeContent key={session} view={homeView(snapshot, query)} actions={actions} />
+      <HomeContent
+        key={session}
+        view={homeView(snapshot, query)}
+        actions={actions}
+        alerts={alerts}
+      />
       <Stack.SearchBar
         placeholder={text.search}
         onChangeText={(event) => setQuery(event.nativeEvent.text)}

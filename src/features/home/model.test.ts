@@ -1,26 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  homeView,
-  isSearchable,
-  type Machine,
-  type UnreachableState,
-  type Workspace,
-} from "./model";
+import type { Machine, UnreachableState, Workspace } from "@/shared/machines/model";
+
+import { homeView, isSearchable } from "./model";
 
 const mobile: Workspace = {
   id: "w1",
   name: "spaceterm-mobile",
   directory: "~/Projects/spaceterm-mobile",
   branch: "main",
+  terminalSessions: 1,
 };
 const desktop: Workspace = {
   id: "w2",
   name: "spaceterm-desktop",
   directory: "~/Projects/spaceterm-desktop",
   branch: "fix/sidebar",
+  terminalSessions: 1,
 };
-const logs: Workspace = { id: "w3", name: "logs", directory: "/var/log" };
+const logs: Workspace = { id: "w3", name: "logs", directory: "/var/log", terminalSessions: 1 };
 
 function connected(name: string, workspaces: readonly Workspace[]): Machine {
   return { id: name, name, connection: "connected", workspaces };

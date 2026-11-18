@@ -4,23 +4,27 @@ import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar } from "@/modules/search-bar";
+import type { MachinesSnapshot } from "@/shared/machines/model";
+import { EMPTY_BOTTOM_IN_SEARCH } from "@/shared/ui/android/state";
 
 import type { HomeActions, HomeControls } from "../../actions";
-import { homeView, type HomeSnapshot } from "../../model";
+import { homeView } from "../../model";
+import type { RowAlerts } from "../../row-alerts";
 import { text } from "../../text";
 import { HomeContent } from "./home-content";
 import { MoreMenu } from "./more-menu";
-import { EMPTY_BOTTOM_IN_SEARCH } from "@/shared/ui/android/state";
 
 /** The search pill in the header's place. It opens a full-screen search of the Workspaces. */
 export function HomeSearchBar({
   snapshot,
   actions,
   controls,
+  alerts,
 }: {
-  snapshot: HomeSnapshot;
+  snapshot: MachinesSnapshot;
   actions: HomeActions;
   controls: HomeControls;
+  alerts: RowAlerts;
 }) {
   const [query, setQuery] = useState("");
   const insets = useSafeAreaInsets();
@@ -44,6 +48,7 @@ export function HomeSearchBar({
           <HomeContent
             view={homeView(snapshot, query)}
             actions={actions}
+            alerts={alerts}
             bottomPadding={insets.bottom + 16}
             emptyBottom={EMPTY_BOTTOM_IN_SEARCH}
           />

@@ -15,6 +15,10 @@ export type Snackbar = {
  */
 const READY_FRAMES = 30;
 const SLOW_RETRY_MS = 500;
+/** Material's snackbar keeps this margin inside its host, on every side. */
+const OWN_MARGIN = 12;
+/** The snackbar's margin from the sides of the screen, as the design draws it. */
+const SIDE_MARGIN = 16;
 
 /**
  * The Material snackbar that reports a refused command, in the inverse colors Material gives it,
@@ -74,7 +78,8 @@ export function useSnackbar<T extends object>(
 }
 
 /**
- * Where the snackbar shows: at the bottom of its Box, `bottom` up from the bottom edge. It takes
+ * Where the snackbar shows: at the bottom of its Box, its own bottom `bottom` up from the Box's
+ * bottom edge. It takes
  * what `useSnackbar` returns, spread. Only one slot of a snackbar renders at a time.
  */
 export function SnackbarSlot({ attach, generation, bottom }: Snackbar & { bottom: number }) {
@@ -82,7 +87,10 @@ export function SnackbarSlot({ attach, generation, bottom }: Snackbar & { bottom
     <SnackbarHost
       key={generation}
       ref={attach}
-      modifiers={[align("bottomCenter"), padding(16, 0, 16, bottom)]}
+      modifiers={[
+        align("bottomCenter"),
+        padding(SIDE_MARGIN - OWN_MARGIN, 0, SIDE_MARGIN - OWN_MARGIN, bottom - OWN_MARGIN),
+      ]}
     />
   );
 }

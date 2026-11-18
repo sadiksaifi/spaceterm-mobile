@@ -1,4 +1,3 @@
-import moreIcon from "@expo/material-symbols/more_vert.xml";
 import { Host } from "@expo/ui";
 import { Box, Column } from "@expo/ui/jetpack-compose";
 import { background, fillMaxSize } from "@expo/ui/jetpack-compose/modifiers";
@@ -7,70 +6,48 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
 
-import type { HomeScreenProps } from "./actions";
+import { homeControls, type HomeScreenProps } from "./actions";
 import { HomeContent } from "./components/android/home-content";
 import { HomeSearchBar } from "./components/android/home-search-bar";
+import { HomeTopBar } from "./components/android/home-top-bar";
 import { NewWorkspaceButton } from "./components/android/new-workspace-button";
-import { homeView, isSearchable } from "./model";
-import { text } from "./text";
+import { homeView } from "./model";
+import type ScreenContract from "./screen";
 
-/** Space below the last row: room for New Workspace when it shows, a margin otherwise. */
+/** Space below the last row: room for New Workspace where it shows, a margin otherwise. */
 const ROOM_FOR_BUTTON = 96;
 const LIST_MARGIN = 16;
 
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const view = homeView(snapshot);
+  const controls = homeControls(view, actions);
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const searchable = isSearchable(view);
-  const canCreateWorkspace = searchable && view.canCreateWorkspace;
 
   return (
     <>
-      {/* The search bar takes the header's place where there is something to search. */}
-      <Stack.Screen options={{ headerShown: !searchable, headerShadowVisible: false }} />
-      <Stack.Screen.Title>{text.title}</Stack.Screen.Title>
-      {!searchable && (
-        <Stack.Toolbar placement="right">
-          <Stack.Toolbar.Menu icon={moreIcon} accessibilityLabel={text.more}>
-            <Stack.Toolbar.MenuAction disabled>{text.newWorkspace}</Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              disabled={!actions.onAddMachine}
-              onPress={actions.onAddMachine}
-            >
-              {text.addMachine}
-            </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.MenuAction
-              disabled={!actions.onOpenSettings}
-              onPress={actions.onOpenSettings}
-            >
-              {text.settings}
-            </Stack.Toolbar.MenuAction>
-          </Stack.Toolbar.Menu>
-        </Stack.Toolbar>
-      )}
+      {/* Compose draws the top of the screen: the search bar, or the top app bar. */}
+      <Stack.Screen options={{ headerShown: false }} />
 
       <Host style={{ flex: 1 }}>
         <Box modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
           <Column modifiers={[fillMaxSize()]}>
-            {searchable && (
-              <HomeSearchBar
-                snapshot={snapshot}
-                actions={actions}
-                canCreateWorkspace={canCreateWorkspace}
-              />
+            {controls.searchable ? (
+              <HomeSearchBar snapshot={snapshot} actions={actions} controls={controls} />
+            ) : (
+              <HomeTopBar controls={controls} />
             )}
             <HomeContent
               view={view}
               actions={actions}
-              bottomPadding={insets.bottom + (canCreateWorkspace ? ROOM_FOR_BUTTON : LIST_MARGIN)}
+              bottomPadding={insets.bottom + (controls.searchable ? ROOM_FOR_BUTTON : LIST_MARGIN)}
             />
           </Column>
-          {canCreateWorkspace && actions.onNewWorkspace && (
-            <NewWorkspaceButton onPress={actions.onNewWorkspace} />
-          )}
+          {controls.searchable && <NewWorkspaceButton onPress={controls.newWorkspace} />}
         </Box>
       </Host>
     </>
   );
 }
+
+HomeScreen satisfies typeof ScreenContract;

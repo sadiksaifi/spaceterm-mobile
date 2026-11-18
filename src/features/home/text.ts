@@ -1,4 +1,4 @@
-import type { ConnectionState } from "./model";
+import type { UnreachableState } from "./model";
 
 /** Our words are the same on both platforms; only capitalization follows the platform. */
 const cased = (titleCase: string, sentenceCase: string) =>
@@ -37,7 +37,7 @@ export const text = {
 
 /** The title and sentence for a screen with nothing to list. `machine` is `null` for several Machines. */
 export function unreachableText(
-  state: Exclude<ConnectionState, "connected">,
+  state: UnreachableState,
   machine: string | null,
 ): { title: string; body?: string } {
   switch (state) {
@@ -65,7 +65,7 @@ export function unreachableText(
 }
 
 /** The state a dimmed Workspace row shows in place of its directory. */
-export function rowStateText(state: Exclude<ConnectionState, "connected">): string {
+export function rowStateText(state: UnreachableState): string {
   switch (state) {
     case "reconnecting":
       return "Reconnecting…";

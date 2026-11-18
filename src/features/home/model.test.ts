@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { homeView, isSearchable, type Machine, type Workspace } from "./model";
+import {
+  homeView,
+  isSearchable,
+  type Machine,
+  type UnreachableState,
+  type Workspace,
+} from "./model";
 
 const mobile: Workspace = {
   id: "w1",
@@ -22,7 +28,7 @@ function connected(name: string, workspaces: readonly Workspace[]): Machine {
 
 function unreachable(
   name: string,
-  connection: Exclude<Machine["connection"], "connected">,
+  connection: UnreachableState,
   workspaces: readonly Workspace[] | null = null,
 ): Machine {
   return { id: name, name, connection, workspaces };
@@ -77,6 +83,18 @@ describe("homeView", () => {
       kind: "workspaces",
       canCreateWorkspace: true,
       rows: [{ connection: "connected" }, { connection: "not-connected" }],
+    });
+  });
+
+  it("keeps the dimmed rows after start when no Machine answers, without New Workspace", () => {
+    const view = homeView({
+      machines: [unreachable("MacBook Pro", "still-not-connected", [mobile])],
+      starting: false,
+    });
+    expect(view).toMatchObject({
+      kind: "workspaces",
+      canCreateWorkspace: false,
+      rows: [{ connection: "still-not-connected" }],
     });
   });
 

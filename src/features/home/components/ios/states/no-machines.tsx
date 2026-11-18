@@ -1,9 +1,10 @@
 import { Button, Text } from "@expo/ui/swift-ui";
-import { buttonStyle, font, frame } from "@expo/ui/swift-ui/modifiers";
+import { buttonStyle, font, frame, multilineTextAlignment } from "@expo/ui/swift-ui/modifiers";
 
 import { useColors } from "@/shared/theme/colors";
 
 import type { HomeActions } from "../../../actions";
+import { useLargeText } from "../../../large-text";
 import { text } from "../../../text";
 import {
   ACTION_HEIGHT,
@@ -18,6 +19,7 @@ import {
 
 export function NoMachines({ actions }: { actions: HomeActions }) {
   const colors = useColors();
+  const largeText = useLargeText();
   const [before, command, after] = text.noMachinesBody;
 
   return (
@@ -34,9 +36,14 @@ export function NoMachines({ actions }: { actions: HomeActions }) {
         <ActionButton label={text.pasteInvitationLink} onPress={actions.onPasteInvitationLink} />
         <Button
           onPress={actions.onGetDesktop}
-          modifiers={[buttonStyle("borderless"), frame({ height: ACTION_HEIGHT })]}
+          modifiers={[
+            buttonStyle("borderless"),
+            largeText ? frame({ minHeight: ACTION_HEIGHT }) : frame({ height: ACTION_HEIGHT }),
+          ]}
         >
-          <Text modifiers={[font({ textStyle: "subheadline" })]}>{text.getDesktop}</Text>
+          <Text modifiers={[font({ textStyle: "subheadline" }), multilineTextAlignment("center")]}>
+            {text.getDesktop}
+          </Text>
         </Button>
       </StateActions>
     </Centered>

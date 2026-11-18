@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar } from "@/modules/search-bar";
 
-import type { HomeActions } from "../../actions";
+import type { HomeActions, HomeControls } from "../../actions";
 import { homeView, type HomeSnapshot } from "../../model";
 import { text } from "../../text";
 import { HomeContent } from "./home-content";
@@ -16,11 +16,11 @@ import { EMPTY_BOTTOM_IN_SEARCH } from "./states/layout";
 export function HomeSearchBar({
   snapshot,
   actions,
-  canCreateWorkspace,
+  controls,
 }: {
   snapshot: HomeSnapshot;
   actions: HomeActions;
-  canCreateWorkspace: boolean;
+  controls: HomeControls;
 }) {
   const [query, setQuery] = useState("");
   const insets = useSafeAreaInsets();
@@ -36,7 +36,7 @@ export function HomeSearchBar({
         <Text>{text.searchWorkspaces}</Text>
       </SearchBar.Placeholder>
       <SearchBar.TrailingIcon>
-        <MoreMenu actions={actions} canCreateWorkspace={canCreateWorkspace} />
+        <MoreMenu controls={controls} />
       </SearchBar.TrailingIcon>
       <SearchBar.Results>
         {/* Results sit above the keyboard. */}

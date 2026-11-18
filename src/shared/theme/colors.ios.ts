@@ -1,6 +1,6 @@
 import { Color } from "expo-router";
 
-import type { Colors } from "./colors";
+import type { useColors as Contract, Colors } from "./colors";
 
 /** Semantic colors resolve again on their own when the appearance changes, so one object serves. */
 const colors: Colors = {
@@ -17,3 +17,5 @@ const colors: Colors = {
 export function useColors(): Colors {
   return colors;
 }
+
+useColors satisfies typeof Contract;

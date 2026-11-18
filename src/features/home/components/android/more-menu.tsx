@@ -9,17 +9,18 @@ import {
 } from "@expo/ui/jetpack-compose";
 import { useState } from "react";
 
-import type { HomeActions } from "../../actions";
+import type { HomeControls } from "../../actions";
 import { text } from "../../text";
 
-/** The More options button at the end of the search bar, and its menu. */
-export function MoreMenu({
-  actions,
-  canCreateWorkspace,
-}: {
-  actions: HomeActions;
-  canCreateWorkspace: boolean;
-}) {
+/** Material 3 menus: the high surface container, 16 dp corners and level 2 elevation. */
+const MENU_CORNER = 16;
+const MENU_ELEVATION = 3;
+
+/**
+ * The More options button and its menu, at the end of the search bar or the top app bar. New
+ * Workspace is listed only where Workspaces can be listed.
+ */
+export function MoreMenu({ controls }: { controls: HomeControls }) {
   const [expanded, setExpanded] = useState(false);
   const colors = useMaterialColors();
   const item = (label: string, onPress: (() => void) | undefined) => (
@@ -41,7 +42,8 @@ export function MoreMenu({
       expanded={expanded}
       onDismissRequest={() => setExpanded(false)}
       color={colors.surfaceContainerHigh}
-      cornerRadius={16}
+      cornerRadius={MENU_CORNER}
+      shadowElevation={MENU_ELEVATION}
     >
       <DropdownMenu.Trigger>
         <IconButton onClick={() => setExpanded(true)}>
@@ -49,9 +51,9 @@ export function MoreMenu({
         </IconButton>
       </DropdownMenu.Trigger>
       <DropdownMenu.Items>
-        {item(text.newWorkspace, canCreateWorkspace ? actions.onNewWorkspace : undefined)}
-        {item(text.addMachine, actions.onAddMachine)}
-        {item(text.settings, actions.onOpenSettings)}
+        {controls.searchable && item(text.newWorkspace, controls.newWorkspace)}
+        {item(text.addMachine, controls.addMachine)}
+        {item(text.settings, controls.settings)}
       </DropdownMenu.Items>
     </DropdownMenu>
   );

@@ -1,4 +1,4 @@
-import { Linking } from "react-native";
+import { openBrowserAsync } from "expo-web-browser";
 
 import HomeScreen from "./screen";
 import { useHomeSnapshot } from "./source";
@@ -11,7 +11,8 @@ export default function HomeRoute() {
   return (
     <HomeScreen
       snapshot={snapshot}
-      onGetDesktop={() => void Linking.openURL(DESKTOP_PROJECT_URL)}
+      // The page opens inside the app. If it cannot open, the person stays on Home.
+      onGetDesktop={() => void openBrowserAsync(DESKTOP_PROJECT_URL).catch(() => {})}
     />
   );
 }

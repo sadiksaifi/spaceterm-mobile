@@ -1,9 +1,12 @@
 import { text } from "../../../text";
 import { Centered, StateBody, StateIcon, StateTitle } from "./layout";
 
+/** Search keeps the keyboard up, and the search field sits on it in the toolbar's place. */
+const ABOVE_SEARCH_FIELD = -40;
+
 export function NoResults({ query }: { query: string }) {
   return (
-    <Centered>
+    <Centered extraBottom={ABOVE_SEARCH_FIELD}>
       <StateIcon systemName="magnifyingglass" />
       <StateTitle>{text.noResultsTitle(query)}</StateTitle>
       <StateBody>{text.noResultsBody}</StateBody>

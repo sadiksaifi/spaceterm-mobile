@@ -4,6 +4,8 @@ export type ConnectionState =
   | "still-not-connected"
   | "not-connected";
 
+export type UnreachableState = Exclude<ConnectionState, "connected">;
+
 export type Workspace = {
   id: string;
   name: string;
@@ -16,13 +18,17 @@ export type Workspace = {
  * A paired Machine as Home sees it. A connected Machine has answered, so its list is known.
  * Any other Machine has the list kept from an earlier run, or `null` when none was kept.
  */
-export type Machine = { id: string; name: string } & (
-  | { connection: "connected"; workspaces: readonly Workspace[] }
-  | {
-      connection: Exclude<ConnectionState, "connected">;
-      workspaces: readonly Workspace[] | null;
-    }
-);
+/** What a view needs to name a Machine and open its settings. */
+export type MachineRef = { id: string; name: string };
+
+export type Machine = MachineRef &
+  (
+    | { connection: "connected"; workspaces: readonly Workspace[] }
+    | {
+        connection: UnreachableState;
+        workspaces: readonly Workspace[] | null;
+      }
+  );
 
 export type HomeSnapshot = {
   /** Paired Machines, in the order they were paired. */
@@ -30,8 +36,6 @@ export type HomeSnapshot = {
   /** True from app start until a Machine answers or every Machine's first tries fail. */
   starting: boolean;
 };
-
-export type UnreachableState = Exclude<ConnectionState, "connected">;
 
 export type WorkspaceRow = {
   key: string;
@@ -49,7 +53,7 @@ export type HomeView =
       kind: "unreachable";
       state: UnreachableState;
       /** The one Machine to name, or `null` when several Machines are paired. */
-      machine: { id: string; name: string } | null;
+      machine: MachineRef | null;
     }
   | { kind: "no-workspaces"; canCreateWorkspace: true }
   | { kind: "workspaces"; rows: readonly WorkspaceRow[]; canCreateWorkspace: boolean }
@@ -104,5 +108,5 @@ export function homeView(snapshot: HomeSnapshot, query = ""): HomeView {
 }
 
 export function isSearchable(view: HomeView): view is SearchableHomeView {
-  return "canCreateWorkspace" in view;
+  return view.kind === "workspaces" || view.kind === "no-workspaces" || view.kind === "no-results";
 }

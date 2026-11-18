@@ -3,8 +3,8 @@ import type { CommandResult, MachinesSnapshot } from "@/shared/machines/model";
 import { isSearchable, type HomeView, type WorkspaceRow } from "./model";
 
 /**
- * What Home can lead to. A control whose handler is absent is unavailable,
- * because the screen it opens does not exist yet.
+ * The screens Home leads to and the commands it sends. A control whose handler is absent is
+ * unavailable, because its screen or command does not exist yet.
  */
 export type HomeActions = {
   onOpenWorkspace?: (machineId: string, workspaceId: string) => void;

@@ -68,7 +68,7 @@ describe("a command the Machine refuses", () => {
     expect(result.current.alert).toEqual({ kind: "rename", row: app, initial: "web" });
   });
 
-  it("waits for the open alert instead of replacing it", async () => {
+  it("keeps the open alert when an earlier command is refused, and holds the refusal too", async () => {
     let answer: (result: CommandResult) => void = () => {};
     const killWorkspace = () => new Promise<CommandResult>((resolve) => (answer = resolve));
     const { result } = await render({ killWorkspace, renameWorkspace: done });

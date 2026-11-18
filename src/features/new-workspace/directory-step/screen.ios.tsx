@@ -83,7 +83,7 @@ export default function DirectoryStepScreen({
           variant="prominent"
           accessibilityLabel={text.open}
           disabled={!view.canOpen}
-          onPress={picker.open}
+          onPress={() => picker.open()}
         />
       </Stack.Toolbar>
 
@@ -115,7 +115,7 @@ export default function DirectoryStepScreen({
                       initial={view.field}
                       enabled={!view.opening}
                       onEdit={picker.edit}
-                      onSubmit={picker.open}
+                      onSubmit={() => picker.open()}
                     />
                   </Section>
                   {view.parent !== null || view.content.kind === "directories" ? (

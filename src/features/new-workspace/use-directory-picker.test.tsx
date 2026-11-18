@@ -109,3 +109,11 @@ it("opens the Workspace it asked for when the person taps a row before the Machi
   await act(async () => answer(created));
   expect(onOpened).toHaveBeenCalledTimes(1);
 });
+
+it("opens the text Go sent, even before the field's last change has rendered", async () => {
+  const { client, createWorkspace } = machine([]);
+  const { result } = await render(client);
+
+  await act(async () => result.current.open("~/notes"));
+  expect(createWorkspace.mock.calls).toEqual([["mac", "~/notes", { createDirectory: false }]]);
+});

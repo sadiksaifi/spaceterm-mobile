@@ -106,7 +106,7 @@ export default function DirectoryStepScreen({
               </TopAppBar.Title>
               <TopAppBar.Actions>
                 <Button
-                  onClick={picker.open}
+                  onClick={() => picker.open()}
                   enabled={view.canOpen}
                   modifiers={[padding(8, 0, 12, 0)]}
                 >
@@ -170,7 +170,10 @@ export default function DirectoryStepScreen({
   );
 }
 
-/** The path of the directory to open, in a monospaced font. Go opens it, as Open does. */
+/**
+ * The path of the directory to open, in a monospaced font. Go opens it, as Open does, and sends
+ * the text, which can be ahead of the last render.
+ */
 function PathField({
   label,
   initial,
@@ -182,7 +185,7 @@ function PathField({
   initial: string;
   enabled: boolean;
   onEdit: (field: string) => void;
-  onGo: () => void;
+  onGo: (submitted: string) => void;
 }) {
   const field = useNativeState(initial);
   // The cursor starts after the path.

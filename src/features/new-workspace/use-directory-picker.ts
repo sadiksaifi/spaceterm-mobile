@@ -24,7 +24,8 @@ export type DirectoryPicker = {
   failure: PickerFailure | null;
   edit: (field: string) => void;
   navigate: (path: string) => void;
-  open: () => void;
+  /** Opens the field's path, or `submitted`, the text a keyboard's Go sent with it. */
+  open: (submitted?: string) => void;
   create: () => void;
   /** Cancel, in the create alert. */
   cancel: () => void;
@@ -88,9 +89,14 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
     failure: confirm.kind === "failed" ? confirm : null,
     edit: (typed) => dispatch({ type: "edit", field: typed }),
     navigate: (path) => dispatch({ type: "navigate", path }),
-    open() {
-      const path = openPath(state);
-      if (pickerView(state).canOpen && path !== null) attempt(path, false);
+    open(submitted) {
+      // Go can arrive before the render that follows the last keystroke.
+      const edit = { type: "edit", field: submitted ?? state.field } as const;
+      const next = reducePicker(state, edit);
+      const path = openPath(next);
+      if (!pickerView(next).canOpen || path === null) return;
+      if (next !== state) dispatch(edit);
+      attempt(path, false);
     },
     create() {
       if (confirm.kind === "asking-create") attempt(confirm.directory, true);

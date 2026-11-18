@@ -1,5 +1,9 @@
 import { Alert, Button, Text, TextField, useNativeState } from "@expo/ui/swift-ui";
-import { disabled } from "@expo/ui/swift-ui/modifiers";
+import {
+  autocorrectionDisabled,
+  disabled,
+  textInputAutocapitalization,
+} from "@expo/ui/swift-ui/modifiers";
 import { useState, type ReactNode } from "react";
 
 import { renameOutcome } from "../../actions";
@@ -90,7 +94,14 @@ function RenameActions({
   const [typed, setTyped] = useState(initial);
   return (
     <>
-      <TextField text={field} placeholder={text.name} autoFocus onTextChange={setTyped} />
+      {/* Workspace names are mostly lowercase repository names, which autocorrect would mangle. */}
+      <TextField
+        text={field}
+        placeholder={text.name}
+        autoFocus
+        onTextChange={setTyped}
+        modifiers={[textInputAutocapitalization("never"), autocorrectionDisabled()]}
+      />
       <Button label={text.cancel} role="cancel" onPress={onCancel} />
       <Button
         label={text.rename}

@@ -128,7 +128,7 @@ export function WorkspaceRowView({
       {withMenu}
       <SwipeActions.Actions edge="trailing">
         {swipeButton(text.killWorkspace, "xmark", commands.kill, Color.ios.systemRed)}
-        {swipeButton(text.renameWorkspace, "pencil", commands.rename, Color.ios.systemGray)}
+        {swipeButton(text.renameWorkspace, "pencil", commands.rename)}
       </SwipeActions.Actions>
     </SwipeActions>
   );
@@ -148,13 +148,14 @@ function menuItem(label: string, symbol: SymbolName, { onPress }: Control, destr
   );
 }
 
-function swipeButton(label: string, symbol: SymbolName, { onPress }: Control, color: ColorValue) {
+/** A swipe action, in `color`, or in the gray the system gives an action without one. */
+function swipeButton(label: string, symbol: SymbolName, { onPress }: Control, color?: ColorValue) {
   return (
     <Button
       label={label}
       systemImage={symbol}
       onPress={onPress}
-      modifiers={[labelStyle("iconOnly"), tint(color)]}
+      modifiers={[labelStyle("iconOnly"), ...(color === undefined ? [] : [tint(color)])]}
     />
   );
 }

@@ -11,6 +11,42 @@
   "ignorePatterns": [".agents/", ".claude/skills/"],
   "overrides": [
     {
+      "files": ["src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)ios(/|$)",
+                "message": "Only iOS code imports iOS code."
+              },
+              {
+                "regex": "^@expo/ui/swift-ui",
+                "message": "SwiftUI views exist only on iOS."
+              },
+              {
+                "regex": "(^|/)android(/|$)",
+                "message": "Only Android code imports Android code."
+              },
+              {
+                "regex": "^@expo/ui/jetpack-compose",
+                "message": "Jetpack Compose views exist only on Android."
+              },
+              {
+                "regex": "^@expo/material-symbols/",
+                "message": "Material Symbols are Android vector drawables."
+              },
+              {
+                "regex": "^@/modules/search-bar",
+                "message": "The search bar module is built for Android only."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["src/**/*.android.ts", "src/**/*.android.tsx", "src/**/android/**"],
       "rules": {
         "no-restricted-imports": [
@@ -19,7 +55,7 @@
             "patterns": [
               {
                 "regex": "(^|/)ios(/|$)",
-                "message": "Android code imports only Android and shared code."
+                "message": "Only iOS code imports iOS code."
               },
               {
                 "regex": "^@expo/ui/swift-ui",
@@ -39,11 +75,19 @@
             "patterns": [
               {
                 "regex": "(^|/)android(/|$)",
-                "message": "iOS code imports only iOS and shared code."
+                "message": "Only Android code imports Android code."
               },
               {
                 "regex": "^@expo/ui/jetpack-compose",
                 "message": "Jetpack Compose views exist only on Android."
+              },
+              {
+                "regex": "^@expo/material-symbols/",
+                "message": "Material Symbols are Android vector drawables."
+              },
+              {
+                "regex": "^@/modules/search-bar",
+                "message": "The search bar module is built for Android only."
               }
             ]
           }

@@ -1,14 +1,17 @@
+import addIcon from "@expo/material-symbols/add.xml";
+import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml";
+import machineIcon from "@expo/material-symbols/desktop_windows.xml";
+import branchIcon from "@expo/material-symbols/graph_1.xml";
+import moreIcon from "@expo/material-symbols/more_vert.xml";
+import workspacesIcon from "@expo/material-symbols/stacks.xml";
 import { Host } from "@expo/ui";
 import {
   Box,
   Button,
   Column,
-  DropdownMenu,
-  DropdownMenuItem,
   ExtendedFloatingActionButton,
   FilledTonalButton,
   Icon,
-  IconButton,
   LazyColumn,
   LoadingIndicator,
   Row,
@@ -16,7 +19,6 @@ import {
   Surface,
   Text,
   TextButton,
-  TopAppBar,
   useMaterialColors,
 } from "@expo/ui/jetpack-compose";
 import {
@@ -36,18 +38,11 @@ import { Stack } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useColors } from "@/theme/colors";
+
 import { homeView, isSearchable, type HomeView, type WorkspaceRow } from "./model";
 import type { HomeActions, HomeScreenProps } from "./props";
 import { rowStateText, text, unreachableText } from "./text";
-
-const icons = {
-  more: require("./icons/more_vert.xml"),
-  add: require("./icons/add.xml"),
-  machine: require("./icons/desktop_windows.xml"),
-  workspaces: require("./icons/stacks.xml"),
-  notConnected: require("./icons/desktop_access_disabled.xml"),
-  branch: require("./icons/graph_1.xml"),
-};
 
 /** Grouped cards: 16 outside corners, 4 inside, 2 between rows. */
 const OUTER_CORNER = 16;
@@ -57,45 +52,65 @@ const ROW_GAP = 2;
 const DIMMED = 0.5;
 
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
-  const view = homeView(snapshot);
-  const colors = useMaterialColors();
+  const [query, setQuery] = useState("");
+  const view = homeView(snapshot, query);
+  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const showNewWorkspace = isSearchable(view) && view.canCreateWorkspace;
+  const canCreateWorkspace = isSearchable(view) && view.canCreateWorkspace;
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
-      <Host style={{ flex: 1 }}>
-        <Box modifiers={[fillMaxSize(), background(colors.surface)]}>
-          <Column modifiers={[fillMaxSize()]}>
-            <TopAppBar>
-              <TopAppBar.Title>
-                <Text>{text.title}</Text>
-              </TopAppBar.Title>
-              <TopAppBar.Actions>
-                <HomeMenu view={view} actions={actions} />
-              </TopAppBar.Actions>
-            </TopAppBar>
-            <Box modifiers={[fillMaxWidth(), weight(1)]}>
-              {view.kind === "workspaces" ? (
-                <WorkspaceList
-                  rows={view.rows}
-                  onOpen={actions.onOpenWorkspace}
-                  bottomPadding={insets.bottom + (showNewWorkspace ? 96 : 16)}
-                />
-              ) : (
-                <EmptyState view={view} actions={actions} />
-              )}
-            </Box>
-          </Column>
+      <Stack.Screen options={{ headerShadowVisible: false }} />
+      <Stack.Screen.Title>{text.title}</Stack.Screen.Title>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Menu icon={moreIcon} accessibilityLabel={text.more}>
+          <Stack.Toolbar.MenuAction
+            disabled={!canCreateWorkspace || !actions.onNewWorkspace}
+            onPress={actions.onNewWorkspace}
+          >
+            {text.newWorkspace}
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction disabled={!actions.onAddMachine} onPress={actions.onAddMachine}>
+            {text.addMachine}
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            disabled={!actions.onOpenSettings}
+            onPress={actions.onOpenSettings}
+          >
+            {text.settings}
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar>
+      {isSearchable(view) && (
+        <Stack.SearchBar
+          placeholder={text.searchWorkspaces}
+          onChangeText={(event) => setQuery(event.nativeEvent.text)}
+          onClose={() => setQuery("")}
+          textColor={colors.text}
+          hintTextColor={colors.secondaryText}
+          headerIconColor={colors.secondaryText}
+        />
+      )}
 
-          {showNewWorkspace && actions.onNewWorkspace && (
+      <Host style={{ flex: 1 }}>
+        <Box modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
+          {view.kind === "workspaces" ? (
+            <WorkspaceList
+              rows={view.rows}
+              onOpen={actions.onOpenWorkspace}
+              bottomPadding={insets.bottom + (canCreateWorkspace ? 96 : 16)}
+            />
+          ) : (
+            <EmptyState view={view} actions={actions} />
+          )}
+
+          {canCreateWorkspace && actions.onNewWorkspace && (
             <ExtendedFloatingActionButton
               onClick={actions.onNewWorkspace}
               modifiers={[align("bottomEnd"), padding(16, 16, 16, insets.bottom + 16)]}
             >
               <ExtendedFloatingActionButton.Icon>
-                <Icon source={icons.add} />
+                <Icon source={addIcon} />
               </ExtendedFloatingActionButton.Icon>
               <ExtendedFloatingActionButton.Text>
                 <Text>{text.newWorkspace}</Text>
@@ -105,45 +120,6 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
         </Box>
       </Host>
     </>
-  );
-}
-
-function HomeMenu({ view, actions }: { view: HomeView; actions: HomeActions }) {
-  const [expanded, setExpanded] = useState(false);
-  const run = (action: (() => void) | undefined) => () => {
-    setExpanded(false);
-    action?.();
-  };
-  const canCreate = isSearchable(view) && view.canCreateWorkspace;
-
-  return (
-    <DropdownMenu expanded={expanded} onDismissRequest={() => setExpanded(false)}>
-      <DropdownMenu.Trigger>
-        <IconButton onClick={() => setExpanded(true)}>
-          <Icon source={icons.more} contentDescription={text.more} />
-        </IconButton>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Items>
-        <DropdownMenuItem
-          enabled={canCreate && !!actions.onNewWorkspace}
-          onClick={run(actions.onNewWorkspace)}
-        >
-          <DropdownMenuItem.Text>
-            <Text>{text.newWorkspace}</Text>
-          </DropdownMenuItem.Text>
-        </DropdownMenuItem>
-        <DropdownMenuItem enabled={!!actions.onAddMachine} onClick={run(actions.onAddMachine)}>
-          <DropdownMenuItem.Text>
-            <Text>{text.addMachine}</Text>
-          </DropdownMenuItem.Text>
-        </DropdownMenuItem>
-        <DropdownMenuItem enabled={!!actions.onOpenSettings} onClick={run(actions.onOpenSettings)}>
-          <DropdownMenuItem.Text>
-            <Text>{text.settings}</Text>
-          </DropdownMenuItem.Text>
-        </DropdownMenuItem>
-      </DropdownMenu.Items>
-    </DropdownMenu>
   );
 }
 
@@ -186,15 +162,15 @@ function WorkspaceRowView({
   last: boolean;
   onOpen: HomeActions["onOpenWorkspace"];
 }) {
-  const colors = useMaterialColors();
+  const colors = useColors();
   const { workspace, connection } = row;
   const top = first ? OUTER_CORNER : INNER_CORNER;
   const bottom = last ? OUTER_CORNER : INNER_CORNER;
 
   return (
     <Surface
-      color={colors.surfaceContainer}
-      contentColor={colors.onSurface}
+      color={colors.groupedRow}
+      contentColor={colors.text}
       shape={Shape.RoundedCorner({
         cornerRadii: { topStart: top, topEnd: top, bottomStart: bottom, bottomEnd: bottom },
       })}
@@ -215,7 +191,7 @@ function WorkspaceRowView({
           >
             {workspace.name}
           </Text>
-          <Text style={{ typography: "bodyMedium" }} color={colors.onSurfaceVariant}>
+          <Text style={{ typography: "bodyMedium" }} color={colors.secondaryText}>
             {row.machineName}
           </Text>
         </Row>
@@ -224,15 +200,15 @@ function WorkspaceRowView({
             maxLines={1}
             overflow="ellipsis"
             style={{ typography: "bodyMedium" }}
-            color={colors.onSurfaceVariant}
+            color={colors.secondaryText}
             modifiers={[weight(1)]}
           >
             {connection === "connected" ? workspace.directory : rowStateText(connection)}
           </Text>
           {connection === "connected" && workspace.branch !== undefined && (
             <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 4 }}>
-              <Icon source={icons.branch} size={13} tint={colors.onSurfaceVariant} />
-              <Text style={{ typography: "bodyMedium" }} color={colors.onSurfaceVariant}>
+              <Icon source={branchIcon} size={13} tint={colors.secondaryText} />
+              <Text style={{ typography: "bodyMedium" }} color={colors.secondaryText}>
                 {workspace.branch}
               </Text>
             </Row>
@@ -262,7 +238,7 @@ function EmptyState({
       const [before, command, after] = text.noMachinesBody;
       return (
         <Centered>
-          <StateTile icon={icons.machine} />
+          <StateTile icon={machineIcon} />
           <StateTitle>{text.noMachines}</StateTitle>
           <StateBody>
             {before}
@@ -294,7 +270,7 @@ function EmptyState({
     case "no-workspaces":
       return (
         <Centered>
-          <StateTile icon={icons.workspaces} />
+          <StateTile icon={workspacesIcon} />
           <StateTitle>{text.noWorkspaces}</StateTitle>
           <StateBody>{text.noWorkspacesBody}</StateBody>
         </Centered>
@@ -304,6 +280,7 @@ function EmptyState({
       return (
         <Centered>
           <StateTitle>{text.noResultsTitle(view.query)}</StateTitle>
+          <StateBody>{text.noResultsBody}</StateBody>
         </Centered>
       );
 
@@ -321,7 +298,7 @@ function EmptyState({
               modifiers={[semantics({ contentDescription: text.loading }), padding(0, 0, 0, 20)]}
             />
           ) : (
-            <StateTile icon={icons.notConnected} failed={view.state === "still-not-connected"} />
+            <StateTile icon={notConnectedIcon} failed={view.state === "still-not-connected"} />
           )}
           <StateTitle>{title}</StateTitle>
           {body !== undefined && <StateBody>{body}</StateBody>}
@@ -384,11 +361,11 @@ function StateTitle({ children }: { children: string }) {
 }
 
 function StateBody({ children }: { children: React.ReactNode }) {
-  const colors = useMaterialColors();
+  const colors = useColors();
   return (
     <Text
       style={{ typography: "bodyMedium", textAlign: "center" }}
-      color={colors.onSurfaceVariant}
+      color={colors.secondaryText}
       modifiers={[padding(0, 8, 0, 0)]}
     >
       {children}

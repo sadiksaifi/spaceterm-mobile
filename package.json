@@ -19,6 +19,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@expo/material-symbols": "^0.1.1",
     "@expo/ui": "~58.0.28",
     "expo": "~58.0.25",
     "expo-constants": "~58.0.16",

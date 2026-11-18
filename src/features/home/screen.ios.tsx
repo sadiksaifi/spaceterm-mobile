@@ -2,7 +2,12 @@ import { Host } from "@expo/ui";
 import {
   Button,
   ContentUnavailableView,
+  HStack,
+  Image,
+  List,
   ProgressView,
+  Section,
+  Spacer,
   Text as SwiftText,
   VStack,
 } from "@expo/ui/swift-ui";
@@ -12,15 +17,19 @@ import {
   controlSize,
   disabled,
   font,
+  foregroundStyle,
   frame,
+  lineLimit,
+  listStyle,
   multilineTextAlignment,
   padding,
+  scrollDismissesKeyboard,
   textCase,
 } from "@expo/ui/swift-ui/modifiers";
-import { SymbolView } from "expo-symbols";
-import { Color, Stack } from "expo-router";
-import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Stack } from "expo-router";
+import { useCallback, useState } from "react";
+
+import { useColors } from "@/theme/colors";
 
 import { homeView, isSearchable, type HomeView, type WorkspaceRow } from "./model";
 import type { HomeActions, HomeScreenProps } from "./props";
@@ -32,13 +41,14 @@ const ACTION_WIDTH = 230;
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const [query, setQuery] = useState("");
   const view = homeView(snapshot, query);
+  const colors = useColors();
 
   return (
     <>
       {view.kind === "workspaces" ? (
         <WorkspaceList rows={view.rows} onOpen={actions.onOpenWorkspace} />
       ) : (
-        <Host style={styles.page}>
+        <Host style={{ flex: 1, backgroundColor: colors.groupedBackground }}>
           <EmptyState view={view} actions={actions} />
         </Host>
       )}
@@ -66,11 +76,13 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
       {isSearchable(view) && (
         <>
           <Stack.SearchBar
+            placeholder={text.searchWorkspaces}
             onChangeText={(event) => setQuery(event.nativeEvent.text)}
             onCancelButtonPress={() => setQuery("")}
           />
           <Stack.Toolbar placement="bottom">
             <Stack.Toolbar.SearchBarSlot />
+            <Stack.Toolbar.Spacer />
             <Stack.Toolbar.Button
               icon="plus"
               accessibilityLabel={text.newWorkspace}
@@ -92,24 +104,27 @@ function WorkspaceList({
   rows: readonly WorkspaceRow[];
   onOpen: HomeActions["onOpenWorkspace"];
 }) {
+  const colors = useColors();
+  const renderRow = useCallback(
+    ({ item }: { item: WorkspaceRow }) => <WorkspaceRowView row={item} onOpen={onOpen} />,
+    [onOpen],
+  );
+
   return (
-    <ScrollView
-      style={styles.page}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.listContent}
-      keyboardDismissMode="interactive"
-    >
-      <View style={styles.card}>
-        {rows.map((row, index) => (
-          <View key={row.key}>
-            {index > 0 && <View style={styles.separator} />}
-            <WorkspaceRowView row={row} onOpen={onOpen} />
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+    <Host style={{ flex: 1, backgroundColor: colors.groupedBackground }}>
+      <List modifiers={[listStyle("insetGrouped"), scrollDismissesKeyboard("interactively")]}>
+        <Section>
+          <List.ForEach data={rows} keyExtractor={(row) => row.key}>
+            {renderRow}
+          </List.ForEach>
+        </Section>
+      </List>
+    </Host>
   );
 }
+
+const secondary = foregroundStyle({ type: "hierarchical", style: "secondary" });
+const detailFont = font({ textStyle: "subheadline" });
 
 function WorkspaceRowView({
   row,
@@ -122,50 +137,54 @@ function WorkspaceRowView({
   const connected = connection === "connected";
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={!onOpen}
-      onPress={() => onOpen?.(row)}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      <View style={styles.rowText}>
-        <View style={styles.rowLine}>
-          <Text numberOfLines={1} style={[styles.name, !connected && styles.secondary]}>
-            {workspace.name}
-          </Text>
-          <Text numberOfLines={1} style={[styles.detail, styles.trailing]}>
-            {row.machineName}
-          </Text>
-        </View>
-        {connection !== "connected" ? (
-          <Text numberOfLines={1} style={styles.detail}>
-            {rowStateText(connection)}
-          </Text>
-        ) : (
-          <View style={styles.detailLine}>
-            <Text numberOfLines={1} style={[styles.detail, styles.directory]}>
-              {workspace.directory}
-            </Text>
-            {workspace.branch !== undefined && (
-              <View style={styles.branch}>
-                <SymbolView
-                  name="arrow.triangle.branch"
-                  size={12}
-                  tintColor={Color.ios.secondaryLabel}
+    <Button onPress={() => onOpen?.(row)} modifiers={[disabled(!onOpen)]}>
+      <HStack spacing={10}>
+        <VStack alignment="leading" spacing={2}>
+          <HStack spacing={8} alignment="firstTextBaseline">
+            <SwiftText
+              modifiers={[
+                font({ textStyle: "headline" }),
+                foregroundStyle({
+                  type: "hierarchical",
+                  style: connected ? "primary" : "secondary",
+                }),
+                lineLimit(1),
+              ]}
+            >
+              {workspace.name}
+            </SwiftText>
+            <Spacer />
+            <SwiftText modifiers={[detailFont, secondary, lineLimit(1)]}>
+              {row.machineName}
+            </SwiftText>
+          </HStack>
+          <HStack spacing={8}>
+            <SwiftText modifiers={[detailFont, secondary, lineLimit(1)]}>
+              {connection === "connected" ? workspace.directory : rowStateText(connection)}
+            </SwiftText>
+            <Spacer />
+            {connected && workspace.branch !== undefined && (
+              <HStack spacing={3}>
+                <Image
+                  systemName="arrow.triangle.branch"
+                  modifiers={[font({ textStyle: "caption" }), secondary]}
                 />
-                <Text style={styles.detail}>{workspace.branch}</Text>
-              </View>
+                <SwiftText modifiers={[detailFont, secondary, lineLimit(1)]}>
+                  {workspace.branch}
+                </SwiftText>
+              </HStack>
             )}
-          </View>
-        )}
-      </View>
-      <SymbolView
-        name="chevron.forward"
-        size={13}
-        weight="semibold"
-        tintColor={Color.ios.tertiaryLabel}
-      />
-    </Pressable>
+          </HStack>
+        </VStack>
+        <Image
+          systemName="chevron.forward"
+          modifiers={[
+            font({ textStyle: "footnote", weight: "semibold" }),
+            foregroundStyle({ type: "hierarchical", style: "tertiary" }),
+          ]}
+        />
+      </HStack>
+    </Button>
   );
 }
 
@@ -301,82 +320,3 @@ function ActionButton({
     </Button>
   );
 }
-
-const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: Color.ios.systemGroupedBackground,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
-  card: {
-    borderRadius: 26,
-    borderCurve: "continuous",
-    overflow: "hidden",
-    backgroundColor: Color.ios.secondarySystemGroupedBackground,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 20,
-    backgroundColor: Color.ios.separator,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 11,
-    paddingHorizontal: 20,
-  },
-  rowPressed: {
-    backgroundColor: Color.ios.systemGray4,
-  },
-  rowText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  rowLine: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 8,
-  },
-  detailLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  name: {
-    flexShrink: 1,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "600",
-    letterSpacing: -0.43,
-    color: Color.ios.label,
-  },
-  secondary: {
-    color: Color.ios.secondaryLabel,
-  },
-  detail: {
-    fontSize: 15,
-    lineHeight: 20,
-    letterSpacing: -0.23,
-    color: Color.ios.secondaryLabel,
-  },
-  trailing: {
-    flexShrink: 0,
-    marginLeft: "auto",
-  },
-  directory: {
-    flexShrink: 1,
-  },
-  branch: {
-    flexShrink: 0,
-    marginLeft: "auto",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-});

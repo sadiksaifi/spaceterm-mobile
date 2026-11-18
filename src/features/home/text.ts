@@ -1,10 +1,8 @@
-import { Platform } from "react-native";
-
 import type { ConnectionState } from "./model";
 
 /** Our words are the same on both platforms; only capitalization follows the platform. */
 const cased = (titleCase: string, sentenceCase: string) =>
-  Platform.OS === "ios" ? titleCase : sentenceCase;
+  process.env.EXPO_OS === "ios" ? titleCase : sentenceCase;
 
 export const DESKTOP_PROJECT_URL = "https://github.com/sadiksaifi/spaceterm";
 

@@ -1,6 +1,8 @@
 import type { UnreachableState } from "@/shared/machines/model";
 import { cased } from "@/shared/text";
 
+import type { RowCommand } from "./actions";
+
 export const text = {
   title: "Workspaces",
   more: cased("More", "More options"),
@@ -14,6 +16,8 @@ export const text = {
   back: "Back",
   clearText: "Clear text",
   loading: "Loading",
+  /** What screen readers say for the spinner on a row whose command waits for its Machine. */
+  underway: (command: RowCommand) => (command === "rename" ? "Renaming" : "Killing"),
 
   noMachines: "No Machines",
   /** The sentence around the command, which is set in a monospaced font where the platform allows. */

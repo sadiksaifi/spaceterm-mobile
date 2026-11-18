@@ -28,6 +28,7 @@ export function HomeContent({
             rows={view.rows}
             onOpen={actions.onOpenWorkspace}
             handlers={alerts.handlers}
+            underway={alerts.underway}
           />
         ) : (
           <EmptyState view={view} actions={actions} />

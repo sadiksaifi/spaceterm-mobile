@@ -37,7 +37,7 @@ export function WorkspaceList({
             row={item}
             first={index === 0}
             last={index === rows.length - 1}
-            commands={rowCommands(item, alerts.handlers)}
+            commands={rowCommands(item, alerts.handlers, alerts.underway.get(item.key) ?? null)}
             closedAlerts={alerts.closed}
             onOpen={onOpen}
           />

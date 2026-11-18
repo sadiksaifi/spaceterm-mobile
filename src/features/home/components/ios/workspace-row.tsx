@@ -4,18 +4,24 @@ import {
   Divider,
   HStack,
   Image,
+  ProgressView,
   Spacer,
   SwipeActions,
   Text,
   VStack,
+  ZStack,
 } from "@expo/ui/swift-ui";
 import {
   accessibilityHidden,
+  accessibilityLabel,
+  controlSize,
   disabled,
   font,
   foregroundStyle,
+  frame,
   labelStyle,
   lineLimit,
+  opacity,
   tint,
 } from "@expo/ui/swift-ui/modifiers";
 import { Color } from "expo-router";
@@ -32,6 +38,8 @@ import type { WorkspaceRow } from "../../model";
 import { text } from "../../text";
 
 const detailFont = font({ textStyle: "subheadline" });
+/** How far a row's text fades while its command waits for the Machine. */
+const UNDERWAY_OPACITY = 0.45;
 
 export function WorkspaceRowView({
   row,
@@ -46,6 +54,8 @@ export function WorkspaceRowView({
   const largeText = useLargeText();
   const { workspace, connection } = row;
   const connected = connection === "connected";
+  const { underway } = commands;
+  const faded = underway === null ? [] : [opacity(UNDERWAY_OPACITY)];
   // Side by side, each part keeps to one line. Stacked, each part wraps to show all of it.
   const oneLine = largeText ? [] : [lineLimit(1)];
 
@@ -81,30 +91,49 @@ export function WorkspaceRowView({
       {/* A Button in a List tints its label. The row reads as text, so it starts from the text color. */}
       <HStack spacing={10} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
         {largeText ? (
-          <VStack alignment="leading" spacing={2}>
+          <VStack alignment="leading" spacing={2} modifiers={faded}>
             {name}
             {machine}
             {directory}
             {branch}
           </VStack>
         ) : (
-          <VStack alignment="leading" spacing={2}>
+          <VStack alignment="leading" spacing={2} modifiers={faded}>
             <Line start={name} end={machine} alignment="firstTextBaseline" />
             <Line start={directory} end={branch} />
           </VStack>
         )}
         {largeText && <Spacer />}
-        <Image
-          systemName="chevron.forward"
-          modifiers={[
-            font({ textStyle: "footnote", weight: "semibold" }),
-            foregroundStyle({ type: "hierarchical", style: "tertiary" }),
-            accessibilityHidden(),
-          ]}
-        />
+        {/*
+          While a command waits for the Machine, the system spinner takes the chevron's place. The
+          hidden chevron keeps the slot's width, so the text beside it does not move.
+        */}
+        <ZStack>
+          <Image
+            systemName="chevron.forward"
+            modifiers={[
+              font({ textStyle: "footnote", weight: "semibold" }),
+              foregroundStyle({ type: "hierarchical", style: "tertiary" }),
+              accessibilityHidden(),
+              ...(underway === null ? [] : [opacity(0)]),
+            ]}
+          />
+          {underway !== null && (
+            <ProgressView
+              modifiers={[
+                controlSize("small"),
+                frame({ width: 0 }),
+                accessibilityLabel(text.underway(underway)),
+              ]}
+            />
+          )}
+        </ZStack>
       </HStack>
     </Button>
   );
+
+  // The row offers no menu or swipe until the Machine answers its command.
+  if (underway !== null) return button;
 
   // Touch and hold dims the screen and shows the menu beside the lit row.
   const withMenu = (

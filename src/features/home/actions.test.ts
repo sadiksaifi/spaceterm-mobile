@@ -138,6 +138,19 @@ describe("rowCommands", () => {
         newTab: { onPress: undefined },
         rename: { onPress: undefined },
         kill: { onPress: undefined },
+        underway: null,
+      });
+    }
+  });
+
+  it("offers nothing on a row whose Rename or Kill is under way, which does not swipe", () => {
+    for (const underway of ["rename", "kill"] as const) {
+      expect(rowCommands(row("connected"), commands, underway)).toEqual({
+        swipes: false,
+        newTab: { onPress: undefined },
+        rename: { onPress: undefined },
+        kill: { onPress: undefined },
+        underway,
       });
     }
   });

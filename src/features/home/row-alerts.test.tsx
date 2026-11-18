@@ -120,20 +120,6 @@ describe("a command the Machine refuses", () => {
 });
 
 describe("a refusal that no longer applies", () => {
-  it("is dropped when a newer command for the same Workspace has started", async () => {
-    const answers: ((result: CommandResult) => void)[] = [];
-    const killWorkspace = () => new Promise<CommandResult>((resolve) => answers.push(resolve));
-    const { result } = await render({ killWorkspace });
-
-    for (let attempt = 0; attempt < 2; attempt++) {
-      await act(async () => result.current.handlers.onKillWorkspace?.(app));
-      await act(async () => result.current.kill());
-    }
-    await act(async () => answers[0]({ kind: "failed" }));
-    await act(async () => answers[1]({ kind: "done" }));
-    expect(result.current.failure).toBeNull();
-  });
-
   it("is dropped once its Workspace is no longer listed", async () => {
     const { result, rerender } = await render({ killWorkspace: refused });
 
@@ -144,6 +130,38 @@ describe("a refusal that no longer applies", () => {
     // Another device, or an earlier Kill, took the Workspace away.
     await rerender({ snapshot: listing(web) });
     expect(result.current.failure).toBeNull();
+  });
+});
+
+describe("a command under way", () => {
+  it("shows on its row until the Machine answers, and keeps a second one from starting", async () => {
+    let answer: (result: CommandResult) => void = () => {};
+    const killWorkspace = jest.fn(
+      () => new Promise<CommandResult>((resolve) => (answer = resolve)),
+    );
+    const { result } = await render({ killWorkspace, renameWorkspace: done });
+
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
+    await act(async () => result.current.kill());
+    expect(result.current.underway.get(app.key)).toBe("kill");
+
+    // The row offers nothing meanwhile; a handler called anyway opens no alert.
+    await act(async () => result.current.handlers.onRenameWorkspace?.(app));
+    expect(result.current.alert).toBeNull();
+
+    await act(async () => answer({ kind: "done" }));
+    expect(result.current.underway.size).toBe(0);
+    expect(killWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves other rows free", async () => {
+    const killWorkspace = () => new Promise<CommandResult>(() => {});
+    const { result } = await render({ killWorkspace });
+
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
+    await act(async () => result.current.kill());
+    await act(async () => result.current.handlers.onKillWorkspace?.(web));
+    expect(result.current.alert).toEqual({ kind: "kill", row: web });
   });
 });
 

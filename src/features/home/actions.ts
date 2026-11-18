@@ -87,6 +87,9 @@ export type RowHandlers = {
   onKillWorkspace?: (row: WorkspaceRow) => void;
 };
 
+/** A command that changes a Workspace and waits for its Machine's answer. */
+export type RowCommand = "rename" | "kill";
+
 /** The commands on a row's touch and hold menu; Rename and Kill are also on its swipe. */
 export type RowCommands = {
   /** A row swipes only while its Machine is connected and Kill Workspace is available. */
@@ -94,16 +97,26 @@ export type RowCommands = {
   newTab: Control;
   rename: Control;
   kill: Control;
+  /** The command under way on the row, until its Machine answers. */
+  underway: RowCommand | null;
 };
 
-/** Every command needs the Machine, so a row whose Machine is not connected offers none. */
-export function rowCommands(row: WorkspaceRow, handlers: RowHandlers): RowCommands {
-  const connected = row.connection === "connected";
+/**
+ * Every command needs the Machine, so a row whose Machine is not connected offers none. A row
+ * with a command `underway` offers none either, until the Machine answers it.
+ */
+export function rowCommands(
+  row: WorkspaceRow,
+  handlers: RowHandlers,
+  underway: RowCommand | null = null,
+): RowCommands {
+  const available = row.connection === "connected" && underway === null;
   const control = (handler: ((row: WorkspaceRow) => void) | undefined): Control => ({
-    onPress: connected && handler ? () => handler(row) : undefined,
+    onPress: available && handler ? () => handler(row) : undefined,
   });
   return {
-    swipes: connected && handlers.onKillWorkspace !== undefined,
+    underway,
+    swipes: available && handlers.onKillWorkspace !== undefined,
     newTab: control(handlers.onNewTab),
     rename: control(handlers.onRenameWorkspace),
     kill: control(handlers.onKillWorkspace),

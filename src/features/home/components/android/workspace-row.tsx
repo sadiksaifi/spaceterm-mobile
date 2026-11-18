@@ -2,6 +2,7 @@ import deleteIcon from "@expo/material-symbols/delete.xml";
 import branchIcon from "@expo/material-symbols/graph_1.xml";
 import {
   Box,
+  CircularProgressIndicator,
   Column,
   DropdownMenu,
   DropdownMenuItem,
@@ -20,7 +21,9 @@ import {
   fillMaxSize,
   fillMaxWidth,
   padding,
+  semantics,
   Shapes,
+  size,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { useState } from "react";
@@ -47,6 +50,10 @@ const DETAIL_SHARE = 0.6;
 const MENU_WIDTH = 220;
 const MENU_CORNER = 16;
 const MENU_ELEVATION = 3;
+/** How far a row's text fades while its command waits for the Machine. */
+const UNDERWAY_ALPHA = 0.45;
+const SPINNER_SIZE = 20;
+const SPINNER_STROKE = 2;
 
 export function WorkspaceRowView({
   row,
@@ -71,6 +78,7 @@ export function WorkspaceRowView({
   const { fontScale } = useWindowDimensions();
   const { workspace, connection } = row;
   const connected = connection === "connected";
+  const { underway } = commands;
   const shape = groupedCorners(first, last);
   // Side by side, the name and the directory take the space the Machine and branch leave.
   const fill = largeText ? [] : [weight(1)];
@@ -149,35 +157,54 @@ export function WorkspaceRowView({
         clip(Shapes.RoundedCorner(shape)),
         combinedClickable({
           onClick: onOpen && (() => onOpen(row.machineId, workspace.id)),
-          onLongClick: () => setHeld(true),
+          // The row offers no menu until the Machine answers its command.
+          onLongClick: () => {
+            if (underway === null) setHeld(true);
+          },
         }),
         ...(connected ? [] : [alpha(DIMMED)]),
       ]}
     >
-      <Column
-        verticalArrangement={{ spacedBy: 2 }}
+      <Row
+        verticalAlignment="center"
+        horizontalArrangement={{ spacedBy: 12 }}
         modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}
       >
-        {largeText ? (
-          <>
-            {name}
-            {machine}
-            {directory}
-            {branch}
-          </>
-        ) : (
-          <>
-            <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 12 }}>
+        <Column
+          verticalArrangement={{ spacedBy: 2 }}
+          modifiers={[weight(1), ...(underway === null ? [] : [alpha(UNDERWAY_ALPHA)])]}
+        >
+          {largeText ? (
+            <>
               {name}
               {machine}
-            </Row>
-            <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 12 }}>
               {directory}
               {branch}
-            </Row>
-          </>
+            </>
+          ) : (
+            <>
+              <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 12 }}>
+                {name}
+                {machine}
+              </Row>
+              <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 12 }}>
+                {directory}
+                {branch}
+              </Row>
+            </>
+          )}
+        </Column>
+        {underway !== null && (
+          <CircularProgressIndicator
+            color={material.primary}
+            strokeWidth={SPINNER_STROKE}
+            modifiers={[
+              size(SPINNER_SIZE, SPINNER_SIZE),
+              semantics({ contentDescription: text.underway(underway) }),
+            ]}
+          />
         )}
-      </Column>
+      </Row>
     </Surface>
   );
 

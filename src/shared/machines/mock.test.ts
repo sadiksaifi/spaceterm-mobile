@@ -91,6 +91,24 @@ describe("the mock client", () => {
     });
   });
 
+  it("treats a directory its parent names as one that exists and is empty", async () => {
+    // The parent names `src`, which has no entry of its own.
+    const named: MockMachine = {
+      ...mac,
+      directories: { ...mac.directories, "/Users/you/Projects/app": ["src"] },
+    };
+    const client = createMockClient([named]);
+    expect(await client.listDirectory("mac", "~/Projects/app/src")).toMatchObject({
+      kind: "listed",
+      directories: [],
+    });
+
+    await client.createWorkspace("mac", "~/Projects/app/src", { createDirectory: true });
+    expect(await client.listDirectory("mac", "~/Projects/app")).toMatchObject({
+      directories: [{ name: "src", path: "~/Projects/app/src/" }],
+    });
+  });
+
   it("refuses every other command when asked to, so Try Again succeeds", async () => {
     const client = createMockClient([{ ...mac, workspaces: [workspace] }], { refuse: true });
 

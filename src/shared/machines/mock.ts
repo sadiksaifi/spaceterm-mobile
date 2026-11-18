@@ -10,7 +10,8 @@ import type {
 
 /**
  * A Machine as the mock client knows it: its directories by absolute path, the branch of each
- * repository, and its Workspaces. A directory the Machine cannot list is `"unavailable"`.
+ * repository, and its Workspaces. A directory the Machine cannot list is `"unavailable"`. A
+ * directory its parent names but that has no entry of its own is empty.
  */
 export type MockMachine = {
   id: string;
@@ -34,7 +35,7 @@ export function createMockClient(
 ): MachineClient {
   const machines = seed.map((machine) => ({
     ...machine,
-    directories: new Map(Object.entries(machine.directories)),
+    directories: withChildEntries(machine.directories),
     workspaces: machine.workspaces && [...machine.workspaces],
   }));
   type State = (typeof machines)[number];
@@ -179,13 +180,26 @@ export function createMockClient(
       const up = parent(path);
       if (up !== null) {
         const siblings = target.directories.get(up);
-        if (Array.isArray(siblings)) {
+        if (Array.isArray(siblings) && !siblings.includes(basename(path))) {
           target.directories.set(up, [...siblings, basename(path)].sort());
         }
       }
       path = up;
     }
   }
+}
+
+/** The directories by path, with an empty entry for each one that only its parent names. */
+function withChildEntries(directories: MockMachine["directories"]) {
+  const all = new Map(Object.entries(directories));
+  for (const [path, children] of Object.entries(directories)) {
+    if (children === "unavailable") continue;
+    for (const name of children) {
+      const child = join(path, name);
+      if (!all.has(child)) all.set(child, []);
+    }
+  }
+  return all;
 }
 
 /** An absolute path without a trailing slash, `/` for the root. */

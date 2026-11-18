@@ -98,3 +98,17 @@ it("moves to another host without being dismissed", async () => {
   await search.answer("dismissed");
   expect(onDismiss).toHaveBeenCalledWith(app);
 });
+
+it("keeps asking a host that is slow to get ready", async () => {
+  // More refusals than a few frames' worth: the host is still composing on a slow device.
+  const slow = host(32);
+  const { result, rerender } = await render();
+
+  await act(async () => result.current.attach(slow.ref));
+  await rerender({ shown: app });
+  await act(() => new Promise((resolve) => setTimeout(resolve, 1600)));
+  expect(slow.showSnackbar).toHaveBeenLastCalledWith(
+    expect.objectContaining({ message: "Couldn't kill app" }),
+  );
+  expect(slow.showSnackbar).toHaveBeenCalledTimes(33);
+});

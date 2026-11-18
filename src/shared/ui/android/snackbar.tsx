@@ -9,8 +9,12 @@ export type Snackbar = {
   generation: number;
 };
 
-/** A host Compose has not drawn yet refuses to show; it is ready within a few frames. */
+/**
+ * A host Compose has not drawn yet refuses to show. It is usually ready within a few frames; past
+ * those, it is asked again less often until it is.
+ */
 const READY_FRAMES = 30;
+const SLOW_RETRY_MS = 500;
 
 /**
  * The Material snackbar that reports a refused command, in the inverse colors Material gives it,
@@ -45,21 +49,24 @@ export function useSnackbar<T extends object>(
     // A host that is replaced ends its snackbar as dismissed; only the person's answer counts.
     let current = true;
     let frame = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const show = (attempt: number) =>
       host
         .showSnackbar({ message, actionLabel, withDismissAction: true, duration: "indefinite" })
         .then(
           (result) => current && answer(shown, result),
           () => {
-            if (current && attempt < READY_FRAMES) {
-              frame = requestAnimationFrame(() => show(attempt + 1));
-            }
+            if (!current) return;
+            const next = () => show(attempt + 1);
+            if (attempt < READY_FRAMES) frame = requestAnimationFrame(next);
+            else timer = setTimeout(next, SLOW_RETRY_MS);
           },
         );
     void show(0);
     return () => {
       current = false;
       cancelAnimationFrame(frame);
+      clearTimeout(timer);
     };
   }, [shown, host]);
 

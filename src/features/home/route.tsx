@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 
-import { newWorkspaceHref } from "@/features/new-workspace/href";
+import { newWorkspaceHref } from "@/features/new-workspace/entry";
 import { useMachineClient, useMachines } from "@/shared/machines/client";
 
 import HomeScreen from "./screen";

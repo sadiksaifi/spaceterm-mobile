@@ -1,10 +1,14 @@
+import type { Href } from "expo-router";
+
 import type { MachinesSnapshot } from "@/shared/machines/model";
 
-export type FirstStep = { step: "machine" } | { step: "directory"; machineId: string };
-
-/** With one Machine there is nothing to choose, so the flow opens on its directories. */
-export function firstStep(snapshot: MachinesSnapshot): FirstStep {
+/**
+ * Where New Workspace opens for these Machines. With one Machine there is nothing to choose, so
+ * the flow opens on its directories.
+ */
+export function newWorkspaceHref(snapshot: MachinesSnapshot): Href {
   const [only, ...others] = snapshot.machines;
-  if (only !== undefined && others.length === 0) return { step: "directory", machineId: only.id };
-  return { step: "machine" };
+  return only !== undefined && others.length === 0
+    ? { pathname: "/new-workspace/[machineId]", params: { machineId: only.id } }
+    : "/new-workspace";
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import { act, renderHook } from "@testing-library/react-native";
 
-import type { CommandResult } from "@/shared/machines/model";
+import type { CommandResult, MachinesSnapshot } from "@/shared/machines/model";
 
 import type { HomeActions } from "./actions";
 import type { WorkspaceRow } from "./model";
@@ -15,12 +15,30 @@ const row = (id: string, name: string): WorkspaceRow => ({
   connection: "connected",
 });
 const app = row("w1", "app");
+const web = row("w2", "web");
+
+/** One Machine that lists `rows`. */
+const listing = (...rows: WorkspaceRow[]): MachinesSnapshot => ({
+  machines: [
+    {
+      id: "mac",
+      name: "MacBook Pro",
+      connection: "connected",
+      workspaces: rows.map((listed) => listed.workspace),
+    },
+  ],
+  starting: false,
+});
 
 const refused = async (): Promise<CommandResult> => ({ kind: "failed" });
 const done = async (): Promise<CommandResult> => ({ kind: "done" });
 
 async function render(actions: Partial<HomeActions>) {
-  return renderHook(() => useRowAlerts({ onGetDesktop: () => {}, ...actions }));
+  return renderHook(
+    ({ snapshot }: { snapshot: MachinesSnapshot }) =>
+      useRowAlerts({ onGetDesktop: () => {}, ...actions }, snapshot),
+    { initialProps: { snapshot: listing(app, web) } },
+  );
 }
 
 function failureOf(alerts: RowAlerts): RowFailure {
@@ -75,7 +93,7 @@ describe("a command the Machine refuses", () => {
 
     await act(async () => result.current.handlers.onKillWorkspace?.(app));
     await act(async () => result.current.kill());
-    await act(async () => result.current.handlers.onRenameWorkspace?.(row("w2", "web")));
+    await act(async () => result.current.handlers.onRenameWorkspace?.(web));
     await act(async () => answer({ kind: "failed" }));
 
     expect(result.current.alert).toMatchObject({ kind: "rename" });
@@ -98,6 +116,34 @@ describe("a command the Machine refuses", () => {
 
     await act(async () => result.current.retry(stale));
     expect(killWorkspace).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a refusal that no longer applies", () => {
+  it("is dropped when a newer command for the same Workspace has started", async () => {
+    const answers: ((result: CommandResult) => void)[] = [];
+    const killWorkspace = () => new Promise<CommandResult>((resolve) => answers.push(resolve));
+    const { result } = await render({ killWorkspace });
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await act(async () => result.current.handlers.onKillWorkspace?.(app));
+      await act(async () => result.current.kill());
+    }
+    await act(async () => answers[0]({ kind: "failed" }));
+    await act(async () => answers[1]({ kind: "done" }));
+    expect(result.current.failure).toBeNull();
+  });
+
+  it("is dropped once its Workspace is no longer listed", async () => {
+    const { result, rerender } = await render({ killWorkspace: refused });
+
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
+    await act(async () => result.current.kill());
+    expect(result.current.failure).toEqual({ command: "kill", row: app });
+
+    // Another device, or an earlier Kill, took the Workspace away.
+    await rerender({ snapshot: listing(web) });
+    expect(result.current.failure).toBeNull();
   });
 });
 

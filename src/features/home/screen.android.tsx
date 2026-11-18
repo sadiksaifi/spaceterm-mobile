@@ -28,7 +28,7 @@ const ABOVE_BUTTON = 16 + 56 + 16;
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const view = homeView(snapshot);
   const controls = homeControls(view, actions);
-  const alerts = useRowAlerts(actions);
+  const alerts = useRowAlerts(actions, snapshot);
   // Android reports a refused command in a snackbar, which leaves the list usable.
   const snackbar = useSnackbar(
     alerts.failure,

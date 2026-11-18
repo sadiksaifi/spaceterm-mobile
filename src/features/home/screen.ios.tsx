@@ -11,7 +11,7 @@ import { text } from "./text";
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const view = homeView(snapshot);
   const controls = homeControls(view, actions);
-  const alerts = useRowAlerts(actions);
+  const alerts = useRowAlerts(actions, snapshot);
 
   return (
     <>

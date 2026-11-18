@@ -4,8 +4,6 @@ import type { ConnectionState } from "./model";
 const cased = (titleCase: string, sentenceCase: string) =>
   process.env.EXPO_OS === "ios" ? titleCase : sentenceCase;
 
-export const DESKTOP_PROJECT_URL = "https://github.com/sadiksaifi/spaceterm";
-
 export const text = {
   title: "Workspaces",
   more: cased("More", "More options"),

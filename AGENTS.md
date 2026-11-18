@@ -4,7 +4,7 @@ The native iOS and Android companion app for [SpaceTerm Desktop](https://github.
 
 ## Architecture
 
-- Follow **vertical slices**: organize by feature, co-locating related UI, state, and behavior. Keep Expo Router routes thin.
+- Follow **vertical slices**: organize by feature, co-locating related UI, state, and behavior. A route file only re-exports its feature's route; a layout file declares its navigator.
 - Keep behavior, invariants, and cleanup in deep modules with narrow interfaces. Expose intentional operations and typed recoverable failures.
 - Keep product policy portable. Access frameworks, services, and platform capabilities through constructor-injected adapters only when justified by replaceability or locality.
 - Prefer feature-local code over premature sharing. Every line and abstraction we own is maintenance.
@@ -15,10 +15,14 @@ Illustrative structure, not a prescribed layout:
 ```text
 src/
 ├── app/
-│   └── <feature>.tsx       # Route
-└── features/
-    └── <feature>/
-        └── screen.tsx      # Implementation
+│   └── <route>.tsx                 # Re-exports features/<feature>/route.tsx
+├── features/
+│   └── <feature>/
+│       ├── route.tsx               # Supplies data and actions to the screen
+│       ├── screen.<platform>.tsx   # Header and toolbar; the body comes from components/
+│       └── components/<platform>/  # One component per file
+└── shared/                         # Code two or more features use, such as theme/
+modules/                            # Local Expo modules with native code
 ```
 
 ## Platform experience

@@ -1,7 +1,7 @@
 import { Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
-import { useNavigationTheme } from "@/theme/navigation";
+import { useNavigationTheme } from "@/shared/theme/navigation";
 
 export default function RootLayout() {
   return (

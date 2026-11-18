@@ -17,3 +17,16 @@ export type HomeActions = {
 };
 
 export type HomeScreenProps = HomeActions & { snapshot: HomeSnapshot };
+
+/**
+ * Machine Settings opens the one unreachable Machine's settings, or Settings when several
+ * Machines are paired.
+ */
+export function machineSettingsAction(
+  machine: { id: string } | null,
+  actions: HomeActions,
+): (() => void) | undefined {
+  if (machine === null) return actions.onOpenSettings;
+  const { onMachineSettings } = actions;
+  return onMachineSettings && (() => onMachineSettings(machine.id));
+}

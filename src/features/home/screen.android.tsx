@@ -3,6 +3,7 @@ import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml
 import machineIcon from "@expo/material-symbols/desktop_windows.xml";
 import branchIcon from "@expo/material-symbols/graph_1.xml";
 import moreIcon from "@expo/material-symbols/more_vert.xml";
+import searchOffIcon from "@expo/material-symbols/search_off.xml";
 import workspacesIcon from "@expo/material-symbols/stacks.xml";
 import { Host } from "@expo/ui";
 import {
@@ -279,8 +280,8 @@ function EmptyState({
     case "no-results":
       return (
         <Centered>
-          <StateTitle>{text.noResultsTitle(view.query)}</StateTitle>
-          <StateBody>{text.noResultsBody}</StateBody>
+          <StateTile icon={searchOffIcon} />
+          <StateBody>{text.noResultsTitle(view.query)}</StateBody>
         </Centered>
       );
 
@@ -334,7 +335,7 @@ function Centered({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** A state's icon on a tile: the error container after an attempt failed, the primary container otherwise. */
+/** A state's icon on a tile: the error container after an attempt failed, the secondary container otherwise. */
 function StateTile({ icon, failed = false }: { icon: number; failed?: boolean }) {
   const colors = useMaterialColors();
   return (
@@ -344,13 +345,13 @@ function StateTile({ icon, failed = false }: { icon: number; failed?: boolean })
         padding(0, 0, 0, 20),
         size(80, 80),
         clip(Shapes.RoundedCorner(28)),
-        background(failed ? colors.errorContainer : colors.primaryContainer),
+        background(failed ? colors.errorContainer : colors.secondaryContainer),
       ]}
     >
       <Icon
         source={icon}
         size={40}
-        tint={failed ? colors.onErrorContainer : colors.onPrimaryContainer}
+        tint={failed ? colors.onErrorContainer : colors.onSecondaryContainer}
       />
     </Box>
   );

@@ -12,6 +12,8 @@ export const text = {
   addMachine: "Add Machine",
   settings: "Settings",
   newWorkspace: "New Workspace",
+  /** The iOS search field placeholder; the toolbar has no room for more. */
+  search: "Search",
   searchWorkspaces: "Search Workspaces",
   loading: "Loading",
 

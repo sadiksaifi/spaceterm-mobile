@@ -1,7 +1,6 @@
 import { Host } from "@expo/ui";
 import {
   Button,
-  ContentUnavailableView,
   HStack,
   Image,
   List,
@@ -16,6 +15,7 @@ import {
   buttonStyle,
   controlSize,
   disabled,
+  fixedSize,
   font,
   foregroundStyle,
   frame,
@@ -27,7 +27,8 @@ import {
   textCase,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import { useCallback, useState } from "react";
+import type { ColorValue } from "react-native";
+import { useCallback, useState, type ComponentProps } from "react";
 
 import { useColors } from "@/theme/colors";
 
@@ -35,8 +36,13 @@ import { homeView, isSearchable, type HomeView, type WorkspaceRow } from "./mode
 import type { HomeActions, HomeScreenProps } from "./props";
 import { rowStateText, text, unreachableText } from "./text";
 
-/** Two stacked buttons in an empty state share this width. */
+/** Empty-state metrics from the mockups. */
 const ACTION_WIDTH = 230;
+const ACTION_HEIGHT = 34;
+/** Empty states sit above center, clear of the bottom toolbar. */
+const BOTTOM_INSET = 96;
+/** Lets a frame take all the space its container offers, like SwiftUI's `.infinity`. */
+const FILL = Number.POSITIVE_INFINITY;
 
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const [query, setQuery] = useState("");
@@ -76,7 +82,7 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
       {isSearchable(view) && (
         <>
           <Stack.SearchBar
-            placeholder={text.searchWorkspaces}
+            placeholder={text.search}
             onChangeText={(event) => setQuery(event.nativeEvent.text)}
             onCancelButtonPress={() => setQuery("")}
           />
@@ -133,14 +139,16 @@ function WorkspaceRowView({
   row: WorkspaceRow;
   onOpen: HomeActions["onOpenWorkspace"];
 }) {
+  const colors = useColors();
   const { workspace, connection } = row;
   const connected = connection === "connected";
 
   return (
     <Button onPress={() => onOpen?.(row)} modifiers={[disabled(!onOpen)]}>
-      <HStack spacing={10}>
+      {/* A Button in a List tints its label. The row reads as text, so it starts from the text color. */}
+      <HStack spacing={10} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
         <VStack alignment="leading" spacing={2}>
-          <HStack spacing={8} alignment="firstTextBaseline">
+          <HStack spacing={0} alignment="firstTextBaseline">
             <SwiftText
               modifiers={[
                 font({ textStyle: "headline" }),
@@ -153,18 +161,18 @@ function WorkspaceRowView({
             >
               {workspace.name}
             </SwiftText>
-            <Spacer />
-            <SwiftText modifiers={[detailFont, secondary, lineLimit(1)]}>
+            <Spacer minLength={8} />
+            <SwiftText modifiers={[detailFont, secondary, lineLimit(1), fixedSize()]}>
               {row.machineName}
             </SwiftText>
           </HStack>
-          <HStack spacing={8}>
+          <HStack spacing={0}>
             <SwiftText modifiers={[detailFont, secondary, lineLimit(1)]}>
               {connection === "connected" ? workspace.directory : rowStateText(connection)}
             </SwiftText>
-            <Spacer />
+            <Spacer minLength={8} />
             {connected && workspace.branch !== undefined && (
-              <HStack spacing={3}>
+              <HStack spacing={3} modifiers={[fixedSize()]}>
                 <Image
                   systemName="arrow.triangle.branch"
                   modifiers={[font({ textStyle: "caption" }), secondary]}
@@ -195,55 +203,66 @@ function EmptyState({
   view: Exclude<HomeView, { kind: "workspaces" }>;
   actions: HomeActions;
 }) {
+  const colors = useColors();
   switch (view.kind) {
     case "loading":
       return (
-        <ProgressView>
-          <SwiftText modifiers={[textCase("uppercase"), font({ textStyle: "caption" })]}>
-            {text.loading}
-          </SwiftText>
-        </ProgressView>
+        <Centered extraBottom={60}>
+          <VStack spacing={8} modifiers={[secondary]}>
+            <ProgressView />
+            <SwiftText modifiers={[textCase("uppercase"), font({ textStyle: "caption" })]}>
+              {text.loading}
+            </SwiftText>
+          </VStack>
+        </Centered>
       );
 
-    case "no-machines":
+    case "no-machines": {
+      const [before, command, after] = text.noMachinesBody;
       return (
-        <ContentUnavailableView
-          title={text.noMachines}
-          systemImage="desktopcomputer"
-          description={text.noMachinesBody.join("")}
-          actions={
-            <VStack spacing={10}>
-              <ActionButton label={text.scanQrCode} onPress={actions.onScanQrCode} prominent />
-              <ActionButton
-                label={text.pasteInvitationLink}
-                onPress={actions.onPasteInvitationLink}
-              />
-              <Button
-                label={text.getDesktop}
-                onPress={actions.onGetDesktop}
-                modifiers={[buttonStyle("borderless"), padding({ top: 4 })]}
-              />
-            </VStack>
-          }
-        />
+        <Centered>
+          <StateIcon systemName="desktopcomputer" />
+          <StateTitle>{text.noMachines}</StateTitle>
+          <StateBody>
+            {before}
+            {commandText(command, colors.text)}
+            {after}
+          </StateBody>
+          <VStack spacing={10} modifiers={[padding({ top: 20 })]}>
+            <ActionButton label={text.scanQrCode} onPress={actions.onScanQrCode} prominent />
+            <ActionButton
+              label={text.pasteInvitationLink}
+              onPress={actions.onPasteInvitationLink}
+            />
+            <Button
+              onPress={actions.onGetDesktop}
+              modifiers={[buttonStyle("borderless"), frame({ height: ACTION_HEIGHT })]}
+            >
+              <SwiftText modifiers={[font({ textStyle: "subheadline" })]}>
+                {text.getDesktop}
+              </SwiftText>
+            </Button>
+          </VStack>
+        </Centered>
       );
+    }
 
     case "no-workspaces":
       return (
-        <ContentUnavailableView
-          title={text.noWorkspaces}
-          systemImage="square.stack"
-          description={text.noWorkspacesBody}
-        />
+        <Centered>
+          <StateIcon systemName="square.stack" />
+          <StateTitle>{text.noWorkspaces}</StateTitle>
+          <StateBody>{text.noWorkspacesBody}</StateBody>
+        </Centered>
       );
 
     case "no-results":
       return (
-        <ContentUnavailableView
-          title={text.noResultsTitle(view.query)}
-          systemImage="magnifyingglass"
-          description={text.noResultsBody}
-        />
+        <Centered>
+          <StateIcon systemName="magnifyingglass" />
+          <StateTitle>{text.noResultsTitle(view.query)}</StateTitle>
+          <StateBody>{text.noResultsBody}</StateBody>
+        </Centered>
       );
 
     case "unreachable": {
@@ -252,45 +271,102 @@ function EmptyState({
       const onMachineSettings = machine
         ? actions.onMachineSettings && (() => actions.onMachineSettings?.(machine.id))
         : actions.onOpenSettings;
-      const machineSettings = (
-        <ActionButton label={text.machineSettings} onPress={onMachineSettings} />
-      );
-
-      if (view.state === "reconnecting") {
-        return (
-          <VStack spacing={14} modifiers={[padding({ horizontal: 40 })]}>
-            <ProgressView modifiers={[controlSize("large")]} />
-            <SwiftText
-              modifiers={[
-                font({ textStyle: "title2", weight: "bold" }),
-                multilineTextAlignment("center"),
-              ]}
-            >
-              {title}
-            </SwiftText>
-            {machineSettings}
-          </VStack>
-        );
-      }
+      const reconnecting = view.state === "reconnecting";
 
       return (
-        <ContentUnavailableView
-          title={title}
-          systemImage="desktopcomputer.trianglebadge.exclamationmark"
-          description={body}
-          actions={
-            <VStack spacing={10}>
+        <Centered>
+          {reconnecting ? (
+            <ProgressView modifiers={[controlSize("large"), secondary, padding({ bottom: 16 })]} />
+          ) : (
+            <StateIcon systemName="desktopcomputer.trianglebadge.exclamationmark" />
+          )}
+          <StateTitle>{title}</StateTitle>
+          {body !== undefined && <StateBody>{body}</StateBody>}
+          <VStack spacing={10} modifiers={[padding({ top: reconnecting ? 24 : 20 })]}>
+            {!reconnecting && (
               <ActionButton label={text.tryAgain} onPress={actions.onTryAgain} prominent />
-              {machineSettings}
-            </VStack>
-          }
-        />
+            )}
+            <ActionButton label={text.machineSettings} onPress={onMachineSettings} />
+          </VStack>
+        </Centered>
       );
     }
   }
 }
 
-/** A capsule button of the system empty state: filled blue when prominent, gray otherwise. */
+/** Fills the screen and centers its content above the bottom toolbar. */
+function Centered({
+  children,
+  extraBottom = 0,
+}: {
+  children: React.ReactNode;
+  extraBottom?: number;
+}) {
+  return (
+    <VStack
+      spacing={0}
+      modifiers={[
+        padding({ leading: 40, trailing: 40, bottom: BOTTOM_INSET + extraBottom }),
+        frame({ maxWidth: FILL, maxHeight: FILL }),
+      ]}
+    >
+      {children}
+    </VStack>
+  );
+}
+
+function StateIcon({ systemName }: { systemName: ComponentProps<typeof Image>["systemName"] }) {
+  return (
+    <Image
+      systemName={systemName}
+      modifiers={[font({ size: 48 }), secondary, padding({ bottom: 14 })]}
+    />
+  );
+}
+
+function StateTitle({ children }: { children: string }) {
+  return (
+    <SwiftText
+      modifiers={[font({ textStyle: "title2", weight: "bold" }), multilineTextAlignment("center")]}
+    >
+      {children}
+    </SwiftText>
+  );
+}
+
+function StateBody({ children }: { children: React.ReactNode }) {
+  return (
+    <SwiftText
+      modifiers={[
+        font({ textStyle: "callout" }),
+        secondary,
+        multilineTextAlignment("center"),
+        padding({ top: 6 }),
+      ]}
+    >
+      {children}
+    </SwiftText>
+  );
+}
+
+/**
+ * A command inside a sentence, in the monospaced system font and the text color. A plain function,
+ * not a component: a nested Text renders only when the element passed in is a Text itself.
+ */
+function commandText(command: string, color: ColorValue) {
+  return (
+    <SwiftText
+      modifiers={[
+        font({ textStyle: "subheadline", design: "monospaced" }),
+        foregroundStyle({ type: "color", color }),
+      ]}
+    >
+      {command}
+    </SwiftText>
+  );
+}
+
+/** A capsule button of an empty state: filled blue when prominent, gray otherwise. */
 function ActionButton({
   label,
   onPress,
@@ -306,13 +382,14 @@ function ActionButton({
       modifiers={[
         buttonStyle(prominent ? "borderedProminent" : "bordered"),
         buttonBorderShape("capsule"),
+        frame({ width: ACTION_WIDTH }),
         disabled(!onPress),
       ]}
     >
       <SwiftText
         modifiers={[
           font({ weight: "semibold", textStyle: "subheadline" }),
-          frame({ maxWidth: ACTION_WIDTH }),
+          frame({ maxWidth: FILL, minHeight: ACTION_HEIGHT - 14 }),
         ]}
       >
         {label}

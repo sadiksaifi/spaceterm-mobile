@@ -178,7 +178,10 @@ export default function DirectoryStepScreen({
   );
 }
 
-/** The path of the directory to open. Return opens it, as the checkmark does. */
+/**
+ * The path of the directory to open. Return opens it, as the checkmark does. The keyboard has a
+ * space bar, which the URL keyboard lacks, as paths such as `~/Library/Application Support` need.
+ */
 function PathField({
   label,
   initial,
@@ -201,7 +204,7 @@ function PathField({
       modifiers={[
         textInputAutocapitalization("never"),
         autocorrectionDisabled(),
-        keyboardType("url"),
+        keyboardType("ascii-capable"),
         submitLabel("go"),
         onSubmit(submit),
         disabled(!enabled),

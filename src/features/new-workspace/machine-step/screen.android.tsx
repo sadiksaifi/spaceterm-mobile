@@ -1,6 +1,6 @@
 import closeIcon from "@expo/material-symbols/close.xml";
-import computerIcon from "@expo/material-symbols/computer.xml";
 import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml";
+import machineIcon from "@expo/material-symbols/desktop_windows.xml";
 import { Host } from "@expo/ui";
 import {
   Column,
@@ -110,7 +110,7 @@ function MachineRow({
         horizontalArrangement={{ spacedBy: 16 }}
         modifiers={[fillMaxWidth(), padding(16, connected ? 16 : 10, 16, connected ? 16 : 10)]}
       >
-        <Icon source={connected ? computerIcon : notConnectedIcon} tint={colors.secondaryText} />
+        <Icon source={connected ? machineIcon : notConnectedIcon} tint={colors.secondaryText} />
         <Column>
           <Text maxLines={1} overflow="ellipsis" style={{ typography: "bodyLarge" }}>
             {machine.name}

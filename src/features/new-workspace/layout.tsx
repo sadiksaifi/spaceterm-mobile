@@ -5,5 +5,11 @@ import { Stack } from "expo-router";
  * iOS, with Back to return; on Android each step is a page.
  */
 export default function NewWorkspaceLayout() {
-  return <Stack screenOptions={{ headerShown: process.env.EXPO_OS === "ios" }} />;
+  const ios = process.env.EXPO_OS === "ios";
+  // iOS shows Back as the chevron alone, as the design draws it.
+  return (
+    <Stack
+      screenOptions={{ headerShown: ios, ...(ios && { headerBackButtonDisplayMode: "minimal" }) }}
+    />
+  );
 }

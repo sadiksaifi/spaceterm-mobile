@@ -93,7 +93,7 @@ it("does not leave the step that has already closed when the Machine answers", a
   expect(onOpened).not.toHaveBeenCalled();
 });
 
-it("drops the answer to an attempt once the person has picked another directory", async () => {
+it("opens the Workspace it asked for when the person taps a row before the Machine answers", async () => {
   let answer: (result: CreateWorkspaceResult) => void = () => {};
   const { client, createWorkspace } = machine([]);
   createWorkspace.mockImplementationOnce(
@@ -103,10 +103,9 @@ it("drops the answer to an attempt once the person has picked another directory"
 
   await act(async () => result.current.edit("~/notes"));
   await act(async () => result.current.open());
-  await act(async () => result.current.edit("~/notes2"));
-  await act(async () => answer({ kind: "missing-directory", directory: "~/notes" }));
-  expect(result.current.askingCreate).toBeNull();
+  await act(async () => result.current.navigate("~/Projects/"));
+  expect(result.current.view.field).toBe("~/notes");
 
   await act(async () => answer(created));
-  expect(onOpened).not.toHaveBeenCalled();
+  expect(onOpened).toHaveBeenCalledTimes(1);
 });

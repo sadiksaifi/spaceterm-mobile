@@ -16,6 +16,7 @@ import {
 import {
   accessibilityHidden,
   autocorrectionDisabled,
+  disabled,
   font,
   foregroundStyle,
   frame,
@@ -112,6 +113,7 @@ export default function DirectoryStepScreen({
                       key={picker.fieldVersion}
                       label={text.directoryOn(machineName)}
                       initial={view.field}
+                      enabled={!view.opening}
                       onEdit={picker.edit}
                       onSubmit={picker.open}
                     />
@@ -122,6 +124,7 @@ export default function DirectoryStepScreen({
                         <DirectoryRow
                           label={text.parentDirectory}
                           symbol="arrow.turn.left.up"
+                          enabled={!view.opening}
                           onPress={() => view.parent !== null && picker.navigate(view.parent)}
                         />
                       )}
@@ -132,6 +135,7 @@ export default function DirectoryStepScreen({
                             label={directory.name}
                             symbol="folder"
                             tinted
+                            enabled={!view.opening}
                             onPress={() => picker.navigate(directory.path)}
                           />
                         ))}
@@ -141,7 +145,7 @@ export default function DirectoryStepScreen({
                     key={view.content.kind}
                     content={view.content}
                     listBottom={listBottom}
-                    onRetry={picker.navigate}
+                    onRetry={view.opening ? undefined : picker.navigate}
                   />
                 </List>
               </Alert.Trigger>
@@ -177,11 +181,13 @@ export default function DirectoryStepScreen({
 function PathField({
   label,
   initial,
+  enabled,
   onEdit,
   onSubmit: submit,
 }: {
   label: string;
   initial: string;
+  enabled: boolean;
   onEdit: (field: string) => void;
   onSubmit: () => void;
 }) {
@@ -197,6 +203,7 @@ function PathField({
         keyboardType("url"),
         submitLabel("go"),
         onSubmit(submit),
+        disabled(!enabled),
       ]}
     />
   );
@@ -207,17 +214,19 @@ function DirectoryRow({
   label,
   symbol,
   tinted = false,
+  enabled,
   onPress,
 }: {
   label: string;
   symbol: ComponentProps<typeof Image>["systemName"];
   tinted?: boolean;
+  enabled: boolean;
   onPress: () => void;
 }) {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
   return (
-    <Button onPress={onPress}>
+    <Button onPress={onPress} modifiers={[disabled(!enabled)]}>
       <HStack spacing={12} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
         <Image
           systemName={symbol}
@@ -254,7 +263,8 @@ function ContentState({
   content: PickerView["content"];
   /** Where the list ends on screen, `null` until it is known. */
   listBottom: number | null;
-  onRetry: (path: string) => void;
+  /** Try Again, where the Machine cannot list; unavailable while `undefined`. */
+  onRetry: ((path: string) => void) | undefined;
 }) {
   // Where the state starts on screen, taken once: scrolling moves it, and the state must not
   // grow with the scroll.
@@ -295,7 +305,7 @@ function ContentState({
             <VStack modifiers={[padding({ top: 20 })]}>
               <ActionButton
                 label={text.tryAgain}
-                onPress={() => onRetry(content.retryPath)}
+                onPress={onRetry && (() => onRetry(content.retryPath))}
                 prominent
                 fitsLabel
               />

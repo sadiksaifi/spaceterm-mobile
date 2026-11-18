@@ -40,6 +40,7 @@ describe("the Directory Picker", () => {
       field: "~/",
       content: { kind: "loading" },
       parent: null,
+      opening: false,
       canOpen: false,
     });
   });
@@ -49,6 +50,7 @@ describe("the Directory Picker", () => {
       field: "~/",
       content: { kind: "directories", directories: home.directories },
       parent: "/Users/",
+      opening: false,
       canOpen: true,
     });
   });
@@ -88,6 +90,7 @@ describe("the Directory Picker", () => {
       field: "/var/root/",
       content: { kind: "unavailable", retryPath: "/var/root/" },
       parent: "/var/",
+      opening: false,
       canOpen: false,
     });
     const typed = run([{ type: "edit", field: "~/notes " }], state);
@@ -153,15 +156,15 @@ describe("the Directory Picker", () => {
     expect(run([{ type: "edit", field: "~/notes" }], failed).confirm).toEqual({ kind: "idle" });
   });
 
-  it("drops the answer to an attempt once another directory is picked", () => {
+  it("takes no other directory while an attempt is under way, so its answer still applies", () => {
     const opening = run([{ type: "edit", field: "~/notes" }, { type: "open" }], atHome);
-    const moved = run([{ type: "navigate", path: "~/Projects/" }], opening);
-    expect(moved.confirm).toEqual({ kind: "idle" });
-    expect(run([{ type: "missing-directory", directory: "~/notes" }], moved).confirm).toEqual({
-      kind: "idle",
+    expect(pickerView(opening).opening).toBe(true);
+    expect(run([{ type: "navigate", path: "~/Projects/" }], opening)).toBe(opening);
+    expect(run([{ type: "edit", field: "~/notes2" }], opening)).toBe(opening);
+    expect(run([{ type: "missing-directory", directory: "~/notes" }], opening).confirm).toEqual({
+      kind: "asking-create",
+      directory: "~/notes",
     });
-    const failure = { directory: "~/notes", createDirectory: false };
-    expect(run([{ type: "failed", failure }], moved).confirm).toEqual({ kind: "idle" });
   });
 
   it("shows the path the Machine answers with, written its way", () => {

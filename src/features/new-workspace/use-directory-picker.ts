@@ -45,8 +45,6 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
   const loadingPath = listing.kind === "loading" ? listing.path : null;
   // The state the last attempt started from: a second tap before the next render does nothing.
   const startedFrom = useRef<typeof state | null>(null);
-  // Counts attempts and the picks that leave them behind; only the latest attempt's answer counts.
-  const latest = useRef(0);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -66,11 +64,10 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
   function attempt(directory: string, createDirectory: boolean) {
     if (startedFrom.current === state) return;
     startedFrom.current = state;
-    const id = ++latest.current;
     dispatch({ type: createDirectory ? "create" : "open" });
     void client.createWorkspace(machineId, directory, { createDirectory }).then((result) => {
-      // The step has closed, or the person has picked another directory since.
-      if (!mounted.current || id !== latest.current) return;
+      // The picker takes no other directory meanwhile, so only a closed step drops the answer.
+      if (!mounted.current) return;
       switch (result.kind) {
         case "created":
           onOpened();
@@ -84,25 +81,13 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
     });
   }
 
-  /** Picking another directory leaves an attempt under way behind. */
-  function pickAnother() {
-    latest.current += 1;
-  }
-
   return {
     view: pickerView(state),
     fieldVersion: state.fieldVersion,
     askingCreate: confirm.kind === "asking-create" ? confirm.directory : null,
     failure: confirm.kind === "failed" ? confirm : null,
-    edit(typed) {
-      if (typed === state.field) return;
-      pickAnother();
-      dispatch({ type: "edit", field: typed });
-    },
-    navigate(path) {
-      pickAnother();
-      dispatch({ type: "navigate", path });
-    },
+    edit: (typed) => dispatch({ type: "edit", field: typed }),
+    navigate: (path) => dispatch({ type: "navigate", path }),
     open() {
       const path = openPath(state);
       if (pickerView(state).canOpen && path !== null) attempt(path, false);

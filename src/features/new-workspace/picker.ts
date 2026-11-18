@@ -52,18 +52,16 @@ export const initialPicker: PickerState = {
   confirm: { kind: "idle" },
 };
 
-/**
- * Picking another directory makes a refusal out of date, and leaves an attempt under way behind:
- * its answer no longer applies to what the picker shows.
- */
+/** Picking another directory makes a refusal out of date. */
 const pickingAnother = (state: PickerState): PickerState =>
-  state.confirm.kind === "failed" || state.confirm.kind === "opening"
-    ? { ...state, confirm: { kind: "idle" } }
-    : state;
+  state.confirm.kind === "failed" ? { ...state, confirm: { kind: "idle" } } : state;
 
 export function reducePicker(state: PickerState, event: PickerEvent): PickerState {
   switch (event.type) {
     case "navigate":
+      // While an attempt is under way the picker takes no other directory, so its answer, which
+      // may be a new Workspace, always applies to what the picker shows.
+      if (state.confirm.kind === "opening") return state;
       return {
         ...pickingAnother(state),
         field: event.path,
@@ -85,12 +83,13 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
       };
     }
     case "edit":
-      return event.field === state.field ? state : { ...pickingAnother(state), field: event.field };
+      return event.field === state.field || state.confirm.kind === "opening"
+        ? state
+        : { ...pickingAnother(state), field: event.field };
     case "open":
     case "create":
       return { ...state, confirm: { kind: "opening" } };
     case "missing-directory":
-      // An answer for an attempt the person has left behind is dropped.
       return state.confirm.kind === "opening"
         ? { ...state, confirm: { kind: "asking-create", directory: event.directory } }
         : state;
@@ -119,6 +118,8 @@ export type PickerView = {
     | { kind: "unavailable"; retryPath: string };
   /** Where Parent Directory leads, `null` while it does not show. */
   parent: string | null;
+  /** An attempt is under way: the field and the rows take no input until the Machine answers. */
+  opening: boolean;
   /**
    * Open works once the Machine has answered and the field holds a path, and no attempt is under
    * way. It opens a typed path even where the directory shown cannot be listed.
@@ -128,11 +129,13 @@ export type PickerView = {
 
 export function pickerView(state: PickerState): PickerView {
   const { listing, field } = state;
+  const opening = state.confirm.kind === "opening";
   if (listing.kind === "loading") {
-    return { field, content: { kind: "loading" }, parent: null, canOpen: false };
+    return { field, content: { kind: "loading" }, parent: null, opening, canOpen: false };
   }
   return {
     field,
+    opening,
     content:
       listing.kind === "unavailable"
         ? { kind: "unavailable", retryPath: listing.path }

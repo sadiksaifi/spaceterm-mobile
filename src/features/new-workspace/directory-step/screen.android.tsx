@@ -119,6 +119,7 @@ export default function DirectoryStepScreen({
               key={picker.fieldVersion}
               label={text.directoryOn(machineName)}
               initial={view.field}
+              enabled={!view.opening}
               onEdit={picker.edit}
               onGo={picker.open}
             />
@@ -137,6 +138,7 @@ export default function DirectoryStepScreen({
                     icon={item.key === "parent" ? arrowUpwardIcon : folderIcon}
                     first={index === 0}
                     last={index === rows.length - 1}
+                    enabled={!view.opening}
                     onPress={() => picker.navigate(item.path)}
                   />
                 )}
@@ -145,7 +147,10 @@ export default function DirectoryStepScreen({
 
             {content.kind !== "directories" && (
               <Column modifiers={[fillMaxWidth(), weight(1)]}>
-                <ContentState content={content} onRetry={picker.navigate} />
+                <ContentState
+                  content={content}
+                  onRetry={view.opening ? undefined : picker.navigate}
+                />
               </Column>
             )}
           </Column>
@@ -169,11 +174,13 @@ export default function DirectoryStepScreen({
 function PathField({
   label,
   initial,
+  enabled,
   onEdit,
   onGo,
 }: {
   label: string;
   initial: string;
+  enabled: boolean;
   onEdit: (field: string) => void;
   onGo: () => void;
 }) {
@@ -185,6 +192,7 @@ function PathField({
       value={field}
       selection={selection}
       singleLine
+      enabled={enabled}
       onValueChange={onEdit}
       textStyle={{ fontFamily: "monospace" }}
       keyboardOptions={{
@@ -208,12 +216,14 @@ function DirectoryRow({
   icon,
   first,
   last,
+  enabled,
   onPress,
 }: {
   label: string;
   icon: number;
   first: boolean;
   last: boolean;
+  enabled: boolean;
   onPress: () => void;
 }) {
   const colors = useColors();
@@ -223,6 +233,7 @@ function DirectoryRow({
       contentColor={colors.text}
       shape={Shape.RoundedCorner({ cornerRadii: groupedCorners(first, last) })}
       onClick={onPress}
+      enabled={enabled}
       modifiers={[fillMaxWidth()]}
     >
       <Row
@@ -245,7 +256,8 @@ function ContentState({
   onRetry,
 }: {
   content: Exclude<PickerView["content"], { kind: "directories" }>;
-  onRetry: (path: string) => void;
+  /** Try Again, where the Machine cannot list; unavailable while `undefined`. */
+  onRetry: ((path: string) => void) | undefined;
 }) {
   switch (content.kind) {
     case "loading":
@@ -270,7 +282,7 @@ function ContentState({
           <StateTitle>{text.cannotList}</StateTitle>
           <StateBody>{text.cannotListBody}</StateBody>
           <StateActions>
-            <Button onClick={() => onRetry(content.retryPath)}>
+            <Button onClick={() => onRetry?.(content.retryPath)} enabled={onRetry !== undefined}>
               <Text>{text.tryAgain}</Text>
             </Button>
           </StateActions>

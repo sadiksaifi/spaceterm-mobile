@@ -4,6 +4,10 @@ import { StatusBar } from "expo-status-bar";
 import { MachinesProvider } from "@/shared/machines/client";
 import { useNavigationTheme } from "@/shared/theme/navigation";
 
+// Home sits under every route, so a link that opens New Workspace from a stopped app still has
+// Home to go back to.
+export const unstable_settings = { anchor: "index" };
+
 export default function RootLayout() {
   return (
     <MachinesProvider>

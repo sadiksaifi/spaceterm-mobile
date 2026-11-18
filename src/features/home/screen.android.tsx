@@ -42,7 +42,9 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   // Full-screen search is a window above the page, so the snackbar moves into it while it is open.
-  const [searching, setSearching] = useState(false);
+  // The search bar reports no closing when it leaves Home, for example when every Machine is gone.
+  const [expanded, setExpanded] = useState(false);
+  const searching = expanded && controls.searchable;
 
   return (
     <>
@@ -58,7 +60,7 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
                 actions={actions}
                 controls={controls}
                 alerts={alerts}
-                onSearchingChange={setSearching}
+                onSearchingChange={setExpanded}
                 overResults={
                   searching && <SnackbarSlot {...snackbar} bottom={insets.bottom + LIST_MARGIN} />
                 }

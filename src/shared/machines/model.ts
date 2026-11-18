@@ -61,17 +61,23 @@ export type CreateWorkspaceResult =
   | { kind: "missing-directory"; directory: string }
   | { kind: "failed" };
 
-/** What this device can ask of its Machines. */
+/** What a command that changes a Workspace comes to. `failed` covers a Machine that did not answer. */
+export type CommandResult = { kind: "done" } | { kind: "failed" };
+
+/**
+ * What this device can ask of its Machines. Members are functions, not methods, so a screen can
+ * pass one on without binding it. A recoverable failure is a result, never a rejection.
+ */
 export type MachineClient = {
-  getSnapshot(): MachinesSnapshot;
-  subscribe(listener: () => void): () => void;
+  getSnapshot: () => MachinesSnapshot;
+  subscribe: (listener: () => void) => () => void;
   /** Lists `path`, or the home directory when `path` is absent. */
-  listDirectory(machineId: string, path?: string): Promise<DirectoryListing>;
-  createWorkspace(
+  listDirectory: (machineId: string, path?: string) => Promise<DirectoryListing>;
+  createWorkspace: (
     machineId: string,
     directory: string,
     options?: { createDirectory?: boolean },
-  ): Promise<CreateWorkspaceResult>;
-  renameWorkspace(machineId: string, workspaceId: string, name: string): Promise<void>;
-  killWorkspace(machineId: string, workspaceId: string): Promise<void>;
+  ) => Promise<CreateWorkspaceResult>;
+  renameWorkspace: (machineId: string, workspaceId: string, name: string) => Promise<CommandResult>;
+  killWorkspace: (machineId: string, workspaceId: string) => Promise<CommandResult>;
 };

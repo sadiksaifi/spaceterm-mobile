@@ -1,78 +1,110 @@
 import { act, renderHook } from "@testing-library/react-native";
 
+import type { CommandResult } from "@/shared/machines/model";
+
+import type { HomeActions } from "./actions";
 import type { WorkspaceRow } from "./model";
 import { useRowAlerts, type RowAlerts, type RowFailure } from "./row-alerts";
 
-const row: WorkspaceRow = {
-  key: "mac/w1",
+const row = (id: string, name: string): WorkspaceRow => ({
+  key: `mac/${id}`,
   machineId: "mac",
   machineName: "MacBook Pro",
-  workspace: { id: "w1", name: "app", directory: "~/Projects/app", terminalSessions: 2 },
+  workspace: { id, name, directory: `~/Projects/${name}`, terminalSessions: 2 },
   connection: "connected",
-};
+});
+const app = row("w1", "app");
 
-const refused = () => Promise.reject(new Error("The Machine refused"));
+const refused = async (): Promise<CommandResult> => ({ kind: "failed" });
+const done = async (): Promise<CommandResult> => ({ kind: "done" });
+
+async function render(actions: Partial<HomeActions>) {
+  return renderHook(() => useRowAlerts({ onGetDesktop: () => {}, ...actions }));
+}
 
 function failureOf(alerts: RowAlerts): RowFailure {
-  if (alerts.alert?.kind !== "failed") throw new Error("No failure shows");
-  return alerts.alert;
+  if (alerts.failure === null) throw new Error("No failure shows");
+  return alerts.failure;
 }
 
 describe("a command the Machine refuses", () => {
   it("offers Try Again, which reopens Rename with the name that was typed", async () => {
-    const { result } = await renderHook(() =>
-      useRowAlerts({ renameWorkspace: refused, onGetDesktop: () => {} }),
-    );
+    const { result } = await render({ renameWorkspace: refused });
 
-    await act(async () => result.current.handlers.onRenameWorkspace?.(row));
+    await act(async () => result.current.handlers.onRenameWorkspace?.(app));
     await act(async () => result.current.rename("  web "));
-    expect(result.current.alert).toEqual({ kind: "failed", command: "rename", row, name: "web" });
+    expect(result.current.failure).toEqual({ command: "rename", row: app, name: "web" });
 
     await act(async () => result.current.retry(failureOf(result.current)));
-    expect(result.current.alert).toEqual({ kind: "rename", row, initial: "web" });
-  });
-
-  it("keeps Rename open when the failure it replaced reports closing late", async () => {
-    const { result } = await renderHook(() =>
-      useRowAlerts({ renameWorkspace: refused, onGetDesktop: () => {} }),
-    );
-
-    await act(async () => result.current.handlers.onRenameWorkspace?.(row));
-    await act(async () => result.current.rename("web"));
-    const failed = result.current;
-    await act(async () => failed.retry(failureOf(failed)));
-    // iOS reports an alert closed after its button runs; by then Rename is open again.
-    await act(async () => failed.cancel());
-    expect(result.current.alert).toEqual({ kind: "rename", row, initial: "web" });
+    expect(result.current.failure).toBeNull();
+    expect(result.current.alert).toEqual({ kind: "rename", row: app, initial: "web" });
   });
 
   it("offers Try Again, which kills the Workspace without asking again", async () => {
-    const killWorkspace = jest.fn((): Promise<void> => refused());
-    const { result } = await renderHook(() =>
-      useRowAlerts({ killWorkspace, onGetDesktop: () => {} }),
-    );
+    const killWorkspace = jest.fn(refused);
+    const { result } = await render({ killWorkspace });
 
-    await act(async () => result.current.handlers.onKillWorkspace?.(row));
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
     await act(async () => result.current.kill());
-    expect(result.current.alert).toEqual({ kind: "failed", command: "kill", row });
+    expect(result.current.failure).toEqual({ command: "kill", row: app });
 
-    killWorkspace.mockResolvedValueOnce(undefined);
+    killWorkspace.mockImplementationOnce(done);
     await act(async () => result.current.retry(failureOf(result.current)));
     expect(killWorkspace).toHaveBeenCalledTimes(2);
+    expect(result.current.failure).toBeNull();
     expect(result.current.alert).toBeNull();
   });
 
-  it("leaves the alerts free when the screen shows failures itself", async () => {
-    const shown: RowFailure[] = [];
-    const { result } = await renderHook(() =>
-      useRowAlerts({ killWorkspace: refused, onGetDesktop: () => {} }, (failure) =>
-        shown.push(failure),
-      ),
-    );
+  it("keeps Rename open when the failure it replaced reports closing late", async () => {
+    const { result } = await render({ renameWorkspace: refused });
 
-    await act(async () => result.current.handlers.onKillWorkspace?.(row));
+    await act(async () => result.current.handlers.onRenameWorkspace?.(app));
+    await act(async () => result.current.rename("web"));
+    const failed = failureOf(result.current);
+    await act(async () => result.current.retry(failed));
+    // iOS reports an alert closed after its button runs; by then Rename is open again.
+    await act(async () => result.current.dismissFailure(failed));
+    expect(result.current.alert).toEqual({ kind: "rename", row: app, initial: "web" });
+  });
+
+  it("waits for the open alert instead of replacing it", async () => {
+    let answer: (result: CommandResult) => void = () => {};
+    const killWorkspace = () => new Promise<CommandResult>((resolve) => (answer = resolve));
+    const { result } = await render({ killWorkspace, renameWorkspace: done });
+
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
     await act(async () => result.current.kill());
-    expect(shown).toEqual([{ kind: "failed", command: "kill", row }]);
-    expect(result.current.alert).toBeNull();
+    await act(async () => result.current.handlers.onRenameWorkspace?.(row("w2", "web")));
+    await act(async () => answer({ kind: "failed" }));
+
+    expect(result.current.alert).toMatchObject({ kind: "rename" });
+    expect(result.current.failure).toEqual({ command: "kill", row: app });
   });
+
+  it("does nothing on Try Again once a newer command has started", async () => {
+    const killWorkspace = jest.fn(refused);
+    const { result } = await render({ killWorkspace });
+
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
+    await act(async () => result.current.kill());
+    const stale = failureOf(result.current);
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
+    await act(async () => result.current.kill());
+
+    await act(async () => result.current.retry(stale));
+    expect(killWorkspace).toHaveBeenCalledTimes(2);
+  });
+});
+
+it("kills once when Kill Workspace is tapped twice before the alert closes", async () => {
+  const killWorkspace = jest.fn(done);
+  const { result } = await render({ killWorkspace });
+
+  await act(async () => result.current.handlers.onKillWorkspace?.(app));
+  const shown = result.current;
+  await act(async () => {
+    shown.kill();
+    shown.kill();
+  });
+  expect(killWorkspace).toHaveBeenCalledTimes(1);
 });

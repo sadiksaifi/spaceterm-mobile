@@ -77,18 +77,27 @@ describe("the mock client", () => {
   it("refuses every other command when asked to, so Try Again succeeds", async () => {
     const client = createMockClient([{ ...mac, workspaces: [workspace] }], { refuse: true });
 
-    await expect(client.renameWorkspace("mac", "w1", "web")).rejects.toThrow();
+    expect(await client.renameWorkspace("mac", "w1", "web")).toEqual({ kind: "failed" });
     expect(client.getSnapshot().machines[0]?.workspaces?.[0]?.name).toBe("app");
-    await client.renameWorkspace("mac", "w1", "web");
+    expect(await client.renameWorkspace("mac", "w1", "web")).toEqual({ kind: "done" });
     expect(client.getSnapshot().machines[0]?.workspaces?.[0]?.name).toBe("web");
 
-    await expect(client.killWorkspace("mac", "w1")).rejects.toThrow();
-    await client.killWorkspace("mac", "w1");
+    expect(await client.killWorkspace("mac", "w1")).toEqual({ kind: "failed" });
+    expect(await client.killWorkspace("mac", "w1")).toEqual({ kind: "done" });
     expect(client.getSnapshot().machines[0]?.workspaces).toEqual([]);
 
     expect(await client.createWorkspace("mac", "~/Projects/app")).toEqual({ kind: "failed" });
     expect(await client.createWorkspace("mac", "~/Projects/app")).toMatchObject({
       kind: "created",
     });
+  });
+
+  it("answers a Machine that is not paired, or a Workspace that is gone, with a failure", async () => {
+    const client = createMockClient([{ ...mac, workspaces: [workspace] }]);
+
+    expect(await client.listDirectory("gone")).toMatchObject({ kind: "unavailable" });
+    expect(await client.createWorkspace("gone", "~/")).toEqual({ kind: "failed" });
+    expect(await client.killWorkspace("mac", "w2")).toEqual({ kind: "failed" });
+    expect(await client.renameWorkspace("gone", "w1", "web")).toEqual({ kind: "failed" });
   });
 });

@@ -4,6 +4,7 @@ import type { DirectoryListing } from "@/shared/machines/model";
 
 import {
   initialPicker,
+  openPath,
   pickerView,
   reducePicker,
   type PickerEvent,
@@ -75,7 +76,7 @@ describe("the Directory Picker", () => {
     expect(pickerView(late)).toMatchObject({ field: "~/", content: { kind: "loading" } });
   });
 
-  it("keeps Parent Directory and Try Again where the Machine cannot list, with Open unavailable", () => {
+  it("keeps Parent Directory and Try Again where the Machine cannot list, and opens only a typed path", () => {
     const state = run(
       [
         { type: "navigate", path: "/var/root/" },
@@ -89,6 +90,9 @@ describe("the Directory Picker", () => {
       parent: "/var/",
       canOpen: false,
     });
+    const typed = run([{ type: "edit", field: "~/notes " }], state);
+    expect(pickerView(typed).canOpen).toBe(true);
+    expect(openPath(typed)).toBe("~/notes");
   });
 
   it("opens the typed directory, and Open is unavailable while the field is empty", () => {
@@ -128,8 +132,25 @@ describe("the Directory Picker", () => {
     );
     expect(failed.confirm).toEqual({ kind: "failed", directory: "~/", createDirectory: false });
     expect(pickerView(failed).canOpen).toBe(true);
+  });
 
-    expect(run([{ type: "cancel" }], failed).confirm).toEqual({ kind: "idle" });
+  it("drops a failure once it is dismissed, or once another directory is picked", () => {
+    const failed = run(
+      [{ type: "open" }, { type: "failed", failure: { directory: "~/", createDirectory: false } }],
+      atHome,
+    );
+    const failure = { kind: "failed" as const, directory: "~/", createDirectory: false };
+    expect(
+      run([{ type: "dismiss-failure", failure: failed.confirm as typeof failure }], failed).confirm,
+    ).toEqual({ kind: "idle" });
+    // A failure that has since been replaced stays.
+    expect(run([{ type: "dismiss-failure", failure }], failed).confirm).toMatchObject({
+      kind: "failed",
+    });
+    expect(run([{ type: "navigate", path: "~/scratch/" }], failed).confirm).toEqual({
+      kind: "idle",
+    });
+    expect(run([{ type: "edit", field: "~/notes" }], failed).confirm).toEqual({ kind: "idle" });
   });
 
   it("leaves an attempt under way alone when a closing alert reports Cancel late", () => {

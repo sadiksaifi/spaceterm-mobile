@@ -1,4 +1,5 @@
 import type {
+  CommandResult,
   ConnectionState,
   CreateWorkspaceResult,
   DirectoryListing,
@@ -60,30 +61,29 @@ export function createMockClient(
 
   const answer = <T>(value: T) =>
     new Promise<T>((resolve) => setTimeout(() => resolve(value), latency));
-  const refusal = () =>
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("The Machine refused")), latency),
-    );
 
   const attempts = { create: 0, rename: 0, kill: 0 };
   /** Counts an attempt; true when the Machine refuses it. */
   const refuses = (command: keyof typeof attempts) => refuse && attempts[command]++ % 2 === 0;
 
-  function machine(id: string): State {
-    const found = machines.find((candidate) => candidate.id === id);
-    if (found === undefined) throw new Error(`No Machine ${id}`);
-    return found;
-  }
+  /** The paired Machine with `id`. A Machine that is not paired answers nothing. */
+  const machine = (id: string): State | undefined =>
+    machines.find((candidate) => candidate.id === id);
+  const done = () => answer<CommandResult>({ kind: "done" });
+  const failed = () => answer<CommandResult>({ kind: "failed" });
 
   return {
     getSnapshot: () => snapshot,
-    subscribe(listener) {
+    subscribe: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
 
-    listDirectory(machineId, path) {
+    listDirectory: (machineId, path) => {
       const target = machine(machineId);
+      if (target === undefined) {
+        return answer<DirectoryListing>({ kind: "unavailable", path: path ?? "~/", parent: null });
+      }
       const absolute = path === undefined ? target.home : resolve(target.home, path);
       const parentPath = parent(absolute);
       const shown = {
@@ -104,13 +104,14 @@ export function createMockClient(
       });
     },
 
-    createWorkspace(machineId, directory, { createDirectory = false } = {}) {
+    createWorkspace: (machineId, directory, { createDirectory = false } = {}) => {
       const target = machine(machineId);
-      const absolute = resolve(target.home, directory);
-      const children = target.directories.get(absolute);
-      if (children === "unavailable" || target.connection !== "connected") {
+      if (target === undefined || target.connection !== "connected") {
         return answer<CreateWorkspaceResult>({ kind: "failed" });
       }
+      const absolute = resolve(target.home, directory);
+      const children = target.directories.get(absolute);
+      if (children === "unavailable") return answer<CreateWorkspaceResult>({ kind: "failed" });
       if (children === undefined && !createDirectory) {
         return answer<CreateWorkspaceResult>({
           kind: "missing-directory",
@@ -133,24 +134,30 @@ export function createMockClient(
       return answer<CreateWorkspaceResult>({ kind: "created", workspace });
     },
 
-    renameWorkspace(machineId, workspaceId, name) {
+    renameWorkspace: (machineId, workspaceId, name) => {
       const target = machine(machineId);
-      if (refuses("rename")) return refusal();
-      target.workspaces =
-        target.workspaces?.map((workspace) =>
-          workspace.id === workspaceId ? { ...workspace, name } : workspace,
-        ) ?? null;
+      const workspaces = target?.workspaces;
+      if (!target || !workspaces?.some((workspace) => workspace.id === workspaceId)) {
+        return failed();
+      }
+      if (refuses("rename")) return failed();
+      target.workspaces = workspaces.map((workspace) =>
+        workspace.id === workspaceId ? { ...workspace, name } : workspace,
+      );
       changed();
-      return answer(undefined);
+      return done();
     },
 
-    killWorkspace(machineId, workspaceId) {
+    killWorkspace: (machineId, workspaceId) => {
       const target = machine(machineId);
-      if (refuses("kill")) return refusal();
-      target.workspaces =
-        target.workspaces?.filter((workspace) => workspace.id !== workspaceId) ?? null;
+      const workspaces = target?.workspaces;
+      if (!target || !workspaces?.some((workspace) => workspace.id === workspaceId)) {
+        return failed();
+      }
+      if (refuses("kill")) return failed();
+      target.workspaces = workspaces.filter((workspace) => workspace.id !== workspaceId);
       changed();
-      return answer(undefined);
+      return done();
     },
   };
 

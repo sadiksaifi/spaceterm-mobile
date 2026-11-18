@@ -31,12 +31,13 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 import type { ComponentProps } from "react";
+import { useWindowDimensions } from "react-native";
 
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
-import { SectionHeader } from "@/shared/ui/ios/section-header";
 import { ActionButton, StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
 
+import { SectionHeader } from "../components/ios/section-header";
 import type { PickerView } from "../picker";
 import { text } from "../text";
 import type ScreenContract from "./screen";
@@ -45,6 +46,8 @@ import type { DirectoryStepProps } from "./screen";
 const tertiary = foregroundStyle({ type: "hierarchical", style: "tertiary" });
 /** A state sits below the rows, this far down. */
 const STATE_TOP = 72;
+/** The column a row's symbol sits in at the default text size; it grows with the text. */
+const SYMBOL_WIDTH = 24;
 const FILL = Number.POSITIVE_INFINITY;
 
 export default function DirectoryStepScreen({
@@ -79,7 +82,9 @@ export default function DirectoryStepScreen({
         <Alert
           title={failure ? text.failedTitle(failure.directory) : ""}
           isPresented={failure !== null}
-          onIsPresentedChange={(shown) => !shown && failure !== null && picker.cancel()}
+          onIsPresentedChange={(shown) =>
+            !shown && failure !== null && picker.dismissFailure(failure)
+          }
         >
           <Alert.Trigger>
             <Alert
@@ -134,7 +139,11 @@ export default function DirectoryStepScreen({
             </Alert>
           </Alert.Trigger>
           <Alert.Actions>
-            <Button label={text.cancel} role="cancel" onPress={picker.cancel} />
+            <Button
+              label={text.cancel}
+              role="cancel"
+              onPress={() => failure !== null && picker.dismissFailure(failure)}
+            />
             <Button
               label={text.tryAgain}
               onPress={() => failure !== null && picker.retry(failure)}
@@ -188,13 +197,15 @@ function DirectoryRow({
   onPress: () => void;
 }) {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
   return (
     <Button onPress={onPress}>
       <HStack spacing={12} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
         <Image
           systemName={symbol}
           modifiers={[
-            frame({ width: 24 }),
+            font({ textStyle: "body" }),
+            frame({ width: SYMBOL_WIDTH * fontScale }),
             tinted ? foregroundStyle({ type: "color", color: colors.tint }) : secondary,
             accessibilityHidden(),
           ]}

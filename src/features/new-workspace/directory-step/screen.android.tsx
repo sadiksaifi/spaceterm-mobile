@@ -32,7 +32,6 @@ import {
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
-import { useEffect, useEffectEvent } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
@@ -67,14 +66,13 @@ export default function DirectoryStepScreen({
   const insets = useSafeAreaInsets();
   const { view, askingCreate, failure } = picker;
   const { content, parent } = view;
-  const snackbar = useSnackbar();
-  const showFailure = useEffectEvent((shown: NonNullable<typeof failure>) =>
-    snackbar.show(text.failedTitle(shown.directory), text.tryAgain, () => picker.retry(shown)),
-  );
   // Android reports a refusal in a snackbar, which leaves the picker usable.
-  useEffect(() => {
-    if (failure !== null) showFailure(failure);
-  }, [failure]);
+  const snackbar = useSnackbar(
+    failure,
+    (shown) => ({ message: text.failedTitle(shown.directory), actionLabel: text.tryAgain }),
+    picker.retry,
+    picker.dismissFailure,
+  );
   const rows = [
     ...(parent === null ? [] : [{ key: "parent", label: text.parentDirectory, path: parent }]),
     ...(content.kind === "directories"
@@ -152,7 +150,7 @@ export default function DirectoryStepScreen({
               </Column>
             )}
           </Column>
-          <SnackbarSlot host={snackbar.host} bottom={insets.bottom + SNACKBAR_MARGIN} />
+          <SnackbarSlot {...snackbar} bottom={insets.bottom + SNACKBAR_MARGIN} />
         </Box>
 
         {askingCreate !== null && (
@@ -296,7 +294,7 @@ function CreateDialog({
   return (
     <AlertDialog onDismissRequest={onCancel}>
       <AlertDialog.Title>
-        <Text>{text.createTitle}</Text>
+        <Text style={{ typography: "headlineSmall" }}>{text.createTitle}</Text>
       </AlertDialog.Title>
       <AlertDialog.Text>
         <Text>

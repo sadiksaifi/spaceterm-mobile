@@ -25,9 +25,6 @@ export function RowAlertsView({ alerts }: { alerts: RowAlerts }) {
       return <KillDialog alert={alert} alerts={alerts} />;
     case "rename":
       return <RenameDialog key={alerts.closed} alert={alert} alerts={alerts} />;
-    case "failed":
-      // Android shows a failure in a snackbar, outside the alerts.
-      return null;
   }
 }
 
@@ -42,11 +39,13 @@ function KillDialog({
   return (
     <AlertDialog onDismissRequest={alerts.cancel}>
       <AlertDialog.Title>
-        <Text>{text.killTitle(alert.row.workspace.name)}</Text>
+        <Text style={{ typography: "headlineSmall" }}>
+          {text.killTitle(alert.row.workspace.name)}
+        </Text>
       </AlertDialog.Title>
       {sessions && (
         <AlertDialog.Text>
-          <Text>{sessions}</Text>
+          <Text style={{ typography: "bodyMedium" }}>{sessions}</Text>
         </AlertDialog.Text>
       )}
       <AlertDialog.DismissButton>
@@ -79,7 +78,7 @@ function RenameDialog({
   return (
     <AlertDialog onDismissRequest={alerts.cancel}>
       <AlertDialog.Title>
-        <Text>{text.renameWorkspace}</Text>
+        <Text style={{ typography: "headlineSmall" }}>{text.renameWorkspace}</Text>
       </AlertDialog.Title>
       <AlertDialog.Text>
         <OutlinedTextField

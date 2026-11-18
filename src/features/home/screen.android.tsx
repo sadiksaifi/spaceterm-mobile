@@ -27,14 +27,16 @@ const ABOVE_BUTTON = 16 + 56 + 16;
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const view = homeView(snapshot);
   const controls = homeControls(view, actions);
-  const snackbar = useSnackbar();
+  const alerts = useRowAlerts(actions);
   // Android reports a refused command in a snackbar, which leaves the list usable.
-  const alerts = useRowAlerts(actions, (failure, retry) =>
-    snackbar.show(
-      text.failedTitle(failure.command, failure.row.workspace.name),
-      text.tryAgain,
-      retry,
-    ),
+  const snackbar = useSnackbar(
+    alerts.failure,
+    (failure) => ({
+      message: text.failedTitle(failure.command, failure.row.workspace.name),
+      actionLabel: text.tryAgain,
+    }),
+    alerts.retry,
+    alerts.dismissFailure,
   );
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -67,7 +69,7 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
           {controls.newWorkspace && <NewWorkspaceButton control={controls.newWorkspace} />}
           <RowAlertsView alerts={alerts} />
           <SnackbarSlot
-            host={snackbar.host}
+            {...snackbar}
             bottom={insets.bottom + (controls.newWorkspace ? ABOVE_BUTTON : LIST_MARGIN)}
           />
         </Box>

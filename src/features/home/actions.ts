@@ -1,4 +1,4 @@
-import type { MachinesSnapshot } from "@/shared/machines/model";
+import type { CommandResult, MachinesSnapshot } from "@/shared/machines/model";
 
 import { isSearchable, type HomeView, type WorkspaceRow } from "./model";
 
@@ -9,8 +9,12 @@ import { isSearchable, type HomeView, type WorkspaceRow } from "./model";
 export type HomeActions = {
   onOpenWorkspace?: (machineId: string, workspaceId: string) => void;
   onNewTab?: (machineId: string, workspaceId: string) => void;
-  renameWorkspace?: (machineId: string, workspaceId: string, name: string) => Promise<void>;
-  killWorkspace?: (machineId: string, workspaceId: string) => Promise<void>;
+  renameWorkspace?: (
+    machineId: string,
+    workspaceId: string,
+    name: string,
+  ) => Promise<CommandResult>;
+  killWorkspace?: (machineId: string, workspaceId: string) => Promise<CommandResult>;
   onNewWorkspace?: () => void;
   onAddMachine?: () => void;
   onScanQrCode?: () => void;
@@ -85,7 +89,7 @@ export type RowHandlers = {
 
 /** The commands on a row's touch and hold menu; Rename and Kill are also on its swipe. */
 export type RowCommands = {
-  /** A row swipes only while its Machine is connected. */
+  /** A row swipes only while its Machine is connected and Kill Workspace is available. */
   swipes: boolean;
   newTab: Control;
   rename: Control;
@@ -99,7 +103,7 @@ export function rowCommands(row: WorkspaceRow, handlers: RowHandlers): RowComman
     onPress: connected && handler ? () => handler(row) : undefined,
   });
   return {
-    swipes: connected,
+    swipes: connected && handlers.onKillWorkspace !== undefined,
     newTab: control(handlers.onNewTab),
     rename: control(handlers.onRenameWorkspace),
     kill: control(handlers.onKillWorkspace),

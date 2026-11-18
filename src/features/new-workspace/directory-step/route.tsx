@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 
 import { useMachines } from "@/shared/machines/client";
 
@@ -18,10 +18,12 @@ export default function DirectoryStepRoute() {
     router.dismissTo("/"),
   );
   const machine = machines.find((candidate) => candidate.id === machineId);
+  // A link can name a Machine this device does not know, or one unpaired since.
+  if (machine === undefined) return <Redirect href="/" />;
 
   return (
     <DirectoryStepScreen
-      machineName={machine?.name ?? ""}
+      machineName={machine.name}
       picker={picker}
       leading={first ? "cancel" : "back"}
       onLeave={() => router.back()}

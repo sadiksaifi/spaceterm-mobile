@@ -1,21 +1,22 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { renameOutcome, type HomeActions, type RowHandlers } from "./actions";
 import type { WorkspaceRow } from "./model";
 
-/** The alert a row's command opened, or the failure the Machine answered with. */
+/** The alert a row's command opened. */
 export type RowAlert =
   /** `initial` is the name the field starts with, when it is not the Workspace's own. */
-  | { kind: "rename"; row: WorkspaceRow; initial?: string }
-  | { kind: "kill"; row: WorkspaceRow }
-  /** The Machine refused. `name` is the name Rename asked for. */
-  | { kind: "failed"; command: "rename"; row: WorkspaceRow; name: string }
-  | { kind: "failed"; command: "kill"; row: WorkspaceRow };
+  { kind: "rename"; row: WorkspaceRow; initial?: string } | { kind: "kill"; row: WorkspaceRow };
 
-export type RowFailure = Extract<RowAlert, { kind: "failed" }>;
+/** A command the Machine refused. `name` is the name Rename asked for. */
+export type RowFailure =
+  | { command: "rename"; row: WorkspaceRow; name: string }
+  | { command: "kill"; row: WorkspaceRow };
 
 export type RowAlerts = {
   alert: RowAlert | null;
+  /** The last refusal, until Try Again, Cancel, or the next command. */
+  failure: RowFailure | null;
   /** What each row's menu and swipe start. */
   handlers: RowHandlers;
   /** Grows each time an alert closes. Android puts a swiped row back with it. */
@@ -25,24 +26,27 @@ export type RowAlerts = {
   /** Rename with the field's text. Rename stays unavailable while the text is no name. */
   rename: (typed: string) => void;
   kill: () => void;
-  /** Try Again, after `failure`: Rename reopens with the name asked for; Kill runs again. */
+  /** Try Again: Rename reopens with the name asked for; Kill runs again. */
   retry: (failure: RowFailure) => void;
+  /** Cancel, or the close button, on `failure`. */
+  dismissFailure: (failure: RowFailure) => void;
 };
+
+type State = { alert: RowAlert | null; failure: RowFailure | null; closed: number };
 
 /**
  * Rename Workspace and Kill Workspace ask first, in an alert each platform draws. The alert
- * closes before the Machine answers; the list shows the answer, and a refusal shows as a failure
- * that offers Try Again. The failure is an alert too, unless `onFailed` shows it some other way;
- * its `retry` is Try Again.
+ * closes before the Machine answers; the list shows the answer, and a refusal becomes `failure`,
+ * which offers Try Again. Each platform shows the failure its own way.
  */
-export function useRowAlerts(
-  actions: HomeActions,
-  onFailed?: (failure: RowFailure, retry: () => void) => void,
-): RowAlerts {
-  const [{ alert, closed }, setState] = useState<{ alert: RowAlert | null; closed: number }>({
+export function useRowAlerts(actions: HomeActions): RowAlerts {
+  const [{ alert, failure, closed }, setState] = useState<State>({
     alert: null,
+    failure: null,
     closed: 0,
   });
+  // The alert whose button already ran, so a second tap before the next render does nothing.
+  const answered = useRef<RowAlert | null>(null);
   const { onNewTab, renameWorkspace, killWorkspace } = actions;
 
   const open = (next: RowAlert) => setState((state) => ({ ...state, alert: next }));
@@ -52,34 +56,44 @@ export function useRowAlerts(
    */
   const close = (shown: RowAlert | null = alert) =>
     setState((state) =>
-      state.alert === shown && shown !== null ? { alert: null, closed: state.closed + 1 } : state,
+      state.alert === shown && shown !== null
+        ? { ...state, alert: null, closed: state.closed + 1 }
+        : state,
     );
-  const failed = (failure: RowFailure) =>
-    onFailed ? onFailed(failure, () => retry(failure)) : open(failure);
+  /** Clears `which`, if it still shows, or any failure. */
+  const clearFailure = (which?: RowFailure) =>
+    setState((state) =>
+      which === undefined || state.failure === which ? { ...state, failure: null } : state,
+    );
+  const fail = (next: RowFailure) => setState((state) => ({ ...state, failure: next }));
 
+  // A new command makes any earlier refusal out of date.
   const runRename = (row: WorkspaceRow, name: string) => {
-    renameWorkspace?.(row.machineId, row.workspace.id, name).catch(() =>
-      failed({ kind: "failed", command: "rename", row, name }),
-    );
+    if (renameWorkspace === undefined) return;
+    clearFailure();
+    void renameWorkspace(row.machineId, row.workspace.id, name).then((result) => {
+      if (result.kind === "failed") fail({ command: "rename", row, name });
+    });
   };
 
   const runKill = (row: WorkspaceRow) => {
-    killWorkspace?.(row.machineId, row.workspace.id).catch(() =>
-      failed({ kind: "failed", command: "kill", row }),
-    );
+    if (killWorkspace === undefined) return;
+    clearFailure();
+    void killWorkspace(row.machineId, row.workspace.id).then((result) => {
+      if (result.kind === "failed") fail({ command: "kill", row });
+    });
   };
 
-  function retry(failure: RowFailure) {
-    if (failure.command === "rename") {
-      open({ kind: "rename", row: failure.row, initial: failure.name });
-    } else {
-      close(failure);
-      runKill(failure.row);
-    }
-  }
+  /** True the first time `shown`'s button runs. */
+  const firstAnswer = (shown: RowAlert) => {
+    if (answered.current === shown) return false;
+    answered.current = shown;
+    return true;
+  };
 
   return {
     alert,
+    failure,
     closed,
     handlers: {
       onNewTab: onNewTab && ((row) => onNewTab(row.machineId, row.workspace.id)),
@@ -90,15 +104,25 @@ export function useRowAlerts(
     rename(typed) {
       if (alert?.kind !== "rename") return;
       const outcome = renameOutcome(alert.row.workspace.name, typed);
-      if (outcome.kind === "unavailable") return;
+      if (outcome.kind === "unavailable" || !firstAnswer(alert)) return;
       close();
       if (outcome.kind === "rename") runRename(alert.row, outcome.name);
     },
     kill() {
-      if (alert?.kind !== "kill") return;
+      if (alert?.kind !== "kill" || !firstAnswer(alert)) return;
       close();
       runKill(alert.row);
     },
-    retry,
+    retry(shown) {
+      // A failure that has since been replaced or dismissed offers nothing.
+      if (shown !== failure) return;
+      if (shown.command === "rename") {
+        clearFailure(shown);
+        open({ kind: "rename", row: shown.row, initial: shown.name });
+      } else {
+        runKill(shown.row);
+      }
+    },
+    dismissFailure: (shown) => clearFailure(shown),
   };
 }

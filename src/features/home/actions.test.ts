@@ -126,6 +126,11 @@ describe("rowCommands", () => {
     expect(commands.onKillWorkspace).toHaveBeenCalledWith(row("connected"));
   });
 
+  it("does not swipe while Kill Workspace is unavailable", () => {
+    const { onKillWorkspace: _, ...withoutKill } = commands;
+    expect(rowCommands(row("connected"), withoutKill).swipes).toBe(false);
+  });
+
   it("leaves every command unavailable on a row whose Machine is not connected, which does not swipe", () => {
     for (const connection of ["reconnecting", "still-not-connected", "not-connected"] as const) {
       expect(rowCommands(row(connection), commands)).toEqual({

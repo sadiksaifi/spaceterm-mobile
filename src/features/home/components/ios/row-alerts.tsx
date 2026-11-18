@@ -14,14 +14,15 @@ export function RowAlertsView({ alerts, children }: { alerts: RowAlerts; childre
   const { alert } = alerts;
   const kill = alert?.kind === "kill" ? alert.row : null;
   const rename = alert?.kind === "rename" ? alert : null;
-  const failure = alert?.kind === "failed" ? alert : null;
+  // A failure waits for an open alert to close.
+  const failure = alert === null ? alerts.failure : null;
   const sessions = kill && killBody(kill.workspace.terminalSessions);
 
   return (
     <Alert
       title={failure ? text.failedTitle(failure.command, failure.row.workspace.name) : ""}
       isPresented={failure !== null}
-      onIsPresentedChange={(shown) => !shown && failure && alerts.cancel()}
+      onIsPresentedChange={(shown) => !shown && failure && alerts.dismissFailure(failure)}
     >
       <Alert.Trigger>
         <Alert
@@ -62,14 +63,18 @@ export function RowAlertsView({ alerts, children }: { alerts: RowAlerts; childre
         </Alert>
       </Alert.Trigger>
       <Alert.Actions>
-        <Button label={text.cancel} role="cancel" onPress={alerts.cancel} />
+        <Button
+          label={text.cancel}
+          role="cancel"
+          onPress={() => failure && alerts.dismissFailure(failure)}
+        />
         <Button label={text.tryAgain} onPress={() => failure && alerts.retry(failure)} />
       </Alert.Actions>
     </Alert>
   );
 }
 
-/** The field starts with `initial`; Rename is unavailable until it holds a name other than `name`. */
+/** The field starts with `initial`. Rename is unavailable while the field holds no name. */
 function RenameActions({
   name,
   initial,

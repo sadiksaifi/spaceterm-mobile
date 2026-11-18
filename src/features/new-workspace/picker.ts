@@ -36,9 +36,11 @@ export type PickerEvent =
   | { type: "missing-directory"; directory: string }
   /** Create, in the alert. */
   | { type: "create" }
-  /** Cancel, in the create alert or the failure's. */
+  /** Cancel, in the create alert. */
   | { type: "cancel" }
-  | { type: "failed"; failure: PickerFailure };
+  | { type: "failed"; failure: PickerFailure }
+  /** Cancel or the close button on `failure`, the refusal as the picker gave it. */
+  | { type: "dismiss-failure"; failure: PickerFailure };
 
 export const initialPicker: PickerState = {
   field: HOME,
@@ -47,11 +49,15 @@ export const initialPicker: PickerState = {
   confirm: { kind: "idle" },
 };
 
+/** Picking another directory makes a refusal out of date. */
+const withoutFailure = (state: PickerState): PickerState =>
+  state.confirm.kind === "failed" ? { ...state, confirm: { kind: "idle" } } : state;
+
 export function reducePicker(state: PickerState, event: PickerEvent): PickerState {
   switch (event.type) {
     case "navigate":
       return {
-        ...state,
+        ...withoutFailure(state),
         field: event.path,
         listing: { kind: "loading", path: event.path },
         request: state.request + 1,
@@ -63,7 +69,7 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
       return { ...state, listing: event.listing, field: typed ? state.field : event.listing.path };
     }
     case "edit":
-      return { ...state, field: event.field };
+      return { ...withoutFailure(state), field: event.field };
     case "open":
     case "create":
       return { ...state, confirm: { kind: "opening" } };
@@ -71,9 +77,14 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
       return { ...state, confirm: { kind: "asking-create", directory: event.directory } };
     case "cancel":
       // A system alert reports Cancel after its other button has run; an attempt keeps going.
-      return state.confirm.kind === "opening" ? state : { ...state, confirm: { kind: "idle" } };
+      return state.confirm.kind === "asking-create"
+        ? { ...state, confirm: { kind: "idle" } }
+        : state;
     case "failed":
       return { ...state, confirm: { kind: "failed", ...event.failure } };
+    case "dismiss-failure":
+      // A failure that has since been replaced stays.
+      return state.confirm === event.failure ? { ...state, confirm: { kind: "idle" } } : state;
   }
 }
 
@@ -87,7 +98,10 @@ export type PickerView = {
     | { kind: "unavailable"; retryPath: string };
   /** Where Parent Directory leads, `null` while it does not show. */
   parent: string | null;
-  /** Open works once a directory is listed and the field holds a path, and no attempt is under way. */
+  /**
+   * Open works once the Machine has answered and the field holds a path, and no attempt is under
+   * way. It opens a typed path even where the directory shown cannot be listed.
+   */
   canOpen: boolean;
 };
 
@@ -106,8 +120,19 @@ export function pickerView(state: PickerState): PickerView {
           : { kind: "directories", directories: listing.directories },
     parent: listing.parent,
     canOpen:
-      listing.kind === "listed" &&
       (state.confirm.kind === "idle" || state.confirm.kind === "failed") &&
-      field.trim() !== "",
+      openPath(state) !== null,
   };
+}
+
+/**
+ * The directory Open opens: the field without the spaces around it. `null` while there is none,
+ * or while the field still shows a directory the Machine cannot list.
+ */
+export function openPath(state: PickerState): string | null {
+  const { listing } = state;
+  const path = state.field.trim();
+  if (listing.kind === "loading" || path === "") return null;
+  if (listing.kind === "unavailable" && path === listing.path) return null;
+  return path;
 }

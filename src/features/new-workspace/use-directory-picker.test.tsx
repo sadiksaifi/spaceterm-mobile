@@ -117,3 +117,16 @@ it("opens the text Go sent, even before the field's last change has rendered", a
   await act(async () => result.current.open("~/notes"));
   expect(createWorkspace.mock.calls).toEqual([["mac", "~/notes", { createDirectory: false }]]);
 });
+
+it("opens nothing when Open follows a tap on a directory before the next render", async () => {
+  const { client, createWorkspace } = machine([]);
+  const { result } = await render(client);
+
+  const shown = result.current;
+  await act(async () => {
+    shown.navigate("~/Projects/");
+    shown.open();
+  });
+  // The tapped directory is loading, so Open waits for it rather than opening the one before.
+  expect(createWorkspace).not.toHaveBeenCalled();
+});

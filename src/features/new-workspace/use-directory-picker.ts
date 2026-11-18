@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useMachineClient } from "@/shared/machines/client";
 
@@ -7,6 +7,7 @@ import {
   openPath,
   pickerView,
   reducePicker,
+  type PickerEvent,
   type PickerFailure,
   type PickerView,
 } from "./picker";
@@ -41,12 +42,19 @@ export type DirectoryPicker = {
  */
 export function useDirectoryPicker(machineId: string, onOpened: () => void): DirectoryPicker {
   const client = useMachineClient();
-  const [state, dispatch] = useReducer(reducePicker, initialPicker);
+  const [state, setState] = useState(initialPicker);
   const { listing, request, confirm } = state;
   const loadingPath = listing.kind === "loading" ? listing.path : null;
-  // The state the last attempt started from: a second tap before the next render does nothing.
-  const startedFrom = useRef<typeof state | null>(null);
+  // The state after every event so far, including those the screen has not rendered yet: a tap
+  // and then Open, or two taps, can arrive before the next render.
+  const latest = useRef(state);
   const mounted = useRef(true);
+
+  /** Applies `event` at once for the next decision; the screen shows the result next render. */
+  function send(event: PickerEvent) {
+    latest.current = reducePicker(latest.current, event);
+    setState(latest.current);
+  }
 
   useEffect(() => {
     mounted.current = true;
@@ -59,13 +67,12 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
     if (loadingPath === null) return;
     void client
       .listDirectory(machineId, loadingPath)
-      .then((answer) => dispatch({ type: "answered", request, listing: answer }));
+      .then((answer) => send({ type: "answered", request, listing: answer }));
   }, [client, machineId, loadingPath, request]);
 
   function attempt(directory: string, createDirectory: boolean) {
-    if (startedFrom.current === state) return;
-    startedFrom.current = state;
-    dispatch({ type: createDirectory ? "create" : "open" });
+    // Opening takes no second attempt until the Machine answers the first.
+    send({ type: createDirectory ? "create" : "open" });
     void client.createWorkspace(machineId, directory, { createDirectory }).then((result) => {
       // The picker takes no other directory meanwhile, so only a closed step drops the answer.
       if (!mounted.current) return;
@@ -74,10 +81,10 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
           onOpened();
           return;
         case "missing-directory":
-          dispatch({ type: "missing-directory", directory: result.directory });
+          send({ type: "missing-directory", directory: result.directory });
           return;
         case "failed":
-          dispatch({ type: "failed", failure: { directory, createDirectory } });
+          send({ type: "failed", failure: { directory, createDirectory } });
       }
     });
   }
@@ -87,24 +94,22 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
     fieldVersion: state.fieldVersion,
     askingCreate: confirm.kind === "asking-create" ? confirm.directory : null,
     failure: confirm.kind === "failed" ? confirm : null,
-    edit: (typed) => dispatch({ type: "edit", field: typed }),
-    navigate: (path) => dispatch({ type: "navigate", path }),
+    edit: (typed) => send({ type: "edit", field: typed }),
+    navigate: (path) => send({ type: "navigate", path }),
     open(submitted) {
-      // Go can arrive before the render that follows the last keystroke.
-      const edit = { type: "edit", field: submitted ?? state.field } as const;
-      const next = reducePicker(state, edit);
-      const path = openPath(next);
-      if (!pickerView(next).canOpen || path === null) return;
-      if (next !== state) dispatch(edit);
-      attempt(path, false);
+      // Go sends the text it opens, which can be ahead of the last keystroke's event.
+      if (submitted !== undefined) send({ type: "edit", field: submitted });
+      const path = openPath(latest.current);
+      if (pickerView(latest.current).canOpen && path !== null) attempt(path, false);
     },
     create() {
-      if (confirm.kind === "asking-create") attempt(confirm.directory, true);
+      const { confirm: now } = latest.current;
+      if (now.kind === "asking-create") attempt(now.directory, true);
     },
-    cancel: () => dispatch({ type: "cancel" }),
+    cancel: () => send({ type: "cancel" }),
     retry(failure) {
-      if (failure === confirm) attempt(failure.directory, failure.createDirectory);
+      if (failure === latest.current.confirm) attempt(failure.directory, failure.createDirectory);
     },
-    dismissFailure: (failure) => dispatch({ type: "dismiss-failure", failure }),
+    dismissFailure: (failure) => send({ type: "dismiss-failure", failure }),
   };
 }

@@ -23,6 +23,7 @@ import {
   lineLimit,
   listRowBackground,
   listStyle,
+  onGeometryChange,
   onSubmit,
   padding,
   submitLabel,
@@ -30,7 +31,7 @@ import {
   textInputAutocapitalization,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { useWindowDimensions } from "react-native";
 
 import { useColors } from "@/shared/theme/colors";
@@ -45,7 +46,13 @@ import type { DirectoryStepProps } from "./screen";
 
 const tertiary = foregroundStyle({ type: "hierarchical", style: "tertiary" });
 /** A state sits below the rows, this far down. */
+/** Space above a state until its place on screen is known. */
 const STATE_TOP = 72;
+/**
+ * Each state centers in the space below the rows, clear of the sheet's bottom edge by the
+ * mockup's margin: less for the small loading state.
+ */
+const STATE_BOTTOM = { loading: 60, empty: 80, unavailable: 80 } as const;
 /** The column a row's symbol sits in at the default text size; it grows with the text. */
 const SYMBOL_WIDTH = 24;
 const FILL = Number.POSITIVE_INFINITY;
@@ -58,6 +65,8 @@ export default function DirectoryStepScreen({
 }: DirectoryStepProps) {
   const colors = useColors();
   const { view, askingCreate, failure } = picker;
+  // Where the list ends on screen, so a state can fill the space below the rows.
+  const [listBottom, setListBottom] = useState<number | null>(null);
 
   return (
     <>
@@ -93,7 +102,12 @@ export default function DirectoryStepScreen({
               onIsPresentedChange={(shown) => !shown && askingCreate !== null && picker.cancel()}
             >
               <Alert.Trigger>
-                <List modifiers={[listStyle("insetGrouped")]}>
+                <List
+                  modifiers={[
+                    listStyle("insetGrouped"),
+                    onGeometryChange((list) => setListBottom(list.y + list.height)),
+                  ]}
+                >
                   <Section header={<SectionHeader>{text.directoryOn(machineName)}</SectionHeader>}>
                     <PathField
                       key={picker.fieldVersion}
@@ -124,7 +138,12 @@ export default function DirectoryStepScreen({
                         ))}
                     </Section>
                   ) : null}
-                  <ContentState content={view.content} onRetry={picker.navigate} />
+                  <ContentState
+                    key={view.content.kind}
+                    content={view.content}
+                    listBottom={listBottom}
+                    onRetry={picker.navigate}
+                  />
                 </List>
               </Alert.Trigger>
               <Alert.Actions>
@@ -230,19 +249,30 @@ function DirectoryRow({
 /** What shows below the rows while a directory loads, has no subdirectories, or cannot be listed. */
 function ContentState({
   content,
+  listBottom,
   onRetry,
 }: {
   content: PickerView["content"];
+  /** Where the list ends on screen, `null` until it is known. */
+  listBottom: number | null;
   onRetry: (path: string) => void;
 }) {
+  // Where the state starts on screen, taken once: scrolling moves it, and the state must not
+  // grow with the scroll.
+  const [top, setTop] = useState<number | null>(null);
   if (content.kind === "directories") return null;
+  const fill =
+    top === null || listBottom === null ? null : listBottom - top - STATE_BOTTOM[content.kind];
   return (
     <Section>
       <VStack
         spacing={0}
         modifiers={[
-          frame({ maxWidth: FILL }),
-          padding({ top: STATE_TOP }),
+          fill === null
+            ? frame({ maxWidth: FILL })
+            : frame({ maxWidth: FILL, minHeight: Math.max(fill, 0) }),
+          ...(fill === null ? [padding({ top: STATE_TOP })] : []),
+          onGeometryChange((frame) => top === null && setTop(frame.y)),
           listRowBackground("clear"),
         ]}
       >

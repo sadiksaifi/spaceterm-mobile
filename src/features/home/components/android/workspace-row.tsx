@@ -7,7 +7,7 @@ import { maxWidthFraction } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 
 import type { HomeActions } from "../../actions";
-import { useLargeText } from "../../large-text";
+import { useLargeText } from "@/shared/ui/large-text";
 import type { WorkspaceRow } from "../../model";
 import { rowStateText } from "../../text";
 

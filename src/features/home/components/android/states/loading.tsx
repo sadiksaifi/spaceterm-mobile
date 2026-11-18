@@ -1,8 +1,9 @@
 import { LoadingIndicator } from "@expo/ui/jetpack-compose";
 import { semantics } from "@expo/ui/jetpack-compose/modifiers";
 
+import { Centered } from "@/shared/ui/android/state";
+
 import { text } from "../../../text";
-import { Centered } from "./layout";
 
 export function Loading({ bottom }: { bottom: number }) {
   return (

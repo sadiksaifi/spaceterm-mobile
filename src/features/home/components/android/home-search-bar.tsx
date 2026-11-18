@@ -10,7 +10,7 @@ import { homeView, type HomeSnapshot } from "../../model";
 import { text } from "../../text";
 import { HomeContent } from "./home-content";
 import { MoreMenu } from "./more-menu";
-import { EMPTY_BOTTOM_IN_SEARCH } from "./states/layout";
+import { EMPTY_BOTTOM_IN_SEARCH } from "@/shared/ui/android/state";
 
 /** The search pill in the header's place. It opens a full-screen search of the Workspaces. */
 export function HomeSearchBar({

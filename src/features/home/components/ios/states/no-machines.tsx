@@ -2,10 +2,6 @@ import { Button, Text } from "@expo/ui/swift-ui";
 import { buttonStyle, font, frame, multilineTextAlignment } from "@expo/ui/swift-ui/modifiers";
 
 import { useColors } from "@/shared/theme/colors";
-
-import type { HomeActions } from "../../../actions";
-import { useLargeText } from "../../../large-text";
-import { text } from "../../../text";
 import {
   ACTION_HEIGHT,
   ActionButton,
@@ -15,7 +11,11 @@ import {
   StateBody,
   StateIcon,
   StateTitle,
-} from "./layout";
+} from "@/shared/ui/ios/state";
+import { useLargeText } from "@/shared/ui/large-text";
+
+import type { HomeActions } from "../../../actions";
+import { text } from "../../../text";
 
 export function NoMachines({ actions }: { actions: HomeActions }) {
   const colors = useColors();

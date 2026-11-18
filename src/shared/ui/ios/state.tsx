@@ -14,8 +14,8 @@ import {
 import type { ComponentProps, ReactNode } from "react";
 import { useWindowDimensions, type ColorValue } from "react-native";
 
-import { useLargeText } from "../../../large-text";
-import { secondary } from "../modifiers";
+import { useLargeText } from "../large-text";
+import { secondary } from "./modifiers";
 
 /** Empty-state metrics from the mockups. */
 const ICON_SIZE = 48;

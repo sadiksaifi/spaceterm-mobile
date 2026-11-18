@@ -11,10 +11,10 @@ import type { ReactNode } from "react";
 import { useColors } from "@/shared/theme/colors";
 
 import type { HomeActions } from "../../actions";
-import { useLargeText } from "../../large-text";
+import { useLargeText } from "@/shared/ui/large-text";
 import type { WorkspaceRow } from "../../model";
 import { rowStateText } from "../../text";
-import { secondary } from "./modifiers";
+import { secondary } from "@/shared/ui/ios/modifiers";
 
 const detailFont = font({ textStyle: "subheadline" });
 

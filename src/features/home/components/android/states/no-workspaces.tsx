@@ -1,7 +1,7 @@
-import workspacesIcon from "./workspaces.xml";
+import { Centered, StateBody, StateTile, StateTitle } from "@/shared/ui/android/state";
 
 import { text } from "../../../text";
-import { Centered, StateBody, StateTile, StateTitle } from "./layout";
+import workspacesIcon from "./workspaces.xml";
 
 export function NoWorkspaces({ bottom }: { bottom: number }) {
   return (

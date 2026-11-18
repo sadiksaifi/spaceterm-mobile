@@ -2,10 +2,17 @@ import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml
 import { Button, LoadingIndicator, Text, TextButton } from "@expo/ui/jetpack-compose";
 import { padding, semantics } from "@expo/ui/jetpack-compose/modifiers";
 
+import {
+  Centered,
+  StateActions,
+  StateBody,
+  StateTile,
+  StateTitle,
+} from "@/shared/ui/android/state";
+
 import { unreachableControls, type HomeActions } from "../../../actions";
 import type { HomeView } from "../../../model";
 import { text, unreachableText } from "../../../text";
-import { Centered, StateActions, StateBody, StateTile, StateTitle } from "./layout";
 
 export function Unreachable({
   view,

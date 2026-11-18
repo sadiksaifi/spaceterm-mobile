@@ -1,6 +1,6 @@
 import type { HomeActions } from "../../actions";
 import type { HomeView } from "../../model";
-import { EMPTY_BOTTOM } from "./states/layout";
+import { EMPTY_BOTTOM } from "@/shared/ui/android/state";
 import { EmptyState } from "./states/empty-state";
 import { WorkspaceList } from "./workspace-list";
 

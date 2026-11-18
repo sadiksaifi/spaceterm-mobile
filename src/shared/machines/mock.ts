@@ -88,9 +88,9 @@ export function createMockClient(
     listDirectory: (machineId, path) => {
       const target = machine(machineId);
       if (target === undefined) {
-        return answer<DirectoryListing>({ kind: "unavailable", path: path ?? "~/", parent: null });
+        return answer<DirectoryListing>({ kind: "unavailable", path, parent: null });
       }
-      const absolute = path === undefined ? target.home : resolve(target.home, path);
+      const absolute = resolve(target.home, path);
       const parentPath = parent(absolute);
       const shown = {
         path: display(target.home, absolute, true),

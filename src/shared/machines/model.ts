@@ -71,8 +71,8 @@ export type CommandResult = { kind: "done" } | { kind: "failed" };
 export type MachineClient = {
   getSnapshot: () => MachinesSnapshot;
   subscribe: (listener: () => void) => () => void;
-  /** Lists `path`, or the home directory when `path` is absent. */
-  listDirectory: (machineId: string, path?: string) => Promise<DirectoryListing>;
+  /** Lists `path`, which can start with `~` for the home directory. */
+  listDirectory: (machineId: string, path: string) => Promise<DirectoryListing>;
   createWorkspace: (
     machineId: string,
     directory: string,

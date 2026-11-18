@@ -112,7 +112,7 @@ describe("the mock client", () => {
   it("answers a Machine that is not paired, or a Workspace that is gone, with a failure", async () => {
     const client = createMockClient([{ ...mac, workspaces: [workspace] }]);
 
-    expect(await client.listDirectory("gone")).toMatchObject({ kind: "unavailable" });
+    expect(await client.listDirectory("gone", "~/")).toMatchObject({ kind: "unavailable" });
     expect(await client.createWorkspace("gone", "~/")).toEqual({ kind: "failed" });
     expect(await client.killWorkspace("mac", "w2")).toEqual({ kind: "failed" });
     expect(await client.renameWorkspace("gone", "w1", "web")).toEqual({ kind: "failed" });

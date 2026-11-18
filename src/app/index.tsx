@@ -1,17 +1,15 @@
-import { Text, View, StyleSheet } from "react-native";
+import { Linking } from "react-native";
+
+import HomeScreen from "@/features/home/screen";
+import { useHomeSnapshot } from "@/features/home/source";
+import { DESKTOP_PROJECT_URL } from "@/features/home/text";
 
 export default function Index() {
+  const snapshot = useHomeSnapshot();
   return (
-    <View style={styles.container}>
-      <Text>Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
+    <HomeScreen
+      snapshot={snapshot}
+      onGetDesktop={() => void Linking.openURL(DESKTOP_PROJECT_URL)}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

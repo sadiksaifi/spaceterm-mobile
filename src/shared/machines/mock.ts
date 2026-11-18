@@ -59,8 +59,14 @@ export function createMockClient(
     for (const listener of listeners) listener();
   }
 
-  const answer = <T>(value: T) =>
-    new Promise<T>((resolve) => setTimeout(() => resolve(value), latency));
+  /** Answers `value` after the latency. `apply` makes the change the answer reports, just before. */
+  const answer = <T>(value: T, apply?: () => void) =>
+    new Promise<T>((resolve) =>
+      setTimeout(() => {
+        apply?.();
+        resolve(value);
+      }, latency),
+    );
 
   const attempts = { create: 0, rename: 0, kill: 0 };
   /** Counts an attempt; true when the Machine refuses it. */
@@ -69,7 +75,7 @@ export function createMockClient(
   /** The paired Machine with `id`. A Machine that is not paired answers nothing. */
   const machine = (id: string): State | undefined =>
     machines.find((candidate) => candidate.id === id);
-  const done = () => answer<CommandResult>({ kind: "done" });
+  const done = (apply: () => void) => answer<CommandResult>({ kind: "done" }, apply);
   const failed = () => answer<CommandResult>({ kind: "failed" });
 
   return {
@@ -119,7 +125,6 @@ export function createMockClient(
         });
       }
       if (refuses("create")) return answer<CreateWorkspaceResult>({ kind: "failed" });
-      if (children === undefined) makeDirectories(target, absolute);
       const branch = target.branches?.[absolute];
       const workspace: Workspace = {
         id: `created-${nextId++}`,
@@ -129,9 +134,11 @@ export function createMockClient(
         // A new Workspace has one Tab, with a shell in its directory.
         terminalSessions: 1,
       };
-      target.workspaces = [...(target.workspaces ?? []), workspace];
-      changed();
-      return answer<CreateWorkspaceResult>({ kind: "created", workspace });
+      return answer<CreateWorkspaceResult>({ kind: "created", workspace }, () => {
+        if (children === undefined) makeDirectories(target, absolute);
+        target.workspaces = [...(target.workspaces ?? []), workspace];
+        changed();
+      });
     },
 
     renameWorkspace: (machineId, workspaceId, name) => {
@@ -141,11 +148,12 @@ export function createMockClient(
         return failed();
       }
       if (refuses("rename")) return failed();
-      target.workspaces = workspaces.map((workspace) =>
-        workspace.id === workspaceId ? { ...workspace, name } : workspace,
-      );
-      changed();
-      return done();
+      return done(() => {
+        target.workspaces = (target.workspaces ?? []).map((workspace) =>
+          workspace.id === workspaceId ? { ...workspace, name } : workspace,
+        );
+        changed();
+      });
     },
 
     killWorkspace: (machineId, workspaceId) => {
@@ -155,9 +163,12 @@ export function createMockClient(
         return failed();
       }
       if (refuses("kill")) return failed();
-      target.workspaces = workspaces.filter((workspace) => workspace.id !== workspaceId);
-      changed();
-      return done();
+      return done(() => {
+        target.workspaces = (target.workspaces ?? []).filter(
+          (workspace) => workspace.id !== workspaceId,
+        );
+        changed();
+      });
     },
   };
 

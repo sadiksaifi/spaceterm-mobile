@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createMockClient, type MockMachine } from "./mock";
 
@@ -54,6 +54,23 @@ describe("the mock client", () => {
     });
     expect(client.getSnapshot().machines[0]?.workspaces).toHaveLength(1);
     expect(changes).toBe(1);
+  });
+
+  it("makes a change when its answer arrives, not before", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = createMockClient([{ ...mac, workspaces: [workspace] }], { latency: 500 });
+      const workspaces = () => client.getSnapshot().machines[0]?.workspaces;
+
+      const killed = client.killWorkspace("mac", "w1");
+      await vi.advanceTimersByTimeAsync(499);
+      expect(workspaces()).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await killed).toEqual({ kind: "done" });
+      expect(workspaces()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("creates a missing directory only when asked to", async () => {

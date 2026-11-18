@@ -10,9 +10,12 @@ import {
   Box,
   Button,
   Column,
+  DropdownMenu,
+  DropdownMenuItem,
   ExtendedFloatingActionButton,
   FilledTonalButton,
   Icon,
+  IconButton,
   LazyColumn,
   LoadingIndicator,
   Row,
@@ -29,6 +32,7 @@ import {
   clip,
   fillMaxSize,
   fillMaxWidth,
+  imePadding,
   padding,
   semantics,
   Shapes,
@@ -40,6 +44,7 @@ import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/theme/colors";
+import { SearchBar } from "../../../modules/search-bar";
 
 import { homeView, isSearchable, type HomeView, type WorkspaceRow } from "./model";
 import type { HomeActions, HomeScreenProps } from "./props";
@@ -51,58 +56,76 @@ const INNER_CORNER = 4;
 const ROW_GAP = 2;
 /** Material gives a not connected row the disabled look. */
 const DIMMED = 0.5;
+/** Empty states sit above center: clear of New Workspace on the page, just above the keyboard in search. */
+const EMPTY_BOTTOM = 120;
+const EMPTY_BOTTOM_IN_SEARCH = 40;
 
 export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   const [query, setQuery] = useState("");
-  const view = homeView(snapshot, query);
+  const view = homeView(snapshot);
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const canCreateWorkspace = isSearchable(view) && view.canCreateWorkspace;
+  const searchable = isSearchable(view);
+  const canCreateWorkspace = searchable && view.canCreateWorkspace;
+  const bottomPadding = insets.bottom + (canCreateWorkspace ? 96 : 16);
 
   return (
     <>
-      <Stack.Screen options={{ headerShadowVisible: false }} />
+      {/* The search bar takes the header's place where there is something to search. */}
+      <Stack.Screen options={{ headerShown: !searchable, headerShadowVisible: false }} />
       <Stack.Screen.Title>{text.title}</Stack.Screen.Title>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu icon={moreIcon} accessibilityLabel={text.more}>
-          <Stack.Toolbar.MenuAction
-            disabled={!canCreateWorkspace || !actions.onNewWorkspace}
-            onPress={actions.onNewWorkspace}
-          >
-            {text.newWorkspace}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction disabled={!actions.onAddMachine} onPress={actions.onAddMachine}>
-            {text.addMachine}
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            disabled={!actions.onOpenSettings}
-            onPress={actions.onOpenSettings}
-          >
-            {text.settings}
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
-      </Stack.Toolbar>
-      {isSearchable(view) && (
-        <Stack.SearchBar
-          placeholder={text.searchWorkspaces}
-          onChangeText={(event) => setQuery(event.nativeEvent.text)}
-          onClose={() => setQuery("")}
-          textColor={colors.text}
-          hintTextColor={colors.secondaryText}
-          headerIconColor={colors.secondaryText}
-        />
+      {!searchable && (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Menu icon={moreIcon} accessibilityLabel={text.more}>
+            <Stack.Toolbar.MenuAction disabled>{text.newWorkspace}</Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              disabled={!actions.onAddMachine}
+              onPress={actions.onAddMachine}
+            >
+              {text.addMachine}
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              disabled={!actions.onOpenSettings}
+              onPress={actions.onOpenSettings}
+            >
+              {text.settings}
+            </Stack.Toolbar.MenuAction>
+          </Stack.Toolbar.Menu>
+        </Stack.Toolbar>
       )}
 
       <Host style={{ flex: 1 }}>
         <Box modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
-          {view.kind === "workspaces" ? (
-            <WorkspaceList
-              rows={view.rows}
-              onOpen={actions.onOpenWorkspace}
-              bottomPadding={insets.bottom + (canCreateWorkspace ? 96 : 16)}
-            />
+          {searchable ? (
+            <Column modifiers={[fillMaxSize()]}>
+              <SearchBar
+                onQueryChange={setQuery}
+                backLabel={text.back}
+                clearLabel={text.clearText}
+                modifiers={[fillMaxWidth(), padding(16, insets.top + 4, 16, 0)]}
+              >
+                <SearchBar.Placeholder>
+                  <Text>{text.searchWorkspaces}</Text>
+                </SearchBar.Placeholder>
+                <SearchBar.TrailingIcon>
+                  <MoreMenu actions={actions} canCreateWorkspace={canCreateWorkspace} />
+                </SearchBar.TrailingIcon>
+                <SearchBar.Results>
+                  {/* Results sit above the keyboard. */}
+                  <Box modifiers={[fillMaxSize(), imePadding()]}>
+                    <HomeContent
+                      view={homeView(snapshot, query)}
+                      actions={actions}
+                      bottomPadding={insets.bottom + 16}
+                      emptyBottom={EMPTY_BOTTOM_IN_SEARCH}
+                    />
+                  </Box>
+                </SearchBar.Results>
+              </SearchBar>
+              <HomeContent view={view} actions={actions} bottomPadding={bottomPadding} />
+            </Column>
           ) : (
-            <EmptyState view={view} actions={actions} />
+            <HomeContent view={view} actions={actions} bottomPadding={bottomPadding} />
           )}
 
           {canCreateWorkspace && actions.onNewWorkspace && (
@@ -121,6 +144,75 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
         </Box>
       </Host>
     </>
+  );
+}
+
+/** The More options button at the end of the search bar, and its menu. */
+function MoreMenu({
+  actions,
+  canCreateWorkspace,
+}: {
+  actions: HomeActions;
+  canCreateWorkspace: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const colors = useMaterialColors();
+  const item = (label: string, onPress: (() => void) | undefined) => (
+    <DropdownMenuItem
+      enabled={!!onPress}
+      onClick={() => {
+        setExpanded(false);
+        onPress?.();
+      }}
+    >
+      <DropdownMenuItem.Text>
+        <Text>{label}</Text>
+      </DropdownMenuItem.Text>
+    </DropdownMenuItem>
+  );
+
+  return (
+    <DropdownMenu
+      expanded={expanded}
+      onDismissRequest={() => setExpanded(false)}
+      color={colors.surfaceContainerHigh}
+      cornerRadius={16}
+    >
+      <DropdownMenu.Trigger>
+        <IconButton onClick={() => setExpanded(true)}>
+          <Icon source={moreIcon} contentDescription={text.more} />
+        </IconButton>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Items>
+        {item(text.newWorkspace, canCreateWorkspace ? actions.onNewWorkspace : undefined)}
+        {item(text.addMachine, actions.onAddMachine)}
+        {item(text.settings, actions.onOpenSettings)}
+      </DropdownMenu.Items>
+    </DropdownMenu>
+  );
+}
+
+function HomeContent({
+  view,
+  actions,
+  bottomPadding,
+  emptyBottom = EMPTY_BOTTOM,
+}: {
+  view: HomeView;
+  actions: HomeActions;
+  /** Space below the last row. */
+  bottomPadding: number;
+  /** Space an empty state keeps below itself. */
+  emptyBottom?: number;
+}) {
+  return view.kind === "workspaces" ? (
+    <WorkspaceList
+      rows={view.rows}
+      onOpen={actions.onOpenWorkspace}
+      bottomPadding={bottomPadding}
+    />
+  ) : (
+    <EmptyState view={view} actions={actions} bottom={emptyBottom} />
   );
 }
 
@@ -223,14 +315,16 @@ function WorkspaceRowView({
 function EmptyState({
   view,
   actions,
+  bottom,
 }: {
   view: Exclude<HomeView, { kind: "workspaces" }>;
   actions: HomeActions;
+  bottom: number;
 }) {
   switch (view.kind) {
     case "loading":
       return (
-        <Centered>
+        <Centered bottom={bottom}>
           <LoadingIndicator modifiers={[semantics({ contentDescription: text.loading })]} />
         </Centered>
       );
@@ -238,7 +332,7 @@ function EmptyState({
     case "no-machines": {
       const [before, command, after] = text.noMachinesBody;
       return (
-        <Centered>
+        <Centered bottom={bottom}>
           <StateTile icon={machineIcon} />
           <StateTitle>{text.noMachines}</StateTitle>
           <StateBody>
@@ -270,7 +364,7 @@ function EmptyState({
 
     case "no-workspaces":
       return (
-        <Centered>
+        <Centered bottom={bottom}>
           <StateTile icon={workspacesIcon} />
           <StateTitle>{text.noWorkspaces}</StateTitle>
           <StateBody>{text.noWorkspacesBody}</StateBody>
@@ -279,7 +373,7 @@ function EmptyState({
 
     case "no-results":
       return (
-        <Centered>
+        <Centered bottom={bottom}>
           <StateTile icon={searchOffIcon} />
           <StateBody>{text.noResultsTitle(view.query)}</StateBody>
         </Centered>
@@ -293,7 +387,7 @@ function EmptyState({
         : actions.onOpenSettings;
 
       return (
-        <Centered>
+        <Centered bottom={bottom}>
           {view.state === "reconnecting" ? (
             <LoadingIndicator
               modifiers={[semantics({ contentDescription: text.loading }), padding(0, 0, 0, 20)]}
@@ -323,12 +417,12 @@ function EmptyState({
   }
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
+function Centered({ children, bottom }: { children: React.ReactNode; bottom: number }) {
   return (
     <Column
       horizontalAlignment="center"
       verticalArrangement="center"
-      modifiers={[fillMaxSize(), padding(40, 0, 40, 120)]}
+      modifiers={[fillMaxSize(), padding(40, 0, 40, bottom)]}
     >
       {children}
     </Column>

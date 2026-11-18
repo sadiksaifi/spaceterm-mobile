@@ -15,6 +15,9 @@ export const text = {
   /** The iOS search field placeholder; the toolbar has no room for more. */
   search: "Search",
   searchWorkspaces: "Search Workspaces",
+  /** The Android search's back and clear buttons. */
+  back: "Back",
+  clearText: "Clear text",
   loading: "Loading",
 
   noMachines: "No Machines",

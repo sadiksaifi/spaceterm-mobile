@@ -30,7 +30,10 @@ export function WorkspaceList({
     >
       <LazyColumn.Items data={rows} keyExtractor={(row) => row.key} estimatedItemSize={ROW_HEIGHT}>
         {({ item, index }: { item: WorkspaceRow; index: number }) => (
+          // The list reuses a row's slot for another Workspace; the key gives that one fresh state,
+          // so a menu open on one row never moves to the next.
           <WorkspaceRowView
+            key={item.key}
             row={item}
             first={index === 0}
             last={index === rows.length - 1}

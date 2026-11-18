@@ -14,7 +14,7 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
   return (
     <>
       {controls.searchable ? (
-        <HomeSearch snapshot={snapshot} actions={actions} onNewWorkspace={controls.newWorkspace} />
+        <HomeSearch snapshot={snapshot} actions={actions} newWorkspace={controls.newWorkspace} />
       ) : (
         <HomeContent view={view} actions={actions} />
       )}
@@ -24,15 +24,15 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
         <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel={text.more}>
           <Stack.Toolbar.MenuAction
             icon="plus"
-            disabled={!controls.addMachine}
-            onPress={controls.addMachine}
+            disabled={!controls.addMachine.onPress}
+            onPress={controls.addMachine.onPress}
           >
             {text.addMachine}
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             icon="gear"
-            disabled={!controls.settings}
-            onPress={controls.settings}
+            disabled={!controls.settings.onPress}
+            onPress={controls.settings.onPress}
           >
             {text.settings}
           </Stack.Toolbar.MenuAction>

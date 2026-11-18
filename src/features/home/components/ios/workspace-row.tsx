@@ -29,21 +29,23 @@ export function WorkspaceRowView({
   const largeText = useLargeText();
   const { workspace, connection } = row;
   const connected = connection === "connected";
+  // Side by side, each part keeps to one line. Stacked, each part wraps to show all of it.
+  const oneLine = largeText ? [] : [lineLimit(1)];
 
   const name = (
     <Text
       modifiers={[
         font({ textStyle: "headline" }),
         foregroundStyle({ type: "hierarchical", style: connected ? "primary" : "secondary" }),
-        lineLimit(1),
+        ...oneLine,
       ]}
     >
       {workspace.name}
     </Text>
   );
-  const machine = <Text modifiers={[detailFont, secondary, lineLimit(1)]}>{row.machineName}</Text>;
+  const machine = <Text modifiers={[detailFont, secondary, ...oneLine]}>{row.machineName}</Text>;
   const directory = (
-    <Text modifiers={[detailFont, secondary, lineLimit(1)]}>
+    <Text modifiers={[detailFont, secondary, ...oneLine]}>
       {connected ? workspace.directory : rowStateText(connection)}
     </Text>
   );
@@ -53,7 +55,7 @@ export function WorkspaceRowView({
         systemName="arrow.triangle.branch"
         modifiers={[font({ textStyle: "caption" }), secondary, accessibilityHidden()]}
       />
-      <Text modifiers={[detailFont, secondary, lineLimit(1)]}>{workspace.branch}</Text>
+      <Text modifiers={[detailFont, secondary, ...oneLine]}>{workspace.branch}</Text>
     </HStack>
   );
 

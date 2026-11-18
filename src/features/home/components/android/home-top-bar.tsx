@@ -1,5 +1,7 @@
 import { Text, TopAppBar } from "@expo/ui/jetpack-compose";
 
+import { heading } from "@/modules/compose-modifiers";
+
 import type { HomeControls } from "../../actions";
 import { text } from "../../text";
 import { MoreMenu } from "./more-menu";
@@ -12,7 +14,12 @@ export function HomeTopBar({ controls }: { controls: HomeControls }) {
   return (
     <TopAppBar>
       <TopAppBar.Title>
-        <Text maxLines={1} overflow="ellipsis" style={{ typography: "titleLarge" }}>
+        <Text
+          maxLines={1}
+          overflow="ellipsis"
+          style={{ typography: "titleLarge" }}
+          modifiers={[heading()]}
+        >
           {text.title}
         </Text>
       </TopAppBar.Title>

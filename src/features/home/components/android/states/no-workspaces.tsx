@@ -1,4 +1,4 @@
-import workspacesIcon from "@expo/material-symbols/stacks.xml";
+import workspacesIcon from "./workspaces.xml";
 
 import { text } from "../../../text";
 import { Centered, StateBody, StateTile, StateTitle } from "./layout";

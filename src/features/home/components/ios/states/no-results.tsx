@@ -2,7 +2,7 @@ import { text } from "../../../text";
 import { Centered, StateBody, StateIcon, StateTitle } from "./layout";
 
 /** Search keeps the keyboard up, and the search field sits on it in the toolbar's place. */
-const ABOVE_SEARCH_FIELD = -40;
+const ABOVE_SEARCH_FIELD = -60;
 
 export function NoResults({ query }: { query: string }) {
   return (

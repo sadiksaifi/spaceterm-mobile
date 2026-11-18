@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { rowStateText, unreachableText } from "./text";
 
@@ -38,5 +38,21 @@ describe("rowStateText", () => {
     expect(rowStateText("reconnecting")).toBe("Reconnecting…");
     expect(rowStateText("still-not-connected")).toBe("Still not connected");
     expect(rowStateText("not-connected")).toBe("Not connected");
+  });
+});
+
+describe("on iOS", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("uses title case", async () => {
+    vi.stubEnv("EXPO_OS", "ios");
+    vi.resetModules();
+    const ios = await import("./text");
+    expect(ios.text.more).toBe("More");
+    expect(ios.unreachableText("not-connected", "Mac mini").title).toBe("Machine Not Connected");
+    expect(ios.rowStateText("still-not-connected")).toBe("Still Not Connected");
   });
 });

@@ -18,7 +18,7 @@
           {
             "patterns": [
               {
-                "regex": "(^|/)ios(/|$)",
+                "regex": "(^|/)ios(/|$)|\\.ios(\\.[jt]sx?)?$",
                 "message": "Only iOS code imports iOS code."
               },
               {
@@ -26,7 +26,7 @@
                 "message": "SwiftUI views exist only on iOS."
               },
               {
-                "regex": "(^|/)android(/|$)",
+                "regex": "(^|/)android(/|$)|\\.android(\\.[jt]sx?)?$",
                 "message": "Only Android code imports Android code."
               },
               {
@@ -38,8 +38,8 @@
                 "message": "Material Symbols are Android vector drawables."
               },
               {
-                "regex": "^@/modules/search-bar",
-                "message": "The search bar module is built for Android only."
+                "regex": "(^|/)modules/(search-bar|compose-modifiers)(/|$)",
+                "message": "These local modules are built for Android only."
               }
             ]
           }
@@ -54,7 +54,7 @@
           {
             "patterns": [
               {
-                "regex": "(^|/)ios(/|$)",
+                "regex": "(^|/)ios(/|$)|\\.ios(\\.[jt]sx?)?$",
                 "message": "Only iOS code imports iOS code."
               },
               {
@@ -74,7 +74,7 @@
           {
             "patterns": [
               {
-                "regex": "(^|/)android(/|$)",
+                "regex": "(^|/)android(/|$)|\\.android(\\.[jt]sx?)?$",
                 "message": "Only Android code imports Android code."
               },
               {
@@ -86,8 +86,8 @@
                 "message": "Material Symbols are Android vector drawables."
               },
               {
-                "regex": "^@/modules/search-bar",
-                "message": "The search bar module is built for Android only."
+                "regex": "(^|/)modules/(search-bar|compose-modifiers)(/|$)",
+                "message": "These local modules are built for Android only."
               }
             ]
           }

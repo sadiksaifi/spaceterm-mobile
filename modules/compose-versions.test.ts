@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -18,11 +18,16 @@ function composeVersions(gradleFile: string): Map<string, string> {
   return versions;
 }
 
-it("compiles against the Compose versions Expo UI uses", () => {
-  const expoUi = composeVersions(
-    join(dirname(require.resolve("@expo/ui/package.json")), "android/build.gradle"),
-  );
-  const ours = composeVersions(join(import.meta.dirname, "android/build.gradle"));
+const expoUi = composeVersions(
+  join(dirname(require.resolve("@expo/ui/package.json")), "android/build.gradle"),
+);
+
+const modules = readdirSync(import.meta.dirname).filter((name) =>
+  existsSync(join(import.meta.dirname, name, "android/build.gradle")),
+);
+
+it.each(modules)("%s compiles against the Compose versions Expo UI uses", (module) => {
+  const ours = composeVersions(join(import.meta.dirname, module, "android/build.gradle"));
 
   expect(ours.size).toBeGreaterThan(0);
   for (const [artifact, version] of ours) {

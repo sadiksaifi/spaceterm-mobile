@@ -14,13 +14,13 @@ export type Workspace = {
   branch?: string;
 };
 
+/** What a view needs to name a Machine and open its settings. */
+export type MachineRef = { id: string; name: string };
+
 /**
  * A paired Machine as Home sees it. A connected Machine has answered, so its list is known.
  * Any other Machine has the list kept from an earlier run, or `null` when none was kept.
  */
-/** What a view needs to name a Machine and open its settings. */
-export type MachineRef = { id: string; name: string };
-
 export type Machine = MachineRef &
   (
     | { connection: "connected"; workspaces: readonly Workspace[] }

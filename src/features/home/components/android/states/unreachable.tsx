@@ -2,7 +2,7 @@ import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml
 import { Button, LoadingIndicator, Text, TextButton } from "@expo/ui/jetpack-compose";
 import { padding, semantics } from "@expo/ui/jetpack-compose/modifiers";
 
-import { machineSettingsAction, type HomeActions } from "../../../actions";
+import { unreachableControls, type HomeActions } from "../../../actions";
 import type { HomeView } from "../../../model";
 import { text, unreachableText } from "../../../text";
 import { Centered, StateActions, StateBody, StateTile, StateTitle } from "./layout";
@@ -18,7 +18,7 @@ export function Unreachable({
 }) {
   const { title, body } = unreachableText(view.state, view.machine?.name ?? null);
   const reconnecting = view.state === "reconnecting";
-  const onMachineSettings = machineSettingsAction(view.machine, actions);
+  const { tryAgain, machineSettings } = unreachableControls(view, actions);
 
   return (
     <Centered bottom={bottom}>
@@ -32,12 +32,12 @@ export function Unreachable({
       <StateTitle>{title}</StateTitle>
       {body !== undefined && <StateBody>{body}</StateBody>}
       <StateActions>
-        {!reconnecting && (
-          <Button onClick={actions.onTryAgain} enabled={!!actions.onTryAgain}>
+        {tryAgain && (
+          <Button onClick={tryAgain.onPress} enabled={!!tryAgain.onPress}>
             <Text>{text.tryAgain}</Text>
           </Button>
         )}
-        <TextButton onClick={onMachineSettings} enabled={!!onMachineSettings}>
+        <TextButton onClick={machineSettings.onPress} enabled={!!machineSettings.onPress}>
           <Text>{text.machineSettings}</Text>
         </TextButton>
       </StateActions>

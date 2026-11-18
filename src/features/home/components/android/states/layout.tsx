@@ -9,6 +9,7 @@ import {
 } from "@expo/ui/jetpack-compose/modifiers";
 import type { ReactNode } from "react";
 
+import { heading } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 
 /** Empty states sit above center: clear of New Workspace on the page, just above the keyboard in search. */
@@ -51,7 +52,11 @@ export function StateTile({ icon, failed = false }: { icon: number; failed?: boo
 }
 
 export function StateTitle({ children }: { children: string }) {
-  return <Text style={{ typography: "titleLarge", textAlign: "center" }}>{children}</Text>;
+  return (
+    <Text style={{ typography: "titleLarge", textAlign: "center" }} modifiers={[heading()]}>
+      {children}
+    </Text>
+  );
 }
 
 export function StateBody({ children }: { children: ReactNode }) {

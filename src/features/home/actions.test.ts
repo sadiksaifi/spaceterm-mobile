@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { homeControls, machineSettingsAction, type HomeActions } from "./actions";
+import { homeControls, unreachableControls, type HomeActions } from "./actions";
 import type { HomeView } from "./model";
 
 const noop = () => {};
@@ -9,6 +9,7 @@ const all: HomeActions = {
   onAddMachine: vi.fn(),
   onOpenSettings: vi.fn(),
   onMachineSettings: vi.fn(),
+  onTryAgain: vi.fn(),
   onGetDesktop: noop,
 };
 
@@ -17,15 +18,18 @@ describe("homeControls", () => {
     const view: HomeView = { kind: "workspaces", rows: [], canCreateWorkspace: true };
     expect(homeControls(view, all)).toEqual({
       searchable: true,
-      newWorkspace: all.onNewWorkspace,
-      addMachine: all.onAddMachine,
-      settings: all.onOpenSettings,
+      newWorkspace: { onPress: all.onNewWorkspace },
+      addMachine: { onPress: all.onAddMachine },
+      settings: { onPress: all.onOpenSettings },
     });
   });
 
-  it("keeps search but not New Workspace when only kept rows are listed", () => {
+  it("shows New Workspace unavailable when only kept rows are listed", () => {
     const view: HomeView = { kind: "workspaces", rows: [], canCreateWorkspace: false };
-    expect(homeControls(view, all)).toMatchObject({ searchable: true, newWorkspace: undefined });
+    expect(homeControls(view, all)).toMatchObject({
+      searchable: true,
+      newWorkspace: { onPress: undefined },
+    });
   });
 
   it("offers neither search nor New Workspace where nothing can be listed", () => {
@@ -35,7 +39,7 @@ describe("homeControls", () => {
       { kind: "unreachable", state: "not-connected", machine: null },
     ];
     for (const view of views) {
-      expect(homeControls(view, all)).toMatchObject({ searchable: false, newWorkspace: undefined });
+      expect(homeControls(view, all)).toMatchObject({ searchable: false, newWorkspace: null });
     }
   });
 
@@ -43,30 +47,44 @@ describe("homeControls", () => {
     const view: HomeView = { kind: "no-workspaces", canCreateWorkspace: true };
     expect(homeControls(view, { onGetDesktop: noop })).toEqual({
       searchable: true,
-      newWorkspace: undefined,
-      addMachine: undefined,
-      settings: undefined,
+      newWorkspace: { onPress: undefined },
+      addMachine: { onPress: undefined },
+      settings: { onPress: undefined },
     });
   });
 });
 
-describe("machineSettingsAction", () => {
+describe("unreachableControls", () => {
+  const one = { id: "m1", name: "Mac mini" };
+
   it("opens the settings of the one Machine", () => {
     const onMachineSettings = vi.fn();
-    machineSettingsAction(
-      { id: "m1", name: "Mac mini" },
-      { onGetDesktop: noop, onMachineSettings },
-    )?.();
+    const view: HomeView = { kind: "unreachable", state: "not-connected", machine: one };
+    unreachableControls(view, {
+      onGetDesktop: noop,
+      onMachineSettings,
+    }).machineSettings.onPress?.();
     expect(onMachineSettings).toHaveBeenCalledWith("m1");
   });
 
   it("opens Settings when several Machines are paired", () => {
-    expect(machineSettingsAction(null, all)).toBe(all.onOpenSettings);
+    const view: HomeView = { kind: "unreachable", state: "not-connected", machine: null };
+    expect(unreachableControls(view, all).machineSettings).toEqual({
+      onPress: all.onOpenSettings,
+    });
   });
 
-  it("is unavailable without a handler", () => {
-    expect(machineSettingsAction({ id: "m1", name: "Mac mini" }, { onGetDesktop: noop })).toBe(
-      undefined,
-    );
+  it("leaves Machine Settings unavailable without a handler", () => {
+    const view: HomeView = { kind: "unreachable", state: "not-connected", machine: one };
+    expect(unreachableControls(view, { onGetDesktop: noop }).machineSettings).toEqual({
+      onPress: undefined,
+    });
+  });
+
+  it("offers Try Again unless a reconnect is under way", () => {
+    const failed: HomeView = { kind: "unreachable", state: "still-not-connected", machine: one };
+    const reconnecting: HomeView = { kind: "unreachable", state: "reconnecting", machine: one };
+    expect(unreachableControls(failed, all).tryAgain).toEqual({ onPress: all.onTryAgain });
+    expect(unreachableControls(reconnecting, all).tryAgain).toBeNull();
   });
 });

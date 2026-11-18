@@ -3,6 +3,7 @@ import { ExtendedFloatingActionButton, Icon, Text } from "@expo/ui/jetpack-compo
 import { align, alpha, padding } from "@expo/ui/jetpack-compose/modifiers";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import type { Control } from "../../actions";
 import { text } from "../../text";
 
 /**
@@ -12,7 +13,7 @@ import { text } from "../../text";
 const UNAVAILABLE = 0.38;
 
 /** The floating New Workspace button, at the bottom end of its Box. */
-export function NewWorkspaceButton({ onPress }: { onPress: (() => void) | undefined }) {
+export function NewWorkspaceButton({ control: { onPress } }: { control: Control }) {
   const insets = useSafeAreaInsets();
   return (
     <ExtendedFloatingActionButton

@@ -43,7 +43,7 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
               bottomPadding={insets.bottom + (controls.searchable ? ROOM_FOR_BUTTON : LIST_MARGIN)}
             />
           </Column>
-          {controls.searchable && <NewWorkspaceButton onPress={controls.newWorkspace} />}
+          {controls.newWorkspace && <NewWorkspaceButton control={controls.newWorkspace} />}
         </Box>
       </Host>
     </>

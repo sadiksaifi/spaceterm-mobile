@@ -1,4 +1,4 @@
-import { isSearchable, type HomeSnapshot, type HomeView, type MachineRef } from "./model";
+import { isSearchable, type HomeSnapshot, type HomeView } from "./model";
 
 /**
  * What Home can lead to. A control whose handler is absent is unavailable,
@@ -18,38 +18,55 @@ export type HomeActions = {
 
 export type HomeScreenProps = HomeActions & { snapshot: HomeSnapshot };
 
-/**
- * The controls around Home's content, the same on both platforms. A handler is `undefined` while
- * its control is unavailable.
- */
+/** A control that shows, with its handler, `undefined` while it is unavailable. */
+export type Control = { onPress: (() => void) | undefined };
+
+/** The controls around Home's content, the same on both platforms. */
 export type HomeControls = {
-  /** Search and New Workspace exist only where Workspaces can be listed. */
+  /** Search exists only where Workspaces can be listed. */
   searchable: boolean;
   /** New Workspace shows wherever search does, and works once a connected Machine can take it. */
-  newWorkspace: (() => void) | undefined;
-  addMachine: (() => void) | undefined;
-  settings: (() => void) | undefined;
+  newWorkspace: Control | null;
+  addMachine: Control;
+  settings: Control;
 };
 
 export function homeControls(view: HomeView, actions: HomeActions): HomeControls {
   const searchable = isSearchable(view);
   return {
     searchable,
-    newWorkspace: searchable && view.canCreateWorkspace ? actions.onNewWorkspace : undefined,
-    addMachine: actions.onAddMachine,
-    settings: actions.onOpenSettings,
+    newWorkspace: searchable
+      ? { onPress: view.canCreateWorkspace ? actions.onNewWorkspace : undefined }
+      : null,
+    addMachine: { onPress: actions.onAddMachine },
+    settings: { onPress: actions.onOpenSettings },
   };
 }
 
-/**
- * Machine Settings opens the one unreachable Machine's settings, or Settings when several
- * Machines are paired.
- */
-export function machineSettingsAction(
-  machine: MachineRef | null,
+/** The buttons of an unreachable Machine's state. */
+export type UnreachableControls = {
+  /** Try Again shows unless a reconnect is under way. */
+  tryAgain: Control | null;
+  /**
+   * Machine Settings opens the one unreachable Machine's settings, or Settings when several
+   * Machines are paired.
+   */
+  machineSettings: Control;
+};
+
+export function unreachableControls(
+  view: Extract<HomeView, { kind: "unreachable" }>,
   actions: HomeActions,
-): (() => void) | undefined {
-  if (machine === null) return actions.onOpenSettings;
+): UnreachableControls {
+  const { machine } = view;
   const { onMachineSettings } = actions;
-  return onMachineSettings && (() => onMachineSettings(machine.id));
+  return {
+    tryAgain: view.state === "reconnecting" ? null : { onPress: actions.onTryAgain },
+    machineSettings: {
+      onPress:
+        machine === null
+          ? actions.onOpenSettings
+          : onMachineSettings && (() => onMachineSettings(machine.id)),
+    },
+  };
 }

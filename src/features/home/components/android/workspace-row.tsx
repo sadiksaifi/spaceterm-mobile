@@ -3,6 +3,7 @@ import { Column, Icon, Row, Shape, Surface, Text } from "@expo/ui/jetpack-compos
 import { alpha, fillMaxWidth, padding, weight } from "@expo/ui/jetpack-compose/modifiers";
 import { useWindowDimensions } from "react-native";
 
+import { maxWidthFraction } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 
 import type { HomeActions } from "../../actions";
@@ -17,6 +18,8 @@ const INNER_CORNER = 4;
 const DIMMED = 0.5;
 /** The branch icon matches the bodyMedium text beside it, so it grows with the font scale. */
 const BRANCH_ICON = 13;
+/** Side by side, the Machine and branch leave at least this share of the line to the name and directory. */
+const DETAIL_SHARE = 0.6;
 
 export function WorkspaceRowView({
   row,
@@ -38,25 +41,34 @@ export function WorkspaceRowView({
   const bottom = last ? OUTER_CORNER : INNER_CORNER;
   // Side by side, the name and the directory take the space the Machine and branch leave.
   const fill = largeText ? [] : [weight(1)];
+  const detail = largeText ? [] : [maxWidthFraction(DETAIL_SHARE)];
+  // Side by side, each part keeps to one line. Stacked, each part wraps to show all of it.
+  const maxLines = largeText ? undefined : 1;
 
   const name = (
-    <Text maxLines={1} overflow="ellipsis" style={{ typography: "bodyLarge" }} modifiers={fill}>
+    <Text
+      maxLines={maxLines}
+      overflow="ellipsis"
+      style={{ typography: "bodyLarge" }}
+      modifiers={fill}
+    >
       {workspace.name}
     </Text>
   );
   const machine = (
     <Text
-      maxLines={1}
+      maxLines={maxLines}
       overflow="ellipsis"
       style={{ typography: "bodyMedium" }}
       color={colors.secondaryText}
+      modifiers={detail}
     >
       {row.machineName}
     </Text>
   );
   const directory = (
     <Text
-      maxLines={1}
+      maxLines={maxLines}
       overflow="ellipsis"
       style={{ typography: "bodyMedium" }}
       color={colors.secondaryText}
@@ -66,10 +78,10 @@ export function WorkspaceRowView({
     </Text>
   );
   const branch = connected && workspace.branch !== undefined && (
-    <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 4 }}>
+    <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 4 }} modifiers={detail}>
       <Icon source={branchIcon} size={BRANCH_ICON * fontScale} tint={colors.secondaryText} />
       <Text
-        maxLines={1}
+        maxLines={maxLines}
         overflow="ellipsis"
         style={{ typography: "bodyMedium" }}
         color={colors.secondaryText}

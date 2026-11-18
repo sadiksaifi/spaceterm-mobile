@@ -7,23 +7,26 @@ type Scheme = "light" | "dark";
 
 /**
  * Reading the palette is a blocking native call, and `@expo/ui` caches only seeded palettes
- * (https://github.com/expo/expo/issues/50477). So each scheme is read once per launch; a new
- * wallpaper palette shows after a restart.
+ * (https://github.com/expo/expo/issues/50477). So each scheme is read once per launch. After a
+ * wallpaper change, Compose's own colors follow at once, and these roles follow after a restart.
  */
 const palettes = new Map<Scheme, Colors>();
 
-/**
- * Material color roles, resolved for the current scheme. The native header keeps a
- * `PlatformColor` it has resolved once, so `Color.android.dynamic` would leave it in the old scheme.
- */
-export function useColors(): Colors {
-  const scheme: Scheme = useColorScheme() === "dark" ? "dark" : "light";
+function paletteFor(scheme: Scheme): Colors {
   let colors = palettes.get(scheme);
   if (colors === undefined) {
     colors = toColors(getMaterialColors({ scheme }));
     palettes.set(scheme, colors);
   }
   return colors;
+}
+
+/**
+ * Material color roles, resolved for the current scheme. The native header keeps a
+ * `PlatformColor` it has resolved once, so `Color.android.dynamic` would leave it in the old scheme.
+ */
+export function useColors(): Colors {
+  return paletteFor(useColorScheme() === "dark" ? "dark" : "light");
 }
 
 useColors satisfies typeof Contract;

@@ -1,6 +1,6 @@
 import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml";
 import { Button, LoadingIndicator, Text, TextButton } from "@expo/ui/jetpack-compose";
-import { padding, semantics } from "@expo/ui/jetpack-compose/modifiers";
+import { padding } from "@expo/ui/jetpack-compose/modifiers";
 
 import {
   Centered,
@@ -30,9 +30,8 @@ export function Unreachable({
   return (
     <Centered bottom={bottom}>
       {reconnecting ? (
-        <LoadingIndicator
-          modifiers={[semantics({ contentDescription: text.loading }), padding(0, 0, 0, 20)]}
-        />
+        // The title under it says what the shape means, and screen readers read it.
+        <LoadingIndicator modifiers={[padding(0, 0, 0, 20)]} />
       ) : (
         <StateTile icon={notConnectedIcon} failed={view.state === "still-not-connected"} />
       )}

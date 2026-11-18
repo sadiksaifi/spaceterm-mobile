@@ -8,6 +8,7 @@ import {
   AlertDialog,
   Box,
   Button,
+  CircularProgressIndicator,
   Column,
   Icon,
   IconButton,
@@ -20,14 +21,18 @@ import {
   Surface,
   Text,
   TopAppBar,
+  useMaterialColors,
   useNativeState,
 } from "@expo/ui/jetpack-compose";
 import {
+  alpha,
   background,
   fillMaxSize,
   fillMaxWidth,
   imePadding,
   padding,
+  semantics,
+  size,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
@@ -54,6 +59,10 @@ const STATE_BOTTOM = 120;
 /** The path in the create dialog, as the design sets it: 13 sp monospace in the text color. */
 const PATH_SIZE = 13;
 const SNACKBAR_MARGIN = 16;
+/** The spinner in Open: Material's size for an indicator in a button, in the disabled text color. */
+const SPINNER_SIZE = 18;
+const SPINNER_STROKE = 2;
+const DISABLED_CONTENT = 0.38;
 
 export default function DirectoryStepScreen({
   machineName,
@@ -110,7 +119,7 @@ export default function DirectoryStepScreen({
                   enabled={view.canOpen}
                   modifiers={[padding(8, 0, 12, 0)]}
                 >
-                  <Text>{text.open}</Text>
+                  <OpenLabel opening={view.opening} />
                 </Button>
               </TopAppBar.Actions>
             </TopAppBar>
@@ -167,6 +176,30 @@ export default function DirectoryStepScreen({
         )}
       </Host>
     </>
+  );
+}
+
+/**
+ * Open, or a spinner in its place until the Machine answers. The word stays, unseen, so the
+ * button keeps its width.
+ */
+function OpenLabel({ opening }: { opening: boolean }) {
+  const material = useMaterialColors();
+  return (
+    <Box contentAlignment="center">
+      <Text modifiers={opening ? [alpha(0)] : []}>{text.open}</Text>
+      {opening && (
+        <CircularProgressIndicator
+          color={material.onSurface}
+          strokeWidth={SPINNER_STROKE}
+          modifiers={[
+            size(SPINNER_SIZE, SPINNER_SIZE),
+            alpha(DISABLED_CONTENT),
+            semantics({ contentDescription: text.opening }),
+          ]}
+        />
+      )}
+    </Box>
   );
 }
 

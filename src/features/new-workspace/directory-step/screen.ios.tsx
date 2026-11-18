@@ -33,7 +33,7 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 import { useState, type ComponentProps } from "react";
-import { useWindowDimensions } from "react-native";
+import { ActivityIndicator, useWindowDimensions, View } from "react-native";
 
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
@@ -78,14 +78,24 @@ export default function DirectoryStepScreen({
           <Stack.Toolbar.Button icon="xmark" accessibilityLabel={text.cancel} onPress={onLeave} />
         </Stack.Toolbar>
       )}
+      {/* The system spinner stands in for the checkmark until the Machine answers. */}
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          icon="checkmark"
-          variant="prominent"
-          accessibilityLabel={text.open}
-          disabled={!view.canOpen}
-          onPress={() => picker.open()}
-        />
+        {view.opening ? (
+          <Stack.Toolbar.View>
+            {/* The indicator reads as "In progress"; the view around it says what is. */}
+            <View accessible accessibilityLabel={text.opening}>
+              <ActivityIndicator />
+            </View>
+          </Stack.Toolbar.View>
+        ) : (
+          <Stack.Toolbar.Button
+            icon="checkmark"
+            variant="prominent"
+            accessibilityLabel={text.open}
+            disabled={!view.canOpen}
+            onPress={() => picker.open()}
+          />
+        )}
       </Stack.Toolbar>
 
       <Host style={{ flex: 1, backgroundColor: colors.groupedBackground }}>

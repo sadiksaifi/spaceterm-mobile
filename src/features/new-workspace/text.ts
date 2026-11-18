@@ -10,6 +10,8 @@ export const text = {
 
   openDirectory: cased("Open Directory", "Open directory"),
   open: "Open",
+  /** What screen readers say for the spinner that stands in for Open until the Machine answers. */
+  opening: "Opening",
   directoryOn: (machine: string) => `Directory on ${machine}`,
   parentDirectory: cased("Parent Directory", "Parent directory"),
   noSubdirectories: cased("No Subdirectories", "No subdirectories"),

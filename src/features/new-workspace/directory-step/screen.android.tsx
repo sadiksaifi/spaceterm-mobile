@@ -28,7 +28,6 @@ import {
   fillMaxWidth,
   imePadding,
   padding,
-  semantics,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
@@ -252,7 +251,9 @@ function ContentState({
     case "loading":
       return (
         <Centered bottom={STATE_BOTTOM}>
-          <LoadingIndicator modifiers={[semantics({ contentDescription: text.loading })]} />
+          {/* The word says what the shape means, as on iOS; screen readers read it too. */}
+          <LoadingIndicator />
+          <StateBody>{text.loading}</StateBody>
         </Centered>
       );
     case "empty":

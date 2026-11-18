@@ -139,32 +139,40 @@ export function commandText(command: string, color: ColorValue) {
 
 /**
  * A capsule button of an empty state: filled blue when prominent, gray otherwise. It has the
- * mockup's width, and at accessibility text sizes it grows with its label instead of truncating it.
+ * mockup's width, or fits its label with `fitsLabel`. At accessibility text sizes it grows with
+ * its label instead of truncating it.
  */
 export function ActionButton({
   label,
   onPress,
   prominent = false,
+  fitsLabel = false,
 }: {
   label: string;
   onPress: (() => void) | undefined;
   prominent?: boolean;
+  fitsLabel?: boolean;
 }) {
   const largeText = useLargeText();
+  // Fixed: the mockup's width. Grows: at least that wide, wider for a long label. Fits: the label's.
+  const width = fitsLabel
+    ? []
+    : [largeText ? frame({ minWidth: ACTION_WIDTH }) : frame({ width: ACTION_WIDTH })];
+  const fixed = !fitsLabel && !largeText;
   return (
     <Button
       onPress={onPress}
       modifiers={[
         buttonStyle(prominent ? "borderedProminent" : "bordered"),
         buttonBorderShape("capsule"),
-        largeText ? frame({ minWidth: ACTION_WIDTH }) : frame({ width: ACTION_WIDTH }),
+        ...width,
         disabled(!onPress),
       ]}
     >
       <Text
         modifiers={[
           font({ weight: "semibold", textStyle: "subheadline" }),
-          frame({ maxWidth: largeText ? undefined : FILL, minHeight: ACTION_HEIGHT - 14 }),
+          frame({ maxWidth: fixed ? FILL : undefined, minHeight: ACTION_HEIGHT - 14 }),
           multilineTextAlignment("center"),
         ]}
       >

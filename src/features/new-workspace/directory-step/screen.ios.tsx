@@ -45,7 +45,6 @@ import type ScreenContract from "./screen";
 import type { DirectoryStepProps } from "./screen";
 
 const tertiary = foregroundStyle({ type: "hierarchical", style: "tertiary" });
-/** A state sits below the rows, this far down. */
 /** Space above a state until its place on screen is known. */
 const STATE_TOP = 72;
 /**
@@ -298,6 +297,7 @@ function ContentState({
                 label={text.tryAgain}
                 onPress={() => onRetry(content.retryPath)}
                 prominent
+                fitsLabel
               />
             </VStack>
           </>

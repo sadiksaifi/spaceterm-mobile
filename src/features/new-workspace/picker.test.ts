@@ -153,6 +153,24 @@ describe("the Directory Picker", () => {
     expect(run([{ type: "edit", field: "~/notes" }], failed).confirm).toEqual({ kind: "idle" });
   });
 
+  it("drops the answer to an attempt once another directory is picked", () => {
+    const opening = run([{ type: "edit", field: "~/notes" }, { type: "open" }], atHome);
+    const moved = run([{ type: "navigate", path: "~/Projects/" }], opening);
+    expect(moved.confirm).toEqual({ kind: "idle" });
+    expect(run([{ type: "missing-directory", directory: "~/notes" }], moved).confirm).toEqual({
+      kind: "idle",
+    });
+    const failure = { directory: "~/notes", createDirectory: false };
+    expect(run([{ type: "failed", failure }], moved).confirm).toEqual({ kind: "idle" });
+  });
+
+  it("shows the path the Machine answers with, written its way", () => {
+    const loading = run([{ type: "navigate", path: "~/scratch" }], atHome);
+    const listed = run([{ type: "answered", request: loading.request, listing: scratch }], loading);
+    expect(pickerView(listed).field).toBe("~/scratch/");
+    expect(listed.fieldVersion).toBe(loading.fieldVersion + 1);
+  });
+
   it("leaves an attempt under way alone when a closing alert reports Cancel late", () => {
     const opening = run([{ type: "open" }], atHome);
     expect(run([{ type: "cancel" }], opening).confirm).toEqual({ kind: "opening" });

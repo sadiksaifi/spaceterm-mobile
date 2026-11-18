@@ -92,3 +92,21 @@ it("does not leave the step that has already closed when the Machine answers", a
   await act(async () => answer(created));
   expect(onOpened).not.toHaveBeenCalled();
 });
+
+it("drops the answer to an attempt once the person has picked another directory", async () => {
+  let answer: (result: CreateWorkspaceResult) => void = () => {};
+  const { client, createWorkspace } = machine([]);
+  createWorkspace.mockImplementationOnce(
+    () => new Promise<CreateWorkspaceResult>((resolve) => (answer = resolve)),
+  );
+  const { result, onOpened } = await render(client);
+
+  await act(async () => result.current.edit("~/notes"));
+  await act(async () => result.current.open());
+  await act(async () => result.current.edit("~/notes2"));
+  await act(async () => answer({ kind: "missing-directory", directory: "~/notes" }));
+  expect(result.current.askingCreate).toBeNull();
+
+  await act(async () => answer(created));
+  expect(onOpened).not.toHaveBeenCalled();
+});

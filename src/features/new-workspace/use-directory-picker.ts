@@ -13,7 +13,7 @@ import {
 
 export type DirectoryPicker = {
   view: PickerView;
-  /** Changes each time a directory is asked for, when the field takes its path. */
+  /** Changes each time the picker sets the field, which then shows the new path. */
   fieldVersion: number;
   /** The directory the create alert names, `null` while the alert is closed. */
   askingCreate: string | null;
@@ -43,8 +43,10 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
   const [state, dispatch] = useReducer(reducePicker, initialPicker);
   const { listing, request, confirm } = state;
   const loadingPath = listing.kind === "loading" ? listing.path : null;
-  // One attempt at a time: a second tap can arrive before the render that disables the first.
-  const attempting = useRef(false);
+  // The state the last attempt started from: a second tap before the next render does nothing.
+  const startedFrom = useRef<typeof state | null>(null);
+  // Counts attempts and the picks that leave them behind; only the latest attempt's answer counts.
+  const latest = useRef(0);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -62,35 +64,45 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
   }, [client, machineId, loadingPath, request]);
 
   function attempt(directory: string, createDirectory: boolean) {
-    if (attempting.current) return;
-    attempting.current = true;
+    if (startedFrom.current === state) return;
+    startedFrom.current = state;
+    const id = ++latest.current;
     dispatch({ type: createDirectory ? "create" : "open" });
-    void client
-      .createWorkspace(machineId, directory, { createDirectory })
-      .then((result) => {
-        switch (result.kind) {
-          case "created":
-            if (mounted.current) onOpened();
-            return;
-          case "missing-directory":
-            dispatch({ type: "missing-directory", directory: result.directory });
-            return;
-          case "failed":
-            dispatch({ type: "failed", failure: { directory, createDirectory } });
-        }
-      })
-      .finally(() => {
-        attempting.current = false;
-      });
+    void client.createWorkspace(machineId, directory, { createDirectory }).then((result) => {
+      // The step has closed, or the person has picked another directory since.
+      if (!mounted.current || id !== latest.current) return;
+      switch (result.kind) {
+        case "created":
+          onOpened();
+          return;
+        case "missing-directory":
+          dispatch({ type: "missing-directory", directory: result.directory });
+          return;
+        case "failed":
+          dispatch({ type: "failed", failure: { directory, createDirectory } });
+      }
+    });
+  }
+
+  /** Picking another directory leaves an attempt under way behind. */
+  function pickAnother() {
+    latest.current += 1;
   }
 
   return {
     view: pickerView(state),
-    fieldVersion: request,
+    fieldVersion: state.fieldVersion,
     askingCreate: confirm.kind === "asking-create" ? confirm.directory : null,
     failure: confirm.kind === "failed" ? confirm : null,
-    edit: (typed) => dispatch({ type: "edit", field: typed }),
-    navigate: (path) => dispatch({ type: "navigate", path }),
+    edit(typed) {
+      if (typed === state.field) return;
+      pickAnother();
+      dispatch({ type: "edit", field: typed });
+    },
+    navigate(path) {
+      pickAnother();
+      dispatch({ type: "navigate", path });
+    },
     open() {
       const path = openPath(state);
       if (pickerView(state).canOpen && path !== null) attempt(path, false);

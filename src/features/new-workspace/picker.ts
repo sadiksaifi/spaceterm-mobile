@@ -14,6 +14,8 @@ export type PickerState = {
   listing: { kind: "loading"; path: string } | DirectoryListing;
   /** Counts the directories asked for, so a late answer for one left behind is dropped. */
   request: number;
+  /** Changes each time the picker, not the person, sets the field, so the field shows it. */
+  fieldVersion: number;
   confirm:
     | { kind: "idle" }
     | { kind: "opening" }
@@ -46,42 +48,61 @@ export const initialPicker: PickerState = {
   field: HOME,
   listing: { kind: "loading", path: HOME },
   request: 0,
+  fieldVersion: 0,
   confirm: { kind: "idle" },
 };
 
-/** Picking another directory makes a refusal out of date. */
-const withoutFailure = (state: PickerState): PickerState =>
-  state.confirm.kind === "failed" ? { ...state, confirm: { kind: "idle" } } : state;
+/**
+ * Picking another directory makes a refusal out of date, and leaves an attempt under way behind:
+ * its answer no longer applies to what the picker shows.
+ */
+const pickingAnother = (state: PickerState): PickerState =>
+  state.confirm.kind === "failed" || state.confirm.kind === "opening"
+    ? { ...state, confirm: { kind: "idle" } }
+    : state;
 
 export function reducePicker(state: PickerState, event: PickerEvent): PickerState {
   switch (event.type) {
     case "navigate":
       return {
-        ...withoutFailure(state),
+        ...pickingAnother(state),
         field: event.path,
         listing: { kind: "loading", path: event.path },
         request: state.request + 1,
+        fieldVersion: state.fieldVersion + 1,
       };
     case "answered": {
       if (event.request !== state.request || state.listing.kind !== "loading") return state;
-      // A path typed while the directory loaded stays; otherwise the field shows the Machine's.
+      // A path typed while the directory loaded stays; otherwise the field shows the Machine's,
+      // which can be written differently from the one asked for.
       const typed = state.field !== state.listing.path;
-      return { ...state, listing: event.listing, field: typed ? state.field : event.listing.path };
+      const field = typed ? state.field : event.listing.path;
+      return {
+        ...state,
+        listing: event.listing,
+        field,
+        fieldVersion: field === state.field ? state.fieldVersion : state.fieldVersion + 1,
+      };
     }
     case "edit":
-      return { ...withoutFailure(state), field: event.field };
+      return event.field === state.field ? state : { ...pickingAnother(state), field: event.field };
     case "open":
     case "create":
       return { ...state, confirm: { kind: "opening" } };
     case "missing-directory":
-      return { ...state, confirm: { kind: "asking-create", directory: event.directory } };
+      // An answer for an attempt the person has left behind is dropped.
+      return state.confirm.kind === "opening"
+        ? { ...state, confirm: { kind: "asking-create", directory: event.directory } }
+        : state;
     case "cancel":
       // A system alert reports Cancel after its other button has run; an attempt keeps going.
       return state.confirm.kind === "asking-create"
         ? { ...state, confirm: { kind: "idle" } }
         : state;
     case "failed":
-      return { ...state, confirm: { kind: "failed", ...event.failure } };
+      return state.confirm.kind === "opening"
+        ? { ...state, confirm: { kind: "failed", ...event.failure } }
+        : state;
     case "dismiss-failure":
       // A failure that has since been replaced stays.
       return state.confirm === event.failure ? { ...state, confirm: { kind: "idle" } } : state;

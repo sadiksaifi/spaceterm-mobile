@@ -73,6 +73,9 @@ export default function ThemesScreen({
   const filtering = query.trim() !== "";
   // Edit shows a removal control on each theme that was added.
   const [editing, setEditing] = useState(false);
+  // Delete takes the row out of the list before the alert asks. Keeping it out until the alert
+  // closes keeps the data in step with the list, which otherwise stops the app; Cancel puts it back.
+  const rows = removing === null ? themes : themes.filter((theme) => theme.id !== removing.id);
 
   return (
     <>
@@ -170,10 +173,10 @@ export default function ThemesScreen({
                   />
                 )}
                 <ListForEach
-                  data={themes}
+                  data={rows}
                   keyExtractor={(theme) => theme.id}
                   onDelete={(indices) => {
-                    const theme = indices[0] === undefined ? undefined : themes[indices[0]];
+                    const theme = indices[0] === undefined ? undefined : rows[indices[0]];
                     if (theme !== undefined) onAskRemove(theme);
                   }}
                 >

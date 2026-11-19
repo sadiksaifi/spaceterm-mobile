@@ -186,9 +186,10 @@ export function createMockClient(
       const target = machine(machineId);
       if (target === undefined || target.connection === "connected") return;
       if (target.connection === "reconnecting") return;
+      // Numbered before subscribers hear of it, so a Disconnect from one of them ends this try.
+      const connectTry = ++target.connectTry;
       target.connection = "reconnecting";
       changed();
-      const connectTry = ++target.connectTry;
       const reached = !refuses("connect");
       await answer(undefined, () => {
         // Disconnect, or Unpair, may have ended the try while it ran.

@@ -189,6 +189,21 @@ describe("the mock client", () => {
     vi.useRealTimers();
   });
 
+  it("lets a subscriber that disconnects on seeing Reconnecting end that try", async () => {
+    vi.useFakeTimers();
+    const client = createMockClient([{ ...mac, connection: "not-connected" }], { latency: 100 });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+    client.subscribe(() => {
+      if (connection() === "reconnecting") client.disconnect("mac");
+    });
+
+    client.connect("mac");
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(connection()).toBe("not-connected");
+    vi.useRealTimers();
+  });
+
   it("is still not connected when Connect fails, and Connect tries again", async () => {
     const client = createMockClient([{ ...mac, connection: "not-connected" }], { refuse: true });
     const connection = () => client.getSnapshot().machines[0]?.connection;

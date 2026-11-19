@@ -58,6 +58,19 @@ describe("extracting a .tar.gz", () => {
     expect(extractTarGz(withFirstSize("77777777777"))).toBeNull();
   });
 
+  it("gives nothing for an archive damaged in transit or cut short", () => {
+    const corrupt = archive.slice();
+    corrupt[corrupt.length - 8] = (corrupt[corrupt.length - 8] ?? 0) ^ 0xff;
+    expect(extractTarGz(corrupt)).toBeNull();
+
+    const tar = gunzipSync(archive);
+    // Cut partway into the second header, then at the end of the last file, before tar's end.
+    const firstSize = Number.parseInt(new TextDecoder().decode(tar.subarray(124, 135)), 8);
+    const second = 512 + Math.ceil(firstSize / 512) * 512;
+    expect(extractTarGz(gzipSync(tar.subarray(0, second + 100)))).toBeNull();
+    expect(extractTarGz(gzipSync(tar.subarray(0, second)))).toBeNull();
+  });
+
   it("refuses an archive that says it unpacks to gigabytes, before unpacking it", () => {
     const huge = archive.slice();
     huge.fill(0xff, huge.length - 4);

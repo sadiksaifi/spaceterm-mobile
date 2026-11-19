@@ -11,24 +11,31 @@ const decoder = new TextDecoder();
  * gzipped tar give null.
  */
 export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null {
-  // gzip ends with the unpacked size, modulo 4 GiB, which fflate allocates up front.
+  // gzip ends with the CRC-32 of what it packs, then the unpacked size modulo 4 GiB, which fflate
+  // allocates up front. fflate checks neither, so a damaged download is caught here.
   if (bytes.length < 18) return null;
-  const unpacked = new DataView(bytes.buffer, bytes.byteOffset + bytes.length - 4, 4);
-  if (unpacked.getUint32(0, true) > MAX_UNPACKED) return null;
+  const trailer = new DataView(bytes.buffer, bytes.byteOffset + bytes.length - 8, 8);
+  if (trailer.getUint32(4, true) > MAX_UNPACKED) return null;
   let tar: Uint8Array;
   try {
     tar = gunzipSync(bytes);
   } catch {
     return null;
   }
+  if (crc32(tar) !== trailer.getUint32(0, true)) return null;
 
   const files = new Map<string, Uint8Array>();
   // A long path comes in an entry of its own, just before the file it names.
   let longPath: string | null = null;
   let offset = 0;
+  // An archive ends with a block of zeros; one that stops before it was cut short.
+  let ended = false;
   while (offset + BLOCK <= tar.length) {
     const header = tar.subarray(offset, offset + BLOCK);
-    if (header.every((byte) => byte === 0)) break;
+    if (header.every((byte) => byte === 0)) {
+      ended = true;
+      break;
+    }
     if (!checksumMatches(header)) return null;
 
     const size = octal(header.subarray(124, 136));
@@ -50,7 +57,20 @@ export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null 
       if (type === "0" || type === "\0") files.set(path.replace(/^(\.\/)+/, ""), data.slice());
     }
   }
-  return files;
+  return ended ? files : null;
+}
+
+const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  return value;
+});
+
+/** The CRC-32 gzip records for the bytes it packs. */
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 /** The path in a header: the ustar prefix, if any, then the name. */

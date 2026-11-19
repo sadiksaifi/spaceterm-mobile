@@ -102,8 +102,9 @@ function RenameDialog({
         </OutlinedButton>
       </AlertDialog.DismissButton>
       <AlertDialog.ConfirmButton>
+        {/* The field's own text: the last keystroke's event can still be on its way to React. */}
         <Button
-          onClick={() => alerts.rename(typed)}
+          onClick={() => alerts.rename(field.get())}
           enabled={renameOutcome(name, typed).kind !== "unavailable"}
         >
           <Text>{text.rename}</Text>

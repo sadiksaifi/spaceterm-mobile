@@ -103,9 +103,10 @@ function RenameActions({
         modifiers={[textInputAutocapitalization("never"), autocorrectionDisabled()]}
       />
       <Button label={text.cancel} role="cancel" onPress={onCancel} />
+      {/* The field's own text: the last keystroke's event can still be on its way to React. */}
       <Button
         label={text.rename}
-        onPress={() => onRename(typed)}
+        onPress={() => onRename(field.get())}
         modifiers={[disabled(renameOutcome(name, typed).kind === "unavailable")]}
       />
     </>

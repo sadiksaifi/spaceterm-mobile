@@ -1,4 +1,5 @@
 import addIcon from "@expo/material-symbols/add.xml";
+import checkIcon from "@expo/material-symbols/check.xml";
 import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml";
 import machineIcon from "@expo/material-symbols/desktop_windows.xml";
 import { Column, Icon, Row, Slider, Switch, Text } from "@expo/ui/jetpack-compose";
@@ -7,6 +8,7 @@ import {
   fillMaxSize,
   fillMaxWidth,
   padding,
+  semantics,
   verticalScroll,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
@@ -109,7 +111,7 @@ export default function SettingsScreen({
                   // The stops between the ends, one a point.
                   steps={FONT_SIZE.max - FONT_SIZE.min - 1}
                   onValueChange={(value) => onFontSize(Math.round(value))}
-                  modifiers={[fillMaxWidth()]}
+                  modifiers={[fillMaxWidth(), semantics({ contentDescription: text.fontSize })]}
                 />
               }
             />
@@ -122,10 +124,14 @@ export default function SettingsScreen({
                 last={index === PRIVACY.length - 1}
                 headline={label}
                 trailing={
-                  <Switch
-                    value={privacy[setting]}
-                    onCheckedChange={(on) => onPrivacy(setting, on)}
-                  />
+                  <Switch value={privacy[setting]} onCheckedChange={(on) => onPrivacy(setting, on)}>
+                    {/* The switch reads its slots again when it turns, so this one can come and go. */}
+                    {privacy[setting] && (
+                      <Switch.ThumbContent>
+                        <Icon source={checkIcon} size={Switch.DefaultIconSize} />
+                      </Switch.ThumbContent>
+                    )}
+                  </Switch>
                 }
                 onClick={() => onPrivacy(setting, !privacy[setting])}
               />

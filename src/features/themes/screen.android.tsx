@@ -32,6 +32,7 @@ import {
   padding,
   selectable,
   selectableGroup,
+  semantics,
   Shapes,
   verticalScroll,
   weight,
@@ -153,7 +154,9 @@ export default function ThemesScreen({
                       modifiers={[weight(1)]}
                     >
                       <SegmentedButton.Label>
-                        <Text maxLines={1}>{label}</Text>
+                        <Text maxLines={1} overflow="ellipsis">
+                          {label}
+                        </Text>
                       </SegmentedButton.Label>
                     </SegmentedButton>
                   ))}
@@ -419,12 +422,12 @@ function ThemeRow({
         </ListItem.SupportingContent>
         {canRemove && (
           <ListItem.TrailingContent>
-            <IconButton onClick={onAskRemove}>
-              <Icon
-                source={deleteIcon}
-                tint={colors.secondaryText}
-                contentDescription={text.removeLabel(theme.name)}
-              />
+            {/* The row takes its children's descriptions, so the button names itself. */}
+            <IconButton
+              onClick={onAskRemove}
+              modifiers={[semantics({ contentDescription: text.removeLabel(theme.name) })]}
+            >
+              <Icon source={deleteIcon} tint={colors.secondaryText} />
             </IconButton>
           </ListItem.TrailingContent>
         )}

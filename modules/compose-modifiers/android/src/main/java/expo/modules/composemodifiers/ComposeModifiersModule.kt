@@ -3,6 +3,7 @@ package expo.modules.composemodifiers
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
@@ -51,6 +52,7 @@ class ComposeModifiersModule : Module() {
       ModifierRegistry.register("hiddenFromAccessibility") { _, _, _, _ ->
         Modifier.clearAndSetSemantics {}
       }
+      ModifierRegistry.register("disabled") { _, _, _, _ -> Modifier.semantics { disabled() } }
     }
 
     OnDestroy {
@@ -58,6 +60,7 @@ class ComposeModifiersModule : Module() {
       ModifierRegistry.unregister("heading")
       ModifierRegistry.unregister("radioSelected")
       ModifierRegistry.unregister("hiddenFromAccessibility")
+      ModifierRegistry.unregister("disabled")
     }
   }
 }

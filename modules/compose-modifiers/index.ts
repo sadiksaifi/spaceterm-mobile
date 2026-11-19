@@ -18,3 +18,6 @@ export const hiddenFromAccessibility = () => createModifier("hiddenFromAccessibi
  * tap and also takes touch and hold, which Expo UI's `selectable` leaves out.
  */
 export const radioSelected = (selected: boolean) => createModifier("radioSelected", { selected });
+
+/** Reports the view to TalkBack as disabled, for a dimmed row that takes no taps. */
+export const disabled = () => createModifier("disabled", {});

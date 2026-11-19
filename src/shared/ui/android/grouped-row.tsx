@@ -9,7 +9,7 @@ import {
 import type { ColorValue } from "react-native";
 import type { ReactNode } from "react";
 
-import { heading } from "@/modules/compose-modifiers";
+import { disabled, heading } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 
 import { groupedCorners } from "./grouped";
@@ -68,7 +68,7 @@ export function GroupedRow({
         // node, which then reads as one labeled control. Inside the card, the ripple keeps its corners.
         modifiers={[
           ...(enabled ? [] : [alpha(DISABLED)]),
-          ...(onClick !== undefined && enabled ? [clickable(onClick)] : []),
+          ...(onClick === undefined ? [] : [enabled ? clickable(onClick) : disabled()]),
           ...(toggle === undefined
             ? []
             : [toggleable(toggle.on, toggle.onToggle, { role: "switch", enabled })]),

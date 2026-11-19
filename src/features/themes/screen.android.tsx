@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   Icon,
   IconButton,
+  LazyColumn,
   ListItem,
   RadioButton,
   Row,
@@ -34,7 +35,6 @@ import {
   selectableGroup,
   semantics,
   Shapes,
-  verticalScroll,
   weight,
   width,
 } from "@expo/ui/jetpack-compose/modifiers";
@@ -60,6 +60,8 @@ import type ScreenContract from "./screen";
 import type { ThemesProps } from "./screen";
 import { appearances, text, themeSource } from "./text";
 
+/** A theme row's height, for the list to place rows it has not drawn yet. */
+const ROW_HEIGHT = 72;
 /** A card's corners: 16 dp outside, 4 dp where the pair meets. */
 const OUTER = 16;
 const INNER = 4;
@@ -130,13 +132,12 @@ export default function ThemesScreen({
               }
             />
           )}
-          <Column
+          {/* Lazy, so a family of hundreds of themes draws only the rows on screen. */}
+          <LazyColumn
             verticalArrangement={{ spacedBy: GROUPED_GAP }}
-            modifiers={[
-              weight(1),
-              verticalScroll(),
-              padding(16, 0, 16, insets.bottom + GROUP_SPACE),
-            ]}
+            contentPadding={{ start: 16, end: 16, top: 0, bottom: insets.bottom + GROUP_SPACE }}
+            // The theme rows are radio buttons; a lazy list cannot group only some of its items.
+            modifiers={[weight(1), fillMaxWidth(), selectableGroup()]}
           >
             {/* While a search has text, the page shows only the themes it finds. */}
             {!filtering && (
@@ -196,31 +197,32 @@ export default function ThemesScreen({
             )}
 
             <GroupHeader>{text.themesFor(shown)}</GroupHeader>
-            <Column
-              verticalArrangement={{ spacedBy: GROUPED_GAP }}
-              modifiers={[fillMaxWidth(), selectableGroup()]}
+            {filtering && themes.length === 0 && (
+              <GroupedRow
+                first
+                last={false}
+                headline={text.noResultsTitle(query.trim())}
+                supporting={text.noResultsBody}
+              />
+            )}
+            <LazyColumn.Items
+              data={themes}
+              keyExtractor={(theme) => theme.id}
+              estimatedItemSize={ROW_HEIGHT}
             >
-              {filtering && themes.length === 0 && (
-                <GroupedRow
-                  first
-                  last={false}
-                  headline={text.noResultsTitle(query.trim())}
-                  supporting={text.noResultsBody}
+              {({ item, index }: { item: TerminalTheme; index: number }) => (
+                <ThemeRow
+                  key={item.id}
+                  theme={item}
+                  first={index === 0}
+                  chosen={item.id === chosen[shown].id}
+                  onChoose={() => onChoose(item.id)}
+                  onAskRemove={() => onAskRemove(item)}
                 />
               )}
-              {themes.map((theme, index) => (
-                <ThemeRow
-                  key={theme.id}
-                  theme={theme}
-                  first={index === 0 && !(filtering && themes.length === 0)}
-                  chosen={theme.id === chosen[shown].id}
-                  onChoose={() => onChoose(theme.id)}
-                  onAskRemove={() => onAskRemove(theme)}
-                />
-              ))}
-              <GetMoreRow first={themes.length === 0 && !filtering} onClick={onGetMore} />
-            </Column>
-          </Column>
+            </LazyColumn.Items>
+            <GetMoreRow first={themes.length === 0 && !filtering} onClick={onGetMore} />
+          </LazyColumn>
         </Column>
         {removing !== null && (
           <ConfirmDialog

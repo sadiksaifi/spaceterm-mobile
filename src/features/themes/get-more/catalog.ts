@@ -28,6 +28,8 @@ const SCHEMA = { min: "0", max: "1" } as const;
 const WASM_API = { min: "0.0.0", max: "0.8.0" } as const;
 /** The largest archive SpaceTerm downloads; a theme extension is far smaller. */
 export const MAX_ARCHIVE = 16 * 1024 * 1024;
+/** The largest list SpaceTerm reads; every theme extension in the store lists in about 260 KiB. */
+const MAX_LIST = 4 * 1024 * 1024;
 /**
  * How long a search or a download may take, body included. React Native's Android network client
  * has no read timeout, so a store that stops answering would otherwise leave it under way.
@@ -53,7 +55,6 @@ export type Fetch = (
   ok: boolean;
   headers: { get: (name: string) => string | null };
   body: ReadableStream<Uint8Array> | null;
-  json: () => Promise<unknown>;
 }>;
 
 /** Zed's extension store, reached with `fetch`. */
@@ -67,7 +68,10 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       try {
         const response = await fetch(`${API}?${params}`, { signal: request.signal });
         if (!response.ok) return "unavailable";
-        const body: unknown = await response.json();
+        // Read like a download, so an answer cut off by the deadline is not taken for a whole one.
+        const bytes = await readAtMost(response.body, MAX_LIST, request.signal);
+        if (typeof bytes === "string") return "unavailable";
+        const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
         const data = isRecord(body) && Array.isArray(body.data) ? body.data : [];
         return data
           .flatMap(toExtension)

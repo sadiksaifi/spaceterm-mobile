@@ -192,6 +192,22 @@ describe("Zed's theme catalog", () => {
     vi.useRealTimers();
   });
 
+  it("gives up on a search whose answer stops partway, though what came is whole", async () => {
+    vi.useFakeTimers();
+    const partway = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start: (controller) => controller.enqueue(new TextEncoder().encode('{"data":[]}')),
+        }),
+      );
+
+    const search = createZedCatalog(partway).search("");
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await search).toBe("unavailable");
+    vi.useRealTimers();
+  });
+
   it("stops a download once it runs past the limit, without reading the rest", async () => {
     let pulled = 0;
     let signal: AbortSignal | undefined;

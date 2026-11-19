@@ -131,6 +131,28 @@ describe("Zed's theme catalog", () => {
     );
   });
 
+  it("stops a download once it runs past the limit, without reading the rest", async () => {
+    let pulled = 0;
+    let signal: AbortSignal | undefined;
+    const endless = async (_url: string, init?: { signal?: AbortSignal }) => {
+      signal = init?.signal;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          pull: (controller) => {
+            pulled++;
+            controller.enqueue(new Uint8Array(1024 * 1024));
+          },
+        }),
+      );
+    };
+
+    expect(await createZedCatalog(endless).themes({ id: "paper", name: "Paper" })).toBe(
+      "too-large",
+    );
+    expect(pulled * 1024 * 1024).toBeLessThan(MAX_ARCHIVE + 4 * 1024 * 1024);
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("tells an archive with no theme from a download that failed", async () => {
     const empty = fakeFetch({ [DOWNLOAD]: () => new Response("not an archive") });
     expect(await createZedCatalog(empty.fetch).themes({ id: "paper", name: "Paper" })).toBe(

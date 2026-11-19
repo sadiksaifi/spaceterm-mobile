@@ -29,8 +29,19 @@ const WASM_API = { min: "0.0.0", max: "0.8.0" } as const;
 /** The largest archive SpaceTerm downloads; a theme extension is far smaller. */
 export const MAX_ARCHIVE = 16 * 1024 * 1024;
 
+/** A fetch that streams a body and stops its request when aborted, as `expo/fetch` does. */
+export type Fetch = (
+  url: string,
+  init?: { signal?: AbortSignal },
+) => Promise<{
+  ok: boolean;
+  headers: { get: (name: string) => string | null };
+  body: ReadableStream<Uint8Array> | null;
+  json: () => Promise<unknown>;
+}>;
+
 /** Zed's extension store, reached with `fetch`. */
-export function createZedCatalog(fetch: typeof globalThis.fetch = globalThis.fetch): ThemeCatalog {
+export function createZedCatalog(fetch: Fetch): ThemeCatalog {
   return {
     search: async (query) => {
       const params = new URLSearchParams({ provides: "themes", max_schema_version: SCHEMA.max });
@@ -55,19 +66,25 @@ export function createZedCatalog(fetch: typeof globalThis.fetch = globalThis.fet
         min_wasm_api_version: WASM_API.min,
         max_wasm_api_version: WASM_API.max,
       });
-      let bytes: Uint8Array;
+      // Stops the download when it is refused before its end.
+      const request = new AbortController();
+      let bytes: Uint8Array | "too-large" | "unavailable";
       try {
         const response = await fetch(
           `${API}/${encodeURIComponent(extension.id)}/download?${params}`,
+          { signal: request.signal },
         );
-        if (!response.ok) return "unavailable";
-        // React Native's fetch cannot stream a body, so the declared size is checked before it is
-        // read, and the read size after, for a server that declares none.
-        if (Number(response.headers.get("content-length") ?? 0) > MAX_ARCHIVE) return "too-large";
-        bytes = new Uint8Array(await response.arrayBuffer());
-        if (bytes.length > MAX_ARCHIVE) return "too-large";
+        bytes = !response.ok
+          ? "unavailable"
+          : Number(response.headers.get("content-length") ?? 0) > MAX_ARCHIVE
+            ? "too-large"
+            : await readAtMost(response.body, MAX_ARCHIVE);
       } catch {
-        return "unavailable";
+        bytes = "unavailable";
+      }
+      if (typeof bytes === "string") {
+        request.abort();
+        return bytes;
       }
       const files = extractTarGz(bytes);
       if (files === null) return "no-themes";
@@ -84,6 +101,32 @@ export function createZedCatalog(fetch: typeof globalThis.fetch = globalThis.fet
       return themes.length === 0 ? "no-themes" : themes;
     },
   };
+}
+
+/** The whole body, or "too-large" as soon as it runs past `limit` bytes. */
+async function readAtMost(
+  body: ReadableStream<Uint8Array> | null,
+  limit: number,
+): Promise<Uint8Array | "too-large" | "unavailable"> {
+  if (body === null) return "unavailable";
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (let read = await reader.read(); !read.done; read = await reader.read()) {
+    size += read.value.length;
+    if (size > limit) {
+      void reader.cancel().catch(() => {});
+      return "too-large";
+    }
+    chunks.push(read.value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
 }
 
 /** An email address, bare or in angle brackets, parentheses or square brackets. */

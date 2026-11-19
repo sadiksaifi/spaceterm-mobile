@@ -177,9 +177,9 @@ export function useGetMore(
       // iOS keeps showing a failure until its alert closes, though a newer one may have replaced
       // it; Try Again still means that one, and the newer failure waits its turn.
       dismissFailure(shown);
+      // Get passes over an extension got again since, or under way, which answered its failure.
       if (shown.kind === "import") void importNow();
-      // An extension got again, or under way, has answered its failure.
-      else if (!installed.has(shown.extension.id)) installs.get(shown.extension);
+      else installs.get(shown.extension);
     },
   };
 }

@@ -22,7 +22,7 @@ export type InstallsSnapshot = {
 export type Installs = {
   getSnapshot: () => InstallsSnapshot;
   subscribe: (listener: () => void) => () => void;
-  /** Gets every theme in an extension. A Get already under way for it is left to finish. */
+  /** Gets every theme in an extension, unless they are in or a Get for it is under way. */
   get: (extension: CatalogExtension) => void;
   /** Takes away `failure` if it is still the one shown; a newer failure stays. */
   dismissFailure: (failure: GetFailure) => void;
@@ -74,7 +74,13 @@ export function createInstalls(catalog: ThemeCatalog, store: PreferencesStore): 
       return () => listeners.delete(listener);
     },
     get: (extension) => {
-      if (snapshot.installing.has(extension.id)) return;
+      // A tap queued before the row changed to Remove can arrive after the themes are in.
+      const installed = store
+        .getSnapshot()
+        .themes.some(
+          (theme) => theme.source.kind === "extension" && theme.source.id === extension.id,
+        );
+      if (installed || snapshot.installing.has(extension.id)) return;
       void getNow(extension);
     },
     dismissFailure: (failure) => {

@@ -91,6 +91,11 @@ describe("Gets under way", () => {
     expect(downloads).toBe(1);
     expect(installs.getSnapshot().installing.size).toBe(0);
     expect(store.getSnapshot().themes.at(-1)).toEqual(mocha);
+
+    // A tap that reaches it after the themes are in, before its row shows Remove, gets nothing.
+    installs.get(catppuccin);
+    expect(downloads).toBe(1);
+    expect(installs.getSnapshot().installing.size).toBe(0);
   });
 
   it("keeps a failure until it is dismissed, and treats a thrown error as unavailable", async () => {

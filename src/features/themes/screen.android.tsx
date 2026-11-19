@@ -38,7 +38,7 @@ import {
   weight,
   width,
 } from "@expo/ui/jetpack-compose/modifiers";
-import { Stack } from "expo-router";
+import { Stack, useIsFocused } from "expo-router";
 import { useEffect, useState } from "react";
 import { BackHandler } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -100,15 +100,17 @@ export default function ThemesScreen({
     onQuery("");
   };
 
+  // Back closes the search only while Themes is in front, not under Get More Themes.
+  const focused = useIsFocused();
   useEffect(() => {
-    if (!searching) return;
+    if (!searching || !focused) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       setSearching(false);
       onQuery("");
       return true;
     });
     return () => subscription.remove();
-  }, [searching, onQuery]);
+  }, [searching, focused, onQuery]);
 
   return (
     <>

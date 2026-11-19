@@ -182,7 +182,17 @@ function read(stored: string | null): Kept {
       light: typeof chosen.light === "string" ? chosen.light : initial.chosen.light,
       dark: typeof chosen.dark === "string" ? chosen.dark : initial.chosen.dark,
     },
-    added: Array.isArray(value.added) ? value.added.filter(isTheme) : [],
+    added: Array.isArray(value.added) ? oncePerId(value.added.filter(isTheme)) : [],
+  });
+}
+
+/** The first of each theme by id; screens list themes by id, so one kept twice would break them. */
+function oncePerId(themes: TerminalTheme[]): TerminalTheme[] {
+  const seen = new Set<string>();
+  return themes.filter((theme) => {
+    if (seen.has(theme.id)) return false;
+    seen.add(theme.id);
+    return true;
   });
 }
 

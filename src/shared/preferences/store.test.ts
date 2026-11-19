@@ -119,6 +119,15 @@ describe("the preferences store", () => {
     expect(written).toEqual([]);
   });
 
+  it("keeps one of each theme it kept twice", () => {
+    const renamed = { ...oneDark, name: "One Dark Pro Again" };
+    const stored = JSON.stringify({ added: [oneDark, oneLight, renamed] });
+
+    const { themes } = createPreferencesStore(memoryStorage({ preferences: stored })).getSnapshot();
+
+    expect(themes.slice(2)).toEqual([oneDark, oneLight]);
+  });
+
   it("keeps the text size between 9 and 18 pt", () => {
     const store = createPreferencesStore(memoryStorage());
     store.setFontSize(40);

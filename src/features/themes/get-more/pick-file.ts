@@ -25,9 +25,14 @@ export async function pickThemeFile(): Promise<PickedFile | null> {
   // Android hands over the person's document itself, which must stay.
   const ownCopy = asset.uri.startsWith("file:");
   try {
-    if ((asset.size ?? 0) > MAX_THEME_FILE)
-      return { kind: "failed", name: asset.name, reason: "too-large" };
-    // A provider may not give the size, so the read itself stops one byte past the limit.
+    if (asset.size !== undefined) {
+      if (asset.size > MAX_THEME_FILE)
+        return { kind: "failed", name: asset.name, reason: "too-large" };
+      // A provider may stream the file through a pipe, which only a whole read can take.
+      return { kind: "read", name: asset.name, text: await file.text() };
+    }
+    // With no size, the read itself stops one byte past the limit. It needs a file it can seek,
+    // so a streamed file of unknown size is unreadable.
     const handle = file.open(FileMode.ReadOnly);
     let bytes: Uint8Array;
     try {

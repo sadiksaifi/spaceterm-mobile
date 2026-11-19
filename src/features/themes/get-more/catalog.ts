@@ -1,7 +1,7 @@
 import type { TerminalTheme } from "@/shared/preferences/model";
 
 import { extractTarGz } from "./tar-gz";
-import { MAX_THEMES, readZedThemes } from "./zed-theme";
+import { MAX_THEME_FILE, MAX_THEMES, readZedThemes } from "./zed-theme";
 
 /** A theme extension in Zed's store. Getting it adds every theme it holds. */
 export type CatalogExtension = {
@@ -134,6 +134,7 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       for (const [path, file] of files) {
         // An extension keeps its theme families directly in themes/, as Desktop reads them.
         if (!THEME_FAMILY.test(path)) continue;
+        if (file.length > MAX_THEME_FILE) return "too-large";
         // The room left is shared by every file, so the extension's themes stop one past it.
         themes.push(...readZedThemes(decoder.decode(file), origin, MAX_THEMES - themes.length));
         if (themes.length > MAX_THEMES) return "too-large";

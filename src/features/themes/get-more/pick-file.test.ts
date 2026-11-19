@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { pickThemeFile } from "./pick-file";
 
-const LIMIT = 8 * 1024 * 1024;
+/** Desktop reads a theme family of at most 4 MiB. */
+const LIMIT = 4 * 1024 * 1024;
 
 /** What the picker hands over next, and what the device's files hold, by URI. */
 const device = vi.hoisted(() => ({
@@ -62,7 +63,7 @@ beforeEach(() => {
 
 describe("picking a theme file", () => {
   it("reads a document of unknown size no further than one byte past the limit", async () => {
-    // Only the outcome is compared: a diff of 8 MiB of text would take minutes to print.
+    // Only the outcome is compared: a diff of 4 MiB of text would take minutes to print.
     const outcome = async () => {
       const picked = await pickThemeFile();
       return picked?.kind === "failed" ? picked.reason : picked?.kind;

@@ -11,6 +11,11 @@ export type ZedThemeOrigin =
  * largest theme extension, base16, holds 251.
  */
 export const MAX_THEMES = 500;
+/**
+ * The largest theme file read, in bytes, as SpaceTerm Desktop reads them. Zed's largest theme
+ * file is far smaller; the limit keeps one file from stalling the app while it is parsed.
+ */
+export const MAX_THEME_FILE = 4 * 1024 * 1024;
 /** The longest theme or family name read; a longer one is left out. */
 const MAX_NAME = 200;
 

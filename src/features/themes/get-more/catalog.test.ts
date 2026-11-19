@@ -23,7 +23,7 @@ function fakeFetch(routes: Record<string, () => Response>) {
 /** A gzipped ustar archive that holds `files`, by path. */
 function tarGz(files: Record<string, string>): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
-  const blocks: number[] = [];
+  const parts: Uint8Array[] = [];
   for (const [path, text] of Object.entries(files)) {
     const data = encoder.encode(text);
     const header = new Uint8Array(512);
@@ -33,9 +33,16 @@ function tarGz(files: Record<string, string>): Uint8Array<ArrayBuffer> {
     header.set(encoder.encode("0"), 156);
     const sum = header.reduce((total, byte) => total + byte, 0);
     header.set(encoder.encode(`${sum.toString(8).padStart(6, "0")}\0 `), 148);
-    blocks.push(...header, ...data, ...new Uint8Array((512 - (data.length % 512)) % 512));
+    parts.push(header, data, new Uint8Array((512 - (data.length % 512)) % 512));
   }
-  return new Uint8Array(gzipSync(new Uint8Array([...blocks, ...new Uint8Array(1024)])));
+  parts.push(new Uint8Array(1024));
+  const tar = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    tar.set(part, offset);
+    offset += part.length;
+  }
+  return new Uint8Array(gzipSync(tar));
 }
 
 /** A Zed theme family that holds `count` dark themes. */
@@ -209,6 +216,15 @@ describe("Zed's theme catalog", () => {
     expect(await createZedCatalog(undeclared.fetch).themes({ id: "paper", name: "Paper" })).toBe(
       "too-large",
     );
+  });
+
+  it("refuses an extension with a theme file larger than Desktop reads", async () => {
+    const big = family("Big", 1).padEnd(4 * 1024 * 1024 + 1, " ");
+    const { fetch } = fakeFetch({
+      [DOWNLOAD]: () => new Response(tarGz({ "themes/big.json": big })),
+    });
+
+    expect(await createZedCatalog(fetch).themes({ id: "paper", name: "Paper" })).toBe("too-large");
   });
 
   it("refuses an extension with more themes than one Get adds", async () => {

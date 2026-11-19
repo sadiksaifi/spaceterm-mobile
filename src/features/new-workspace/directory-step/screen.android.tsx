@@ -35,6 +35,7 @@ import {
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
+import { useImperativeHandle, useRef, type Ref } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
@@ -74,6 +75,7 @@ export default function DirectoryStepScreen({
   const insets = useSafeAreaInsets();
   const { view, askingCreate, failure } = picker;
   const { content, parent } = view;
+  const field = useRef<FieldText>(null);
   // Android reports a refusal in a snackbar, which leaves the picker usable.
   const snackbar = useSnackbar(
     failure,
@@ -115,7 +117,7 @@ export default function DirectoryStepScreen({
               </TopAppBar.Title>
               <TopAppBar.Actions>
                 <Button
-                  onClick={() => picker.open()}
+                  onClick={() => picker.open(field.current?.text())}
                   enabled={view.canOpen}
                   modifiers={[padding(8, 0, 12, 0)]}
                 >
@@ -125,6 +127,7 @@ export default function DirectoryStepScreen({
             </TopAppBar>
 
             <PathField
+              ref={field}
               key={picker.fieldVersion}
               label={text.directoryOn(machineName)}
               initial={view.field}
@@ -203,17 +206,19 @@ function OpenLabel({ opening }: { opening: boolean }) {
   );
 }
 
-/**
- * The path of the directory to open, in a monospaced font. Go opens it, as Open does, and sends
- * the text, which can be ahead of the last render.
- */
+/** The text a path field shows now, which can be ahead of the last keystroke's event. */
+type FieldText = { text: () => string };
+
+/** The path of the directory to open, in a monospaced font. Go opens it, as Open does. */
 function PathField({
+  ref,
   label,
   initial,
   enabled,
   onEdit,
   onGo,
 }: {
+  ref: Ref<FieldText>;
   label: string;
   initial: string;
   enabled: boolean;
@@ -221,6 +226,7 @@ function PathField({
   onGo: (submitted: string) => void;
 }) {
   const field = useNativeState(initial);
+  useImperativeHandle(ref, () => ({ text: () => field.get() }), [field]);
   // The cursor starts after the path.
   const selection = useNativeState({ start: initial.length, end: initial.length });
   return (

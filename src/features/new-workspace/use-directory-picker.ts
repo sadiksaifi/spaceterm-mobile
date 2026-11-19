@@ -25,7 +25,10 @@ export type DirectoryPicker = {
   failure: PickerFailure | null;
   edit: (field: string) => void;
   navigate: (path: string) => void;
-  /** Opens the field's path, or `submitted`, the text a keyboard's Go sent with it. */
+  /**
+   * Opens the field's path. `submitted` is the text the field shows, which can be ahead of the
+   * last keystroke's event.
+   */
   open: (submitted?: string) => void;
   create: () => void;
   /** Cancel, in the create alert. */
@@ -98,7 +101,6 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
     edit: (typed) => send({ type: "edit", field: typed }),
     navigate: (path) => send({ type: "navigate", path }),
     open(submitted) {
-      // Go sends the text it opens, which can be ahead of the last keystroke's event.
       if (submitted !== undefined) send({ type: "edit", field: submitted });
       const path = openPath(latest.current);
       if (pickerView(latest.current).canOpen && path !== null) attempt(path, false);

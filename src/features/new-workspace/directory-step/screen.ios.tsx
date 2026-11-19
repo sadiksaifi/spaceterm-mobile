@@ -32,7 +32,7 @@ import {
   textInputAutocapitalization,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import { useState, type ComponentProps } from "react";
+import { useImperativeHandle, useRef, useState, type ComponentProps, type Ref } from "react";
 import { ActivityIndicator, useWindowDimensions, View } from "react-native";
 
 import { useColors } from "@/shared/theme/colors";
@@ -68,6 +68,7 @@ export default function DirectoryStepScreen({
   const { view, askingCreate, failure } = picker;
   // Where the list ends on screen, so a state can fill the space below the rows.
   const [listBottom, setListBottom] = useState<number | null>(null);
+  const field = useRef<FieldText>(null);
 
   return (
     <>
@@ -93,7 +94,7 @@ export default function DirectoryStepScreen({
             variant="prominent"
             accessibilityLabel={text.open}
             disabled={!view.canOpen}
-            onPress={() => picker.open()}
+            onPress={() => picker.open(field.current?.text())}
           />
         )}
       </Stack.Toolbar>
@@ -121,12 +122,13 @@ export default function DirectoryStepScreen({
                 >
                   <Section header={<SectionHeader>{text.directoryOn(machineName)}</SectionHeader>}>
                     <PathField
+                      ref={field}
                       key={picker.fieldVersion}
                       label={text.directoryOn(machineName)}
                       initial={view.field}
                       enabled={!view.opening}
                       onEdit={picker.edit}
-                      onSubmit={() => picker.open()}
+                      onSubmit={picker.open}
                     />
                   </Section>
                   {view.parent !== null || view.content.kind === "directories" ? (
@@ -188,24 +190,31 @@ export default function DirectoryStepScreen({
   );
 }
 
+/** The text a path field shows now, which can be ahead of the last keystroke's event. */
+type FieldText = { text: () => string };
+
 /**
- * The path of the directory to open. Return opens it, as the checkmark does. The keyboard has a
- * space bar, which the URL keyboard lacks, as paths such as `~/Library/Application Support` need.
+ * The path of the directory to open. Return opens it, as the checkmark does, with the text it
+ * shows. The keyboard has a space bar, which the URL keyboard lacks, as paths such as
+ * `~/Library/Application Support` need.
  */
 function PathField({
+  ref,
   label,
   initial,
   enabled,
   onEdit,
   onSubmit: submit,
 }: {
+  ref: Ref<FieldText>;
   label: string;
   initial: string;
   enabled: boolean;
   onEdit: (field: string) => void;
-  onSubmit: () => void;
+  onSubmit: (submitted: string) => void;
 }) {
   const field = useNativeState(initial);
+  useImperativeHandle(ref, () => ({ text: () => field.get() }), [field]);
   return (
     <TextField
       text={field}
@@ -216,7 +225,7 @@ function PathField({
         autocorrectionDisabled(),
         keyboardType("ascii-capable"),
         submitLabel("go"),
-        onSubmit(submit),
+        onSubmit(() => submit(field.get())),
         disabled(!enabled),
       ]}
     />

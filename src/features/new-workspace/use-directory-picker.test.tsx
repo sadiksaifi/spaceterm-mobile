@@ -139,7 +139,8 @@ it("opens nothing when Open follows a tap on a directory before the next render"
   const shown = result.current;
   await act(async () => {
     shown.navigate("~/Projects/");
-    shown.open();
+    // The field still shows the path from before the tap.
+    shown.open("~/");
   });
   // The tapped directory is loading, so Open waits for it rather than opening the one before.
   expect(createWorkspace).not.toHaveBeenCalled();

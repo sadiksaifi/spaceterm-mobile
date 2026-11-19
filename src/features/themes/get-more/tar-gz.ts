@@ -43,7 +43,7 @@ export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null 
     if (type === "L") {
       longPath = text(data);
     } else if (type === "x") {
-      longPath = paxPath(text(data)) ?? longPath;
+      longPath = paxPath(data) ?? longPath;
     } else {
       const path = longPath ?? headerPath(header);
       longPath = null;
@@ -108,11 +108,22 @@ function headerPath(header: Uint8Array): string {
   return prefix === "" ? name : `${prefix}/${name}`;
 }
 
-/** The `path` record of a pax header, such as `57 path=themes/…\n`. */
-function paxPath(records: string): string | null {
-  for (const record of records.split("\n")) {
-    const match = /^\d+ path=(.*)$/.exec(record);
-    if (match !== null) return match[1] ?? null;
+/**
+ * The `path` record of a pax header. Each record is `<length> <key>=<value>\n`, its length in bytes
+ * counting itself, so a value may hold a newline. A damaged record ends the reading.
+ */
+function paxPath(records: Uint8Array): string | null {
+  let offset = 0;
+  while (offset < records.length) {
+    const space = records.indexOf(0x20, offset);
+    if (space === -1) return null;
+    const digits = decoder.decode(records.subarray(offset, space));
+    const length = /^\d+$/.test(digits) ? Number(digits) : Number.NaN;
+    const end = offset + length;
+    if (!(end > space + 1) || end > records.length || records[end - 1] !== 0x0a) return null;
+    const record = decoder.decode(records.subarray(space + 1, end - 1));
+    if (record.startsWith("path=")) return record.slice("path=".length);
+    offset = end;
   }
   return null;
 }

@@ -19,6 +19,33 @@ function withFirstSize(size: string): Uint8Array {
   tar.set(new TextEncoder().encode(sum.toString(8).padStart(6, "0") + "\0 "), 148);
   return gzipSync(tar);
 }
+/** A gzipped tar archive of `entries`, each a header of `type` and `name` followed by `data`. */
+function archiveOf(entries: { type: string; name: string; data: string }[]): Uint8Array {
+  const encoder = new TextEncoder();
+  const blocks: number[] = [];
+  for (const { type, name, data } of entries) {
+    const bytes = encoder.encode(data);
+    const header = new Uint8Array(512);
+    header.set(encoder.encode(name), 0);
+    header.set(encoder.encode(`${bytes.length.toString(8).padStart(11, "0")}\0`), 124);
+    header.fill(32, 148, 156);
+    header.set(encoder.encode(type), 156);
+    header.set(encoder.encode("ustar\u000000"), 257);
+    const sum = header.reduce((total, byte) => total + byte, 0);
+    header.set(encoder.encode(`${sum.toString(8).padStart(6, "0")}\0 `), 148);
+    blocks.push(...header, ...bytes, ...new Uint8Array((512 - (bytes.length % 512)) % 512));
+  }
+  return gzipSync(new Uint8Array([...blocks, ...new Uint8Array(1024)]));
+}
+
+/** A pax record, its length in bytes counting the digits that give it. */
+function paxRecord(key: string, value: string): string {
+  const rest = new TextEncoder().encode(` ${key}=${value}\n`).length;
+  let length = rest + 1;
+  while (String(length).length + rest !== length) length++;
+  return `${length} ${key}=${value}\n`;
+}
+
 const long =
   "themes/a-folder-whose-name-is-long-enough-that-the-whole-path-passes-one-hundred-characters/deep.json";
 
@@ -44,6 +71,18 @@ describe("extracting a .tar.gz", () => {
       const paths = [...(extractTarGz(fixture(name))?.keys() ?? [])].sort();
       expect(paths).toEqual(["extension.toml", long, "themes/paper.json"]);
     }
+  });
+
+  it("reads a pax path whole, newlines and other records included", () => {
+    const path = "themes/papér\nlight.json";
+    const files = extractTarGz(
+      archiveOf([
+        { type: "x", name: "PaxHeader", data: paxRecord("mtime", "1.5") + paxRecord("path", path) },
+        { type: "0", name: "short.json", data: "{}" },
+      ]),
+    );
+
+    expect([...(files?.keys() ?? [])]).toEqual([path]);
   });
 
   it("gives nothing for bytes that are not a .tar.gz", () => {

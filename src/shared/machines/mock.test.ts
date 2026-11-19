@@ -91,6 +91,18 @@ describe("the mock client", () => {
     });
   });
 
+  it("lists each directory it creates in its parent, however deep the new path goes", async () => {
+    const client = createMockClient([mac]);
+    await client.createWorkspace("mac", "~/Projects/notes/2026", { createDirectory: true });
+
+    expect(await client.listDirectory("mac", "~/Projects/")).toMatchObject({
+      directories: [{ name: "app" }, { name: "notes" }],
+    });
+    expect(await client.listDirectory("mac", "~/Projects/notes/")).toMatchObject({
+      directories: [{ name: "2026", path: "~/Projects/notes/2026/" }],
+    });
+  });
+
   it("treats a directory its parent names as one that exists and is empty", async () => {
     // The parent names `src`, which has no entry of its own.
     const named: MockMachine = {

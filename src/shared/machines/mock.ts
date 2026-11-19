@@ -173,18 +173,20 @@ export function createMockClient(
     },
   };
 
+  /** Makes `absolute` and its missing ancestors, from the top down, so each parent lists them. */
   function makeDirectories(target: State, absolute: string) {
-    let path: string | null = absolute;
-    while (path !== null && !target.directories.has(path)) {
+    const missing: string[] = [];
+    for (let path: string | null = absolute; path !== null && !target.directories.has(path);) {
+      missing.unshift(path);
+      path = parent(path);
+    }
+    for (const path of missing) {
       target.directories.set(path, []);
       const up = parent(path);
-      if (up !== null) {
-        const siblings = target.directories.get(up);
-        if (Array.isArray(siblings) && !siblings.includes(basename(path))) {
-          target.directories.set(up, [...siblings, basename(path)].sort());
-        }
+      const siblings = up === null ? undefined : target.directories.get(up);
+      if (up !== null && Array.isArray(siblings) && !siblings.includes(basename(path))) {
+        target.directories.set(up, [...siblings, basename(path)].sort());
       }
-      path = up;
     }
   }
 }

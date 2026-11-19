@@ -159,4 +159,20 @@ describe("reading a Zed theme file", () => {
       ),
     ).toEqual([]);
   });
+
+  it("finds no theme in a Zed icon theme, which has no style", () => {
+    const icons = JSON.stringify({
+      name: "Material Icons",
+      author: "Zed",
+      themes: [
+        {
+          name: "Material Icons Dark",
+          appearance: "dark",
+          directory_icons: { collapsed: "./icons/folder.svg" },
+          file_icons: { rust: { path: "./icons/rust.svg" } },
+        },
+      ],
+    });
+    expect(readZedThemes(icons, { kind: "file", fileName: "icons.json" })).toEqual([]);
+  });
 });

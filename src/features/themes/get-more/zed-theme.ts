@@ -31,6 +31,8 @@ export function readZedThemes(file: string, origin: ZedThemeOrigin): TerminalThe
   return family.themes.flatMap((theme): TerminalTheme[] => {
     if (!isRecord(theme) || typeof theme.name !== "string" || theme.name.trim() === "") return [];
     if (theme.appearance !== "light" && theme.appearance !== "dark") return [];
+    // A color theme has a style, though any color in it may be missing; an icon theme has none.
+    if (!isRecord(theme.style)) return [];
     const name = theme.name.trim();
     return [
       {
@@ -38,7 +40,7 @@ export function readZedThemes(file: string, origin: ZedThemeOrigin): TerminalThe
         name,
         appearance: theme.appearance,
         source,
-        colors: terminalColors(isRecord(theme.style) ? theme.style : {}, theme.appearance),
+        colors: terminalColors(theme.style, theme.appearance),
       },
     ];
   });

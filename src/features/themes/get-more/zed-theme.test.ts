@@ -108,9 +108,38 @@ describe("reading a Zed theme file", () => {
     expect(paper?.colors.foreground).toBe("#484848");
     // With no player, the cursor takes the text color.
     expect(paper?.colors.cursor).toBe("#484848");
-    // With no ANSI colors, SpaceTerm's own palette for the appearance stands in.
+    // With no ANSI colors, SpaceTerm's own normal palette for the appearance stands in.
     expect(paper?.colors.normal).toEqual(builtInThemes.light.colors.normal);
-    expect(paper?.colors.bright).toEqual(builtInThemes.light.colors.bright);
+    expect(paper?.colors.bright).toEqual(builtInThemes.light.colors.normal);
+  });
+
+  it("falls back to the colors SpaceTerm Desktop falls back to", () => {
+    const file = JSON.stringify({
+      themes: [
+        {
+          name: "Partial",
+          appearance: "dark",
+          style: {
+            "terminal.ansi.background": "#102030",
+            "editor.background": "#fefefe",
+            text: "#aaaaaa",
+            "editor.foreground": "#bbbbbb",
+            "terminal.ansi.red": "#ff0000",
+            "terminal.ansi.bright_green": "#00ff00",
+          },
+        },
+      ],
+    });
+    const [partial] = readZedThemes(file, { kind: "file", fileName: "partial.json" });
+
+    expect(partial?.colors.background).toBe("#102030");
+    expect(partial?.colors.foreground).toBe("#bbbbbb");
+    // With no player, the cursor takes the editor's text color.
+    expect(partial?.colors.cursor).toBe("#bbbbbb");
+    // A bright color the theme leaves out takes its own normal one, then SpaceTerm's.
+    expect(partial?.colors.bright[1]).toBe("#ff0000");
+    expect(partial?.colors.bright[2]).toBe("#00ff00");
+    expect(partial?.colors.bright[4]).toBe(builtInThemes.dark.colors.normal[4]);
   });
 
   it("reads a file that starts with a byte order mark", () => {

@@ -77,25 +77,31 @@ function terminalColors(style: Record<string, unknown>, appearance: ThemeAppeara
     }
     return null;
   };
+  // The keys and their order follow SpaceTerm Desktop, so a theme looks the same on both.
   const background =
-    first(fallback.background, "terminal.background", "editor.background", "background") ??
-    fallback.background;
+    first(
+      fallback.background,
+      "terminal.background",
+      "terminal.ansi.background",
+      "editor.background",
+      "background",
+    ) ?? fallback.background;
   const foreground =
-    first(background, "terminal.foreground", "text", "editor.foreground") ?? fallback.foreground;
+    first(background, "terminal.foreground", "editor.foreground", "text") ?? fallback.foreground;
   const players = Array.isArray(style.players) ? style.players : [];
   const player = isRecord(players[0]) ? players[0] : {};
-  const cursor = toColor(player.cursor);
+  const playerCursor = toColor(player.cursor);
+  const cursor =
+    playerCursor === null
+      ? (first(background, "editor.foreground") ?? foreground)
+      : over(playerCursor, background);
   const ansi = (prefix: string, colors: AnsiColors) =>
     ANSI.map(
       (name, index) => first(background, `terminal.ansi.${prefix}${name}`) ?? colors[index],
     ) as unknown as AnsiColors;
-  return {
-    background,
-    foreground,
-    cursor: cursor === null ? foreground : over(cursor, background),
-    normal: ansi("", fallback.normal),
-    bright: ansi("bright_", fallback.bright),
-  };
+  const normal = ansi("", fallback.normal);
+  // A theme with its own normal colors keeps their hues where it leaves out a bright one.
+  return { background, foreground, cursor, normal, bright: ansi("bright_", normal) };
 }
 
 type Color = { rgb: readonly [number, number, number]; alpha: number };

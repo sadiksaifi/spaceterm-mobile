@@ -16,19 +16,21 @@ const MAX_THEME_FILE = 8 * 1024 * 1024;
  * picker gives the name the person saw; on Android a picked file's path holds only an id.
  */
 export async function pickThemeFile(): Promise<PickedFile | null> {
-  const picked = await getDocumentAsync({ type: THEME_FILE_TYPES, copyToCacheDirectory: true });
+  // No copy of its own: its size is checked before any of it is read or copied.
+  const picked = await getDocumentAsync({ type: THEME_FILE_TYPES, copyToCacheDirectory: false });
   const asset = picked.canceled ? undefined : picked.assets[0];
   if (asset === undefined) return null;
-  const copy = new File(asset.uri);
+  const file = new File(asset.uri);
+  // iOS hands over the system's copy in the app's own folders, which is SpaceTerm's to delete.
+  // Android hands over the person's document itself, which must stay.
+  const ownCopy = asset.uri.startsWith("file:");
   try {
-    // The size is checked before the text is read, so a huge file never fills memory.
-    if (copy.size > MAX_THEME_FILE)
+    if ((asset.size ?? file.size) > MAX_THEME_FILE)
       return { kind: "failed", name: asset.name, reason: "too-large" };
-    return { kind: "read", name: asset.name, text: await copy.text() };
+    return { kind: "read", name: asset.name, text: await file.text() };
   } catch {
     return { kind: "failed", name: asset.name, reason: "unreadable" };
   } finally {
-    // The copy is only for reading; the themes keep what they need.
-    if (copy.exists) copy.delete();
+    if (ownCopy && file.exists) file.delete();
   }
 }

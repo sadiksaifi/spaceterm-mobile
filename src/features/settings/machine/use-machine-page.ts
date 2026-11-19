@@ -66,7 +66,10 @@ export function useMachinePage(machineId: string, onUnpaired: () => void): Machi
     },
     retry: (answered) => {
       // A refusal that has since been replaced is out of date.
-      if (answered === failure) void restartNow();
+      if (answered !== failure) return;
+      // Terminal Sessions may have started since, so Try Again confirms again before it ends them.
+      setFailure(null);
+      setAlert("restart");
     },
     dismissFailure: (answered) => setFailure((shown) => (shown === answered ? null : shown)),
   };

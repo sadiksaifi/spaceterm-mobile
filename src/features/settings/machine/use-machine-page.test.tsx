@@ -28,7 +28,7 @@ async function render(client = createMockClient([mac], { refuse: true })) {
   return { ...hook, client, onUnpaired };
 }
 
-it("offers Try Again when the Machine refuses Restart, and Try Again restarts", async () => {
+it("offers Try Again when the Machine refuses Restart, and Try Again asks to restart again", async () => {
   const { result, client } = await render();
   const restartCore = jest.spyOn(client, "restartCore");
 
@@ -40,9 +40,18 @@ it("offers Try Again when the Machine refuses Restart, and Try Again restarts", 
   expect(result.current.alert).toBeNull();
   expect(result.current.failure).not.toBeNull();
 
+  // Terminal Sessions may have started since, so Try Again confirms before it ends them.
   const failure = result.current.failure;
   await act(async () => {
     if (failure) result.current.retry(failure);
+    await answers();
+  });
+  expect(restartCore).toHaveBeenCalledTimes(1);
+  expect(result.current.failure).toBeNull();
+  expect(result.current.alert).toBe("restart");
+
+  await act(async () => {
+    result.current.restart();
     await answers();
   });
   expect(restartCore).toHaveBeenCalledTimes(2);

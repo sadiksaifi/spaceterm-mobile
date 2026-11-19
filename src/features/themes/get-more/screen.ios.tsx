@@ -67,7 +67,10 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
         <Alert
           title={failure === null ? "" : failureText(failure).title}
           isPresented={failure !== null}
-          onIsPresentedChange={(shown) => !shown && page.dismissFailure()}
+          // The alert reports closing after Try Again too; by then its failure is answered.
+          onIsPresentedChange={(shown) =>
+            !shown && failure !== null && page.dismissFailure(failure)
+          }
         >
           <Alert.Trigger>
             <Alert
@@ -102,8 +105,15 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
             </Alert>
           </Alert.Trigger>
           <Alert.Actions>
-            <Button label={text.cancel} role="cancel" onPress={page.dismissFailure} />
-            <Button label={text.tryAgain} onPress={page.retryFailure} />
+            <Button
+              label={text.cancel}
+              role="cancel"
+              onPress={() => failure !== null && page.dismissFailure(failure)}
+            />
+            <Button
+              label={text.tryAgain}
+              onPress={() => failure !== null && page.retryFailure(failure)}
+            />
           </Alert.Actions>
           {failure !== null && (
             <Alert.Message>

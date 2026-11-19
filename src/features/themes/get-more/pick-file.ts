@@ -8,6 +8,8 @@ import type { PickedFile } from "./use-get-more";
  * offers those too. A file that is not a theme is reported after it is read.
  */
 const THEME_FILE_TYPES = ["application/json", "text/plain", "application/octet-stream"];
+/** The largest file read as a theme; a Zed theme file is far smaller. */
+const MAX_THEME_FILE = 8 * 1024 * 1024;
 
 /**
  * Opens the system file picker for a theme file and reads it. Cancel gives null. The document
@@ -19,7 +21,12 @@ export async function pickThemeFile(): Promise<PickedFile | null> {
   if (asset === undefined) return null;
   const copy = new File(asset.uri);
   try {
-    return { name: asset.name, text: await copy.text() };
+    // The size is checked before the text is read, so a huge file never fills memory.
+    if (copy.size > MAX_THEME_FILE)
+      return { kind: "failed", name: asset.name, reason: "too-large" };
+    return { kind: "read", name: asset.name, text: await copy.text() };
+  } catch {
+    return { kind: "failed", name: asset.name, reason: "unreadable" };
   } finally {
     // The copy is only for reading; the themes keep what they need.
     if (copy.exists) copy.delete();

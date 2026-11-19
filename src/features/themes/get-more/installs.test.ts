@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { TerminalTheme } from "@/shared/preferences/model";
 import { createPreferencesStore, type KeyValueStorage } from "@/shared/preferences/store";
@@ -20,6 +20,7 @@ const catppuccin: CatalogExtension = {
   author: "Catppuccin",
   downloads: 1_233_350,
 };
+const nord: CatalogExtension = { id: "nord", name: "Nord", author: "Nord", downloads: 157_000 };
 const mocha: TerminalTheme = {
   id: "catppuccin/Catppuccin Mocha",
   name: "Catppuccin Mocha",
@@ -111,7 +112,30 @@ describe("Gets under way", () => {
       failure: { kind: "get", extension: catppuccin, reason: "unavailable" },
     });
     expect(changes).toBeGreaterThan(0);
-    installs.dismissFailure();
+    const failure = installs.getSnapshot().failure;
+    if (failure !== null) installs.dismissFailure(failure);
     expect(installs.getSnapshot().failure).toBeNull();
+  });
+
+  it("answers an extension's failure with a new Get, so the old Try Again does nothing", async () => {
+    const themes = vi
+      .fn<ThemeCatalog["themes"]>()
+      .mockResolvedValueOnce("unavailable")
+      .mockResolvedValueOnce([mocha]);
+    const installs = createInstalls(catalogWith(themes), createPreferencesStore(memoryStorage()));
+
+    installs.get(catppuccin);
+    await vi.waitFor(() => expect(installs.getSnapshot().failure).not.toBeNull());
+    const stale = installs.getSnapshot().failure;
+    installs.get(catppuccin);
+    expect(installs.getSnapshot().failure).toBeNull();
+    await vi.waitFor(() => expect(installs.getSnapshot().installing.size).toBe(0));
+
+    // A failure of another extension stays when the stale one is dismissed.
+    themes.mockResolvedValueOnce("no-themes");
+    installs.get(nord);
+    await vi.waitFor(() => expect(installs.getSnapshot().failure).not.toBeNull());
+    if (stale !== null) installs.dismissFailure(stale);
+    expect(installs.getSnapshot().failure?.extension).toEqual(nord);
   });
 });

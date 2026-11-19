@@ -182,23 +182,25 @@ it("reports an extension it could not get, leaves Get on it, and tries again", a
   expect(result.current.state(catppuccin)).toBe("get");
 
   await act(async () => {
-    result.current.retryFailure();
+    const failure = result.current.failure;
+    if (failure !== null) result.current.retryFailure(failure);
     await settle();
   });
   expect(result.current.failure).toBeNull();
   expect(store.getSnapshot().themes.at(-1)).toEqual(mocha);
 });
 
-it("imports the themes in a picked Zed theme file, and reports a file that is not one", async () => {
+it("imports the themes in a picked Zed theme file, and reports a file it could not use", async () => {
   const theme = JSON.stringify({
     name: "Paper",
     themes: [{ name: "Paper Light", appearance: "light", style: {} }],
   });
   const pickFile = jest
     .fn<() => Promise<PickedFile | null>>()
-    .mockResolvedValueOnce({ name: "paper.json", text: theme })
-    .mockResolvedValueOnce({ name: "notes.json", text: "{}" })
-    .mockResolvedValueOnce(null);
+    .mockResolvedValueOnce({ kind: "read", name: "paper.json", text: theme })
+    .mockResolvedValueOnce({ kind: "read", name: "notes.json", text: "{}" })
+    .mockResolvedValueOnce(null)
+    .mockRejectedValueOnce(new Error("The provider failed to copy the file"));
   const { result, store } = await render(
     { search: async () => [], themes: jest.fn<ThemeCatalog["themes"]>() },
     pickFile,
@@ -215,14 +217,26 @@ it("imports the themes in a picked Zed theme file, and reports a file that is no
     result.current.importFile();
     await settle();
   });
-  expect(result.current.failure).toEqual({ kind: "import", fileName: "notes.json" });
+  expect(result.current.failure).toEqual({
+    kind: "import",
+    fileName: "notes.json",
+    reason: "not-a-theme",
+  });
 
   // Cancel in the picker changes nothing.
   await act(async () => {
-    result.current.dismissFailure();
+    const failure = result.current.failure;
+    if (failure !== null) result.current.dismissFailure(failure);
     result.current.importFile();
     await settle();
   });
   expect(result.current.failure).toBeNull();
   expect(store.getSnapshot().themes).toHaveLength(3);
+
+  // A picker that fails is reported, not taken for Cancel.
+  await act(async () => {
+    result.current.importFile();
+    await settle();
+  });
+  expect(result.current.failure).toEqual({ kind: "import", fileName: null, reason: "unreadable" });
 });

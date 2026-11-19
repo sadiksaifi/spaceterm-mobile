@@ -6,7 +6,7 @@ import type { CatalogExtension, ThemeCatalog } from "./catalog";
 export type GetFailure = {
   kind: "get";
   extension: CatalogExtension;
-  reason: "unavailable" | "no-themes";
+  reason: "unavailable" | "no-themes" | "too-large";
 };
 
 export type InstallsSnapshot = {
@@ -24,7 +24,8 @@ export type Installs = {
   subscribe: (listener: () => void) => () => void;
   /** Gets every theme in an extension. A Get already under way for it is left to finish. */
   get: (extension: CatalogExtension) => void;
-  dismissFailure: () => void;
+  /** Takes away `failure` if it is still the one shown; a newer failure stays. */
+  dismissFailure: (failure: GetFailure) => void;
 };
 
 export function createInstalls(catalog: ThemeCatalog, store: PreferencesStore): Installs {
@@ -44,7 +45,12 @@ export function createInstalls(catalog: ThemeCatalog, store: PreferencesStore): 
   }
 
   async function getNow(extension: CatalogExtension) {
-    change({ installing: withInstalling(extension.id, true) });
+    // A new try answers the extension's last failure, so its Try Again goes away.
+    const answered = snapshot.failure?.extension.id === extension.id;
+    change({
+      installing: withInstalling(extension.id, true),
+      ...(answered ? { failure: null } : {}),
+    });
     let failure: GetFailure | null = null;
     try {
       const themes = await catalog.themes(extension);
@@ -70,6 +76,8 @@ export function createInstalls(catalog: ThemeCatalog, store: PreferencesStore): 
       if (snapshot.installing.has(extension.id)) return;
       void getNow(extension);
     },
-    dismissFailure: () => change({ failure: null }),
+    dismissFailure: (failure) => {
+      if (snapshot.failure === failure) change({ failure: null });
+    },
   };
 }

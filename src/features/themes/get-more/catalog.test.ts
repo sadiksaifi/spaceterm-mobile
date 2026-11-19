@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { createZedCatalog } from "./catalog";
+import { createZedCatalog, MAX_ARCHIVE } from "./catalog";
 
 const archive = readFileSync(new URL("./fixtures/extension.tar.gz", import.meta.url));
 
@@ -112,6 +112,23 @@ describe("Zed's theme catalog", () => {
       id: "paper",
       name: "Paper",
     });
+  });
+
+  it("refuses an archive larger than any theme extension, declared or not", async () => {
+    const declared = fakeFetch({
+      [DOWNLOAD]: () =>
+        new Response("", { headers: { "content-length": String(MAX_ARCHIVE + 1) } }),
+    });
+    expect(await createZedCatalog(declared.fetch).themes({ id: "paper", name: "Paper" })).toBe(
+      "too-large",
+    );
+
+    const undeclared = fakeFetch({
+      [DOWNLOAD]: () => new Response(new Uint8Array(MAX_ARCHIVE + 1)),
+    });
+    expect(await createZedCatalog(undeclared.fetch).themes({ id: "paper", name: "Paper" })).toBe(
+      "too-large",
+    );
   });
 
   it("tells an archive with no theme from a download that failed", async () => {

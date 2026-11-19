@@ -32,19 +32,32 @@ export const text = {
   noResultsBody: "Check the spelling or try a new search.",
   getFailed: (name: string) => cased(`Couldn’t Get “${name}”`, `Couldn’t get ${name}`),
   noThemes: "It has no theme SpaceTerm can use.",
-  importFailed: (file: string) => cased(`Couldn’t Import “${file}”`, `Couldn’t import ${file}`),
+  extensionTooLarge: "It is too large to get.",
+  importFailed: (file: string | null) =>
+    file === null
+      ? cased("Couldn’t Import the File", "Couldn’t import the file")
+      : cased(`Couldn’t Import “${file}”`, `Couldn’t import ${file}`),
   notATheme: "The file is not a Zed theme.",
+  fileTooLarge: "The file is too large to be a Zed theme.",
+  unreadable: "The file couldn’t be read.",
 };
 
 /** What a failed Get or Import from File says: what failed, then why. */
 export function failureText(failure: GetMoreFailure): { title: string; body: string } {
   if (failure.kind === "import") {
-    return { title: text.importFailed(failure.fileName), body: text.notATheme };
+    const body = {
+      "not-a-theme": text.notATheme,
+      "too-large": text.fileTooLarge,
+      unreadable: text.unreadable,
+    };
+    return { title: text.importFailed(failure.fileName), body: body[failure.reason] };
   }
-  return {
-    title: text.getFailed(failure.extension.name),
-    body: failure.reason === "no-themes" ? text.noThemes : text.checkConnection,
+  const body = {
+    unavailable: text.checkConnection,
+    "no-themes": text.noThemes,
+    "too-large": text.extensionTooLarge,
   };
+  return { title: text.getFailed(failure.extension.name), body: body[failure.reason] };
 }
 
 const UNITS = ["", "K", "M", "B"] as const;

@@ -19,13 +19,15 @@ export type ThemeCatalog = {
   themes: (extension: {
     id: string;
     name: string;
-  }) => Promise<TerminalTheme[] | "unavailable" | "no-themes">;
+  }) => Promise<TerminalTheme[] | "unavailable" | "no-themes" | "too-large">;
 };
 
 const API = "https://api.zed.dev/extensions";
 /** The newest extension format SpaceTerm reads, and the range Zed's store serves for it. */
 const SCHEMA = { min: "0", max: "1" } as const;
 const WASM_API = { min: "0.0.0", max: "0.8.0" } as const;
+/** The largest archive SpaceTerm downloads; a theme extension is far smaller. */
+export const MAX_ARCHIVE = 16 * 1024 * 1024;
 
 /** Zed's extension store, reached with `fetch`. */
 export function createZedCatalog(fetch: typeof globalThis.fetch = globalThis.fetch): ThemeCatalog {
@@ -59,7 +61,11 @@ export function createZedCatalog(fetch: typeof globalThis.fetch = globalThis.fet
           `${API}/${encodeURIComponent(extension.id)}/download?${params}`,
         );
         if (!response.ok) return "unavailable";
+        // React Native's fetch cannot stream a body, so the declared size is checked before it is
+        // read, and the read size after, for a server that declares none.
+        if (Number(response.headers.get("content-length") ?? 0) > MAX_ARCHIVE) return "too-large";
         bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.length > MAX_ARCHIVE) return "too-large";
       } catch {
         return "unavailable";
       }

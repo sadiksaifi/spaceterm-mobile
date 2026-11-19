@@ -6,8 +6,10 @@ import type { CatalogExtension, ThemeCatalog } from "./catalog";
 import type { GetFailure, Installs } from "./installs";
 import { readZedThemes } from "./zed-theme";
 
-/** A file the person picked: its name and its text. */
-export type PickedFile = { name: string; text: string };
+/** A file the person picked: its name and its text, or why it could not be read. */
+export type PickedFile =
+  | { kind: "read"; name: string; text: string }
+  | { kind: "failed"; name: string | null; reason: "too-large" | "unreadable" };
 
 export type CatalogList =
   | { kind: "loading" }
@@ -15,7 +17,14 @@ export type CatalogList =
   | { kind: "unavailable" };
 
 /** Get or Import from File that did not add a theme. A new failure is a new object. */
-export type GetMoreFailure = GetFailure | { kind: "import"; fileName: string };
+export type GetMoreFailure =
+  | GetFailure
+  | {
+      kind: "import";
+      /** `null` when the picker failed before it named the file. */
+      fileName: string | null;
+      reason: "not-a-theme" | "too-large" | "unreadable";
+    };
 
 export type GetMorePage = {
   query: string;
@@ -34,9 +43,10 @@ export type GetMorePage = {
   /** Try Again: loads the list again. */
   retry: () => void;
   failure: GetMoreFailure | null;
-  dismissFailure: () => void;
-  /** Try Again on a failure: Get or Import from File again. */
-  retryFailure: () => void;
+  /** Takes away `failure` if it is still the one shown. */
+  dismissFailure: (failure: GetMoreFailure) => void;
+  /** Try Again on `failure`, if it is still the one shown: Get or Import from File again. */
+  retryFailure: (failure: GetMoreFailure) => void;
 };
 
 /** Typing waits this long for a pause before it searches. */
@@ -92,9 +102,10 @@ export function useGetMore(
     ),
   );
 
-  function dismissFailure() {
-    if (importFailure !== null) setImportFailure(null);
-    else installs.dismissFailure();
+  function dismissFailure(shown: GetMoreFailure) {
+    if (shown.kind === "import")
+      setImportFailure((current) => (current === shown ? null : current));
+    else installs.dismissFailure(shown);
   }
 
   async function importNow() {
@@ -102,12 +113,20 @@ export function useGetMore(
     try {
       picked = await pickFile();
     } catch {
-      picked = null;
+      // The picker failed while it copied the file, before it gave the file's name.
+      picked = { kind: "failed", name: null, reason: "unreadable" };
     }
     if (picked === null) return;
+    if (picked.kind === "failed") {
+      setImportFailure({ kind: "import", fileName: picked.name, reason: picked.reason });
+      return;
+    }
     const themes = readZedThemes(picked.text, { kind: "file", fileName: picked.name });
-    if (themes.length === 0) setImportFailure({ kind: "import", fileName: picked.name });
-    else store.addThemes(themes);
+    if (themes.length === 0) {
+      setImportFailure({ kind: "import", fileName: picked.name, reason: "not-a-theme" });
+    } else {
+      store.addThemes(themes);
+    }
   }
 
   return {
@@ -132,10 +151,12 @@ export function useGetMore(
     retry: () => setAttempt((count) => count + 1),
     failure,
     dismissFailure,
-    retryFailure: () => {
-      dismissFailure();
-      if (failure?.kind === "get") installs.get(failure.extension);
-      else if (failure?.kind === "import") void importNow();
+    retryFailure: (shown) => {
+      // A Try Again from a failure that has since been answered or replaced does nothing.
+      if (shown !== failure) return;
+      dismissFailure(shown);
+      if (shown.kind === "get") installs.get(shown.extension);
+      else void importNow();
     },
   };
 }

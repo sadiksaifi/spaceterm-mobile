@@ -192,6 +192,22 @@ describe("Zed's theme catalog", () => {
     vi.useRealTimers();
   });
 
+  it("stops a search it refuses, so its body is not downloaded", async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    const answering =
+      (response: () => Response) => async (_url: string, init?: { signal?: AbortSignal }) => {
+        signals.push(init?.signal);
+        return response();
+      };
+
+    const failing = answering(() => new Response("Service Unavailable", { status: 503 }));
+    const huge = answering(() => new Response(new Uint8Array(4 * 1024 * 1024 + 1)));
+    expect(await createZedCatalog(failing).search("")).toBe("unavailable");
+    expect(await createZedCatalog(huge).search("")).toBe("unavailable");
+
+    expect(signals.map((signal) => signal?.aborted)).toEqual([true, true]);
+  });
+
   it("gives up on a search whose answer stops partway, though what came is whole", async () => {
     vi.useFakeTimers();
     const partway = async () =>

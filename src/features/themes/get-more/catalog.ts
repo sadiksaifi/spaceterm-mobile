@@ -36,14 +36,19 @@ const MAX_LIST = 4 * 1024 * 1024;
  */
 const DEADLINE = 30_000;
 
-/** A request that is stopped when it runs past the deadline, or when `abort` is called. */
+/**
+ * A request that is stopped when it runs past the deadline. `finish` ends the deadline and stops a
+ * request whose body was not read to its end, so a refused answer is not downloaded.
+ */
 function deadlined() {
   const request = new AbortController();
   const timer = setTimeout(() => request.abort(), DEADLINE);
   return {
     signal: request.signal,
-    abort: () => request.abort(),
-    finish: () => clearTimeout(timer),
+    finish: (readWhole: boolean) => {
+      clearTimeout(timer);
+      if (!readWhole) request.abort();
+    },
   };
 }
 
@@ -65,12 +70,14 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       const filter = query.trim();
       if (filter !== "") params.set("filter", filter);
       const request = deadlined();
+      let readWhole = false;
       try {
         const response = await fetch(`${API}?${params}`, { signal: request.signal });
         if (!response.ok) return "unavailable";
         // Read like a download, so an answer cut off by the deadline is not taken for a whole one.
         const bytes = await readAtMost(response.body, MAX_LIST, request.signal);
         if (typeof bytes === "string") return "unavailable";
+        readWhole = true;
         const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
         const data = isRecord(body) && Array.isArray(body.data) ? body.data : [];
         return data
@@ -79,7 +86,7 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       } catch {
         return "unavailable";
       } finally {
-        request.finish();
+        request.finish(readWhole);
       }
     },
     themes: async (extension) => {
@@ -89,9 +96,8 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
         min_wasm_api_version: WASM_API.min,
         max_wasm_api_version: WASM_API.max,
       });
-      // Also stops the download when it is refused before its end.
       const request = deadlined();
-      let bytes: Uint8Array | "too-large" | "unavailable";
+      let bytes: Uint8Array | "too-large" | "unavailable" = "unavailable";
       try {
         const response = await fetch(
           `${API}/${encodeURIComponent(extension.id)}/download?${params}`,
@@ -105,12 +111,9 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       } catch {
         bytes = "unavailable";
       } finally {
-        request.finish();
+        request.finish(typeof bytes !== "string");
       }
-      if (typeof bytes === "string") {
-        request.abort();
-        return bytes;
-      }
+      if (typeof bytes === "string") return bytes;
       const files = extractTarGz(bytes);
       if (files === null) return "no-themes";
       const decoder = new TextDecoder();

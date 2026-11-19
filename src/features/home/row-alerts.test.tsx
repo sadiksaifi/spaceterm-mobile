@@ -177,3 +177,33 @@ it("kills once when Kill Workspace is tapped twice before the alert closes", asy
   });
   expect(killWorkspace).toHaveBeenCalledTimes(1);
 });
+
+it("kills nothing when Cancel and then Kill Workspace arrive before the alert closes", async () => {
+  const killWorkspace = jest.fn(done);
+  const { result } = await render({ killWorkspace });
+
+  await act(async () => result.current.handlers.onKillWorkspace?.(app));
+  const shown = result.current;
+  await act(async () => {
+    shown.cancel();
+    shown.kill();
+  });
+  expect(killWorkspace).not.toHaveBeenCalled();
+  expect(result.current.alert).toBeNull();
+});
+
+it("tries once when Try Again is tapped twice before the refusal goes", async () => {
+  const killWorkspace = jest.fn(refused);
+  const { result } = await render({ killWorkspace });
+
+  await act(async () => result.current.handlers.onKillWorkspace?.(app));
+  await act(async () => result.current.kill());
+  const shown = result.current;
+  const failure = failureOf(shown);
+  killWorkspace.mockImplementation(async () => new Promise<CommandResult>(() => {}));
+  await act(async () => {
+    shown.dismissFailure(failure);
+    shown.retry(failure);
+  });
+  expect(killWorkspace).toHaveBeenCalledTimes(1);
+});

@@ -59,8 +59,9 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
     closed: 0,
     underway: new Map(),
   });
-  // The alert whose button already ran, so a second tap before the next render does nothing.
-  const answered = useRef<RowAlert | null>(null);
+  // The alerts and refusals a button has already answered, so a second button tapped before the
+  // next render, the same or another, does nothing.
+  const answered = useRef(new WeakSet<RowAlert | RowFailure>());
   // The rows with a command under way, by key, as of the last event rather than the last render.
   const inFlight = useRef(new Set<string>());
   const failure = stored !== null && listed(snapshot, stored.row) ? stored : null;
@@ -124,10 +125,10 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
     run({ command: "kill", row }, () => killWorkspace(row.machineId, row.workspace.id));
   };
 
-  /** True the first time `shown`'s button runs. */
-  const firstAnswer = (shown: RowAlert) => {
-    if (answered.current === shown) return false;
-    answered.current = shown;
+  /** True the first time one of `shown`'s buttons runs. */
+  const firstAnswer = (shown: RowAlert | RowFailure) => {
+    if (answered.current.has(shown)) return false;
+    answered.current.add(shown);
     return true;
   };
 
@@ -141,7 +142,11 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
       onRenameWorkspace: renameWorkspace && ((row) => open({ kind: "rename", row })),
       onKillWorkspace: killWorkspace && ((row) => open({ kind: "kill", row })),
     },
-    cancel: () => close(),
+    cancel() {
+      // A system alert reports closing after its button has run; that report closes nothing new.
+      if (alert !== null) answered.current.add(alert);
+      close();
+    },
     rename(typed) {
       if (alert?.kind !== "rename") return;
       const outcome = renameOutcome(alert.row.workspace.name, typed);
@@ -156,7 +161,7 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
     },
     retry(shown) {
       // A failure that has since been replaced or dismissed offers nothing.
-      if (shown !== failure) return;
+      if (shown !== failure || !firstAnswer(shown)) return;
       if (shown.command === "rename") {
         clearFailure(shown);
         open({ kind: "rename", row: shown.row, initial: shown.name });
@@ -164,7 +169,9 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
         runKill(shown.row);
       }
     },
-    dismissFailure: (shown) => clearFailure(shown),
+    dismissFailure(shown) {
+      if (firstAnswer(shown)) clearFailure(shown);
+    },
   };
 }
 

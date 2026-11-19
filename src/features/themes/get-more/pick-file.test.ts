@@ -11,6 +11,8 @@ const device = vi.hoisted(() => ({
   files: new Map<string, Uint8Array>(),
   /** Whole reads, which have no limit. */
   wholeReads: 0,
+  /** The lengths asked of each bounded read. */
+  boundedReads: [] as number[],
   deleted: [] as string[],
 }));
 
@@ -39,7 +41,13 @@ vi.mock("expo-file-system", () => ({
     }
     open() {
       const bytes = this.bytes;
-      return { readBytes: async (length: number) => bytes.slice(0, length), close: () => {} };
+      return {
+        readBytes: async (length: number) => {
+          device.boundedReads.push(length);
+          return bytes.slice(0, length);
+        },
+        close: () => {},
+      };
     }
     delete() {
       device.files.delete(this.uri);
@@ -58,6 +66,7 @@ beforeEach(() => {
   device.picked = null;
   device.files.clear();
   device.wholeReads = 0;
+  device.boundedReads = [];
   device.deleted = [];
 });
 
@@ -75,6 +84,7 @@ describe("picking a theme file", () => {
     expect(await outcome()).toBe("read");
 
     expect(device.wholeReads).toBe(0);
+    expect(device.boundedReads).toEqual([LIMIT + 1, LIMIT + 1]);
   });
 
   it("refuses a document whose reported size is past the limit without reading it", async () => {

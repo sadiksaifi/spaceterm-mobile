@@ -173,6 +173,27 @@ describe("Zed's theme catalog", () => {
     });
   });
 
+  it("gets only the theme files directly in the archive's themes folder, as Desktop does", async () => {
+    const paper = (background: string) =>
+      JSON.stringify({
+        themes: [
+          { name: "Paper", appearance: "light", style: { "terminal.background": background } },
+        ],
+      });
+    const archive = tarGz({
+      "themes/paper.json": paper("#ffffff"),
+      "examples/paper.json": paper("#000000"),
+      "themes/old/paper.json": paper("#000000"),
+    });
+    const { fetch } = fakeFetch({ [DOWNLOAD]: () => new Response(archive) });
+
+    const result = await createZedCatalog(fetch).themes({ id: "paper", name: "Paper" });
+
+    expect(Array.isArray(result) && result.map((theme) => theme.colors.background)).toEqual([
+      "#ffffff",
+    ]);
+  });
+
   it("refuses an archive larger than any theme extension, declared or not", async () => {
     const declared = fakeFetch({
       [DOWNLOAD]: () =>

@@ -29,6 +29,7 @@ const SCHEMA = { min: "0", max: "1" } as const;
 const WASM_API = { min: "0.0.0", max: "0.8.0" } as const;
 /** The largest archive SpaceTerm downloads; a theme extension is far smaller. */
 export const MAX_ARCHIVE = 16 * 1024 * 1024;
+const THEME_FAMILY = /^themes\/[^/]+\.json$/;
 /** The largest list SpaceTerm reads; every theme extension in the store lists in about 260 KiB. */
 const MAX_LIST = 4 * 1024 * 1024;
 /**
@@ -123,7 +124,8 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       const origin = { kind: "extension", id: extension.id, name: extension.name } as const;
       const themes: TerminalTheme[] = [];
       for (const [path, file] of files) {
-        if (!path.endsWith(".json")) continue;
+        // An extension keeps its theme families directly in themes/, as Desktop reads them.
+        if (!THEME_FAMILY.test(path)) continue;
         // The room left is shared by every file, so the extension's themes stop one past it.
         themes.push(...readZedThemes(decoder.decode(file), origin, MAX_THEMES - themes.length));
         if (themes.length > MAX_THEMES) return "too-large";

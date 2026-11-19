@@ -155,13 +155,15 @@ export function WorkspaceRowView({
       modifiers={[
         fillMaxWidth(),
         clip(Shapes.RoundedCorner(shape)),
-        combinedClickable({
-          onClick: onOpen && (() => onOpen(row.machineId, workspace.id)),
-          // The row offers no menu until the Machine answers its command.
-          onLongClick: () => {
-            if (underway === null) setHeld(true);
-          },
-        }),
+        // A row whose command waits for the Machine takes no input until the answer.
+        ...(underway === null
+          ? [
+              combinedClickable({
+                onClick: onOpen && (() => onOpen(row.machineId, workspace.id)),
+                onLongClick: () => setHeld(true),
+              }),
+            ]
+          : []),
         ...(connected ? [] : [alpha(DIMMED)]),
       ]}
     >

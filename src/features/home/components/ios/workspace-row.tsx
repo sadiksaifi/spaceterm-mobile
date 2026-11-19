@@ -86,8 +86,12 @@ export function WorkspaceRowView({
     </HStack>
   );
 
+  // A row whose command waits for the Machine takes no input until the answer.
   const button = (
-    <Button onPress={() => onOpen?.(row.machineId, workspace.id)} modifiers={[disabled(!onOpen)]}>
+    <Button
+      onPress={() => onOpen?.(row.machineId, workspace.id)}
+      modifiers={[disabled(!onOpen || underway !== null)]}
+    >
       {/* A Button in a List tints its label. The row reads as text, so it starts from the text color. */}
       <HStack spacing={10} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
         {largeText ? (
@@ -132,7 +136,6 @@ export function WorkspaceRowView({
     </Button>
   );
 
-  // The row offers no menu or swipe until the Machine answers its command.
   if (underway !== null) return button;
 
   // Touch and hold dims the screen and shows the menu beside the lit row.

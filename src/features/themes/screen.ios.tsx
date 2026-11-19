@@ -237,6 +237,7 @@ function ThemeCard({
   onPress: () => void;
 }) {
   const colors = useColors();
+  const largeText = useLargeText();
   return (
     <Button
       onPress={onPress}
@@ -276,7 +277,14 @@ function ThemeCard({
           >
             {label}
           </Text>
-          <Text modifiers={[font({ textStyle: "footnote" }), secondary, lineLimit(1)]}>
+          {/* Large text shows the whole name, as the theme rows do. */}
+          <Text
+            modifiers={[
+              font({ textStyle: "footnote" }),
+              secondary,
+              ...(largeText ? [] : [lineLimit(1)]),
+            ]}
+          >
             {theme.name}
           </Text>
         </VStack>

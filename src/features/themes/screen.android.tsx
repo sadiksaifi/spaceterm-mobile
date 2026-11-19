@@ -51,6 +51,7 @@ import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
 import { GroupedRow, GroupHeader } from "@/shared/ui/android/grouped-row";
 import { GROUP_SPACE, PageTopBar } from "@/shared/ui/android/page";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
+import { useLargeText } from "@/shared/ui/large-text";
 
 import { TerminalPreview, ThemeThumbnail } from "./components/android/terminal-preview";
 import { removable } from "./model";
@@ -309,6 +310,7 @@ function ThemeCard({
   onSelect: () => void;
 }) {
   const colors = useColors();
+  const largeText = useLargeText();
   const material = useMaterialColors();
   return (
     <Surface
@@ -329,7 +331,8 @@ function ThemeCard({
           <Text
             style={{ typography: "bodySmall" }}
             color={selected ? material.onSecondaryContainer : colors.secondaryText}
-            maxLines={1}
+            // Large text shows the whole name, as the theme rows do.
+            maxLines={largeText ? undefined : 1}
             overflow="ellipsis"
           >
             {theme.name}

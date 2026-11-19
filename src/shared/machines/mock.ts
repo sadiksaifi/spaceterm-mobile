@@ -69,7 +69,7 @@ export function createMockClient(
       }, latency),
     );
 
-  const attempts = { create: 0, rename: 0, kill: 0 };
+  const attempts = { create: 0, rename: 0, kill: 0, connect: 0, restart: 0 };
   /** Counts an attempt; true when the Machine refuses it. */
   const refuses = (command: keyof typeof attempts) => refuse && attempts[command]++ % 2 === 0;
 
@@ -170,6 +170,48 @@ export function createMockClient(
         );
         changed();
       });
+    },
+
+    disconnect: (machineId) => {
+      const target = machine(machineId);
+      if (target === undefined || target.connection === "not-connected") return;
+      target.connection = "not-connected";
+      changed();
+    },
+
+    connect: async (machineId) => {
+      const target = machine(machineId);
+      if (target === undefined || target.connection === "connected") return;
+      if (target.connection === "reconnecting") return;
+      target.connection = "reconnecting";
+      changed();
+      const reached = !refuses("connect");
+      await answer(undefined, () => {
+        // The Machine may have been unpaired while the try ran.
+        if (!machines.includes(target)) return;
+        target.connection = reached ? "connected" : "still-not-connected";
+        changed();
+      });
+    },
+
+    restartCore: (machineId) => {
+      const target = machine(machineId);
+      if (target === undefined || target.connection !== "connected") return failed();
+      if (refuses("restart")) return failed();
+      return done(() => {
+        target.workspaces = (target.workspaces ?? []).map((workspace) => ({
+          ...workspace,
+          terminalSessions: 0,
+        }));
+        changed();
+      });
+    },
+
+    unpair: (machineId) => {
+      const index = machines.findIndex((candidate) => candidate.id === machineId);
+      if (index === -1) return;
+      machines.splice(index, 1);
+      changed();
     },
   };
 

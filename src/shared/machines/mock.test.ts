@@ -147,4 +147,54 @@ describe("the mock client", () => {
     expect(await client.killWorkspace("mac", "w2")).toEqual({ kind: "failed" });
     expect(await client.renameWorkspace("gone", "w1", "web")).toEqual({ kind: "failed" });
   });
+
+  it("disconnects at once, and reconnects when the Machine answers Connect", async () => {
+    vi.useFakeTimers();
+    const client = createMockClient([mac], { latency: 100 });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+
+    client.disconnect("mac");
+    expect(connection()).toBe("not-connected");
+
+    client.connect("mac");
+    expect(connection()).toBe("reconnecting");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(connection()).toBe("connected");
+    vi.useRealTimers();
+  });
+
+  it("is still not connected when Connect fails, and Connect tries again", async () => {
+    const client = createMockClient([{ ...mac, connection: "not-connected" }], { refuse: true });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+
+    await client.connect("mac");
+    expect(connection()).toBe("still-not-connected");
+    await client.connect("mac");
+    expect(connection()).toBe("connected");
+  });
+
+  it("restarts SpaceTerm Core on a connected Machine, which ends its Terminal Sessions", async () => {
+    const client = createMockClient([
+      { ...mac, workspaces: [{ ...workspace, terminalSessions: 3 }] },
+      { ...mac, id: "away", connection: "not-connected", workspaces: [workspace] },
+    ]);
+
+    expect(await client.restartCore("away")).toEqual({ kind: "failed" });
+    expect(await client.restartCore("mac")).toEqual({ kind: "done" });
+    expect(client.getSnapshot().machines[0]?.workspaces).toEqual([
+      { ...workspace, terminalSessions: 0 },
+    ]);
+  });
+
+  it("unpairs at once, connected or not, so the Machine leaves the list", () => {
+    const client = createMockClient([mac, { ...mac, id: "away", connection: "not-connected" }]);
+    let changes = 0;
+    client.subscribe(() => changes++);
+
+    client.unpair("away");
+    client.unpair("mac");
+
+    expect(client.getSnapshot().machines).toEqual([]);
+    expect(changes).toBe(2);
+  });
 });

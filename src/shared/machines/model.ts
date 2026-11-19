@@ -80,4 +80,18 @@ export type MachineClient = {
   ) => Promise<CreateWorkspaceResult>;
   renameWorkspace: (machineId: string, workspaceId: string, name: string) => Promise<CommandResult>;
   killWorkspace: (machineId: string, workspaceId: string) => Promise<CommandResult>;
+  /** Closes this device's connection to a Machine. Nothing on the Machine changes. */
+  disconnect: (machineId: string) => void;
+  /**
+   * Tries to reach a Machine that is not connected. It is reconnecting until the try ends, then
+   * connected or still not connected; the promise settles then.
+   */
+  connect: (machineId: string) => Promise<void>;
+  /** Stops and starts SpaceTerm Core, which ends its Terminal Sessions and keeps its Workspaces. */
+  restartCore: (machineId: string) => Promise<CommandResult>;
+  /**
+   * Removes the Machine from this device, connected or not. Connecting to it again needs a new
+   * Invitation Link.
+   */
+  unpair: (machineId: string) => void;
 };

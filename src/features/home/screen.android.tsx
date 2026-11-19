@@ -75,14 +75,15 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
               bottomPadding={insets.bottom + (controls.searchable ? ROOM_FOR_BUTTON : LIST_MARGIN)}
             />
           </Column>
-          {controls.newWorkspace && <NewWorkspaceButton control={controls.newWorkspace} />}
-          <RowAlertsView alerts={alerts} />
           {!searching && (
             <SnackbarSlot
               {...snackbar}
               bottom={insets.bottom + (controls.newWorkspace ? ABOVE_BUTTON : LIST_MARGIN)}
             />
           )}
+          {/* These come and go, so they follow the snackbar; it sits clear of the button. */}
+          {controls.newWorkspace && <NewWorkspaceButton control={controls.newWorkspace} />}
+          <RowAlertsView alerts={alerts} />
         </Box>
       </Host>
     </>

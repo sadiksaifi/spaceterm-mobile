@@ -79,8 +79,12 @@ export function useSnackbar<T extends object>(
 
 /**
  * Where the snackbar shows: at the bottom of its Box, its own bottom `bottom` up from the Box's
- * bottom edge. It takes
- * what `useSnackbar` returns, spread. Only one slot of a snackbar renders at a time.
+ * bottom edge. It takes what `useSnackbar` returns, spread. Only one slot of a snackbar renders
+ * at a time.
+ *
+ * In its Box, it follows the views it shows above, and views that come and go follow it: one that
+ * comes or goes before it makes Compose recreate the host, which ends its snackbar as if the
+ * person had closed it.
  */
 export function SnackbarSlot({ attach, generation, bottom }: Snackbar & { bottom: number }) {
   return (

@@ -150,9 +150,11 @@ function withoutComment(text: string, index: number): { skip: number; keep: stri
 
 /** Drops a comma at `index` that only whitespace separates from a closing bracket. */
 function withoutTrailingComma(text: string, index: number): { skip: number; keep: string } | null {
-  return text[index] === "," && /^\s*[}\]]/.test(text.slice(index + 1))
-    ? { skip: index + 1, keep: "" }
-    : null;
+  if (text[index] !== ",") return null;
+  // Scanned in place: Hermes copies a slice, and a theme file holds a comma every few characters.
+  let next = index + 1;
+  while (/\s/.test(text[next] ?? "")) next++;
+  return text[next] === "}" || text[next] === "]" ? { skip: index + 1, keep: "" } : null;
 }
 
 /** Copies `text`, letting `edit` change it anywhere outside a JSON string. */

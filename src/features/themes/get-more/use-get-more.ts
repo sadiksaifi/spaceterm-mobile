@@ -46,7 +46,7 @@ export type GetMorePage = {
   failure: GetMoreFailure | null;
   /** Takes away `failure` if it is still the one shown. */
   dismissFailure: (failure: GetMoreFailure) => void;
-  /** Try Again on `failure`, if it is still the one shown: Get or Import from File again. */
+  /** Try Again on `failure`: Get its extension, unless it is in or under way, or import again. */
   retryFailure: (failure: GetMoreFailure) => void;
 };
 
@@ -174,11 +174,12 @@ export function useGetMore(
     failure,
     dismissFailure,
     retryFailure: (shown) => {
-      // A Try Again from a failure that has since been answered or replaced does nothing.
-      if (shown !== failure) return;
+      // iOS keeps showing a failure until its alert closes, though a newer one may have replaced
+      // it; Try Again still means that one, and the newer failure waits its turn.
       dismissFailure(shown);
-      if (shown.kind === "get") installs.get(shown.extension);
-      else void importNow();
+      if (shown.kind === "import") void importNow();
+      // An extension got again, or under way, has answered its failure.
+      else if (!installed.has(shown.extension.id)) installs.get(shown.extension);
     },
   };
 }

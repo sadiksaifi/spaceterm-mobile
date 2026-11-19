@@ -238,6 +238,44 @@ it("reports an extension it could not get, leaves Get on it, and tries again", a
   expect(store.getSnapshot().themes.at(-1)).toEqual(mocha);
 });
 
+it("tries again on a failure still on screen after a newer one, and keeps the newer one", async () => {
+  const themes = jest
+    .fn<ThemeCatalog["themes"]>()
+    .mockResolvedValueOnce("unavailable")
+    .mockResolvedValueOnce("unavailable")
+    .mockResolvedValueOnce([mocha]);
+  const { result, store } = await render({ search: async () => [catppuccin, nightfox], themes });
+  await act(settle);
+
+  await act(async () => {
+    result.current.get(catppuccin);
+    await settle();
+  });
+  // iOS keeps showing this failure in its alert after a newer one arrives.
+  const shown = result.current.failure;
+  await act(async () => {
+    result.current.get(nightfox);
+    await settle();
+  });
+  const newer = result.current.failure;
+  expect(newer).toMatchObject({ extension: nightfox });
+
+  await act(async () => {
+    if (shown !== null) result.current.retryFailure(shown);
+    await settle();
+  });
+  expect(themes).toHaveBeenLastCalledWith(catppuccin);
+  expect(store.getSnapshot().themes.at(-1)).toEqual(mocha);
+  expect(result.current.failure).toBe(newer);
+
+  // Once its extension is in, Try Again on it again does nothing.
+  await act(async () => {
+    if (shown !== null) result.current.retryFailure(shown);
+    await settle();
+  });
+  expect(themes).toHaveBeenCalledTimes(3);
+});
+
 it("imports the themes in a picked Zed theme file, and reports a file it could not use", async () => {
   const theme = JSON.stringify({
     name: "Paper",

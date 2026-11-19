@@ -150,7 +150,7 @@ describe("reading a Zed theme file", () => {
     expect(readZedThemes(file, { kind: "file", fileName: "paper.json" })).toHaveLength(1);
   });
 
-  it("lays a see-through color over the background, and skips a fully clear one", () => {
+  it("lays a see-through color over what is under it, as Desktop does a fully clear one", () => {
     const file = JSON.stringify({
       themes: [
         {
@@ -167,12 +167,21 @@ describe("reading a Zed theme file", () => {
     });
     const [glass] = readZedThemes(file, { kind: "file", fileName: "glass.json" });
 
-    // The clear terminal background gives way to the editor's.
-    expect(glass?.colors.background).toBe("#202020");
-    // Half white over #202020: 0x20 + (0xff - 0x20) * 128 / 255 = 0x90.
-    expect(glass?.colors.foreground).toBe("#909090");
-    // A quarter red over #202020: 0x20 + (0xff - 0x20) * 64 / 255 = 0x58 for red, 0x18 for the rest.
-    expect(glass?.colors.normal[1]).toBe("#581818");
+    // The clear terminal background is still the one chosen, laid over SpaceTerm's own.
+    const under = builtInThemes.dark.colors.background;
+    expect(glass?.colors.background).toBe(under);
+    // Half white and a quarter red, laid over it.
+    const mix = (channel: number, color: number, alpha: number) =>
+      Math.round(channel + (color - channel) * alpha);
+    const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(under.slice(at, at + 2), 16));
+    const hex = (...channels: number[]) =>
+      `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+    expect(glass?.colors.foreground).toBe(
+      hex(mix(r ?? 0, 255, 128 / 255), mix(g ?? 0, 255, 128 / 255), mix(b ?? 0, 255, 128 / 255)),
+    );
+    expect(glass?.colors.normal[1]).toBe(
+      hex(mix(r ?? 0, 255, 64 / 255), mix(g ?? 0, 0, 64 / 255), mix(b ?? 0, 0, 64 / 255)),
+    );
   });
 
   it("finds no theme in a file that is not a Zed theme", () => {

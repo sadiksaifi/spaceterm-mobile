@@ -69,7 +69,7 @@ export function readZedThemes(
 
 function terminalColors(style: Record<string, unknown>, appearance: ThemeAppearance) {
   const fallback = builtInThemes[appearance].colors;
-  // The first of `keys` that holds a color that shows, laid over `under` if it is see-through.
+  // The first of `keys` that holds a color, laid over `under` if it is see-through.
   const first = (under: string, ...keys: string[]) => {
     for (const key of keys) {
       const color = toColor(style[key]);
@@ -106,7 +106,7 @@ function terminalColors(style: Record<string, unknown>, appearance: ThemeAppeara
 
 type Color = { rgb: readonly [number, number, number]; alpha: number };
 
-/** A CSS hex color, short forms included. A fully clear color or anything else is null. */
+/** A CSS hex color, short forms included, or null for anything else. A fully clear one counts. */
 function toColor(value: unknown): Color | null {
   if (typeof value !== "string") return null;
   const match = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(value.trim());
@@ -115,7 +115,7 @@ function toColor(value: unknown): Color | null {
     match[1].length <= 4 ? Array.from(match[1], (digit) => digit + digit).join("") : match[1];
   const channel = (at: number) => Number.parseInt(digits.slice(at, at + 2), 16);
   const alpha = digits.length === 8 ? channel(6) / 255 : 1;
-  return alpha === 0 ? null : { rgb: [channel(0), channel(2), channel(4)], alpha };
+  return { rgb: [channel(0), channel(2), channel(4)], alpha };
 }
 
 /** `color` laid over the opaque `under`, as `#rrggbb`. */

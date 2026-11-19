@@ -20,12 +20,13 @@ export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null 
   // A long path comes in an entry of its own, just before the file it names.
   let longPath: string | null = null;
   let offset = 0;
-  // An archive ends with a block of zeros; one that stops before it was cut short.
+  // An archive ends with two blocks of zeros; one that stops before them was cut short.
   let ended = false;
   while (offset + BLOCK <= tar.length) {
     const header = tar.subarray(offset, offset + BLOCK);
     if (header.every((byte) => byte === 0)) {
-      ended = true;
+      const next = tar.subarray(offset + BLOCK, offset + 2 * BLOCK);
+      ended = next.length === BLOCK && next.every((byte) => byte === 0);
       break;
     }
     if (!checksumMatches(header)) return null;

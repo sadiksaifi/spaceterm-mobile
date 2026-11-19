@@ -69,6 +69,20 @@ describe("extracting a .tar.gz", () => {
     const second = 512 + Math.ceil(firstSize / 512) * 512;
     expect(extractTarGz(gzipSync(tar.subarray(0, second + 100)))).toBeNull();
     expect(extractTarGz(gzipSync(tar.subarray(0, second)))).toBeNull();
+
+    // Cut after the first of the two zero blocks that end it.
+    let end = 0;
+    for (let offset = 0; offset + 512 <= tar.length;) {
+      const header = tar.subarray(offset, offset + 512);
+      if (header.every((byte) => byte === 0)) {
+        end = offset;
+        break;
+      }
+      const size = Number.parseInt(new TextDecoder().decode(header.subarray(124, 135)), 8);
+      offset += 512 + Math.ceil(size / 512) * 512;
+    }
+    expect(extractTarGz(gzipSync(tar.subarray(0, end + 512)))).toBeNull();
+    expect(extractTarGz(gzipSync(tar.subarray(0, end + 1024)))).not.toBeNull();
   });
 
   it("gives nothing for an archive whose unpacked size is not the one it records", () => {

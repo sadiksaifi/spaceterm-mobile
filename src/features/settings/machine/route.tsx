@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useMachines } from "@/shared/machines/client";
 
@@ -29,11 +29,15 @@ export default function MachinePageRoute() {
       router.back();
     }
   }, [gone, router]);
-  if (machine === undefined) return null;
+  // After Unpair the page keeps showing the Machine as it last was while it slides away.
+  const [lastSeen, setLastSeen] = useState(machine);
+  if (machine !== undefined && machine !== lastSeen) setLastSeen(machine);
+  const shown = machine ?? lastSeen;
+  if (shown === undefined) return null;
 
-  const terminalSessions = (machine.workspaces ?? []).reduce(
+  const terminalSessions = (shown.workspaces ?? []).reduce(
     (sum, workspace) => sum + workspace.terminalSessions,
     0,
   );
-  return <MachinePageScreen machine={machine} terminalSessions={terminalSessions} page={page} />;
+  return <MachinePageScreen machine={shown} terminalSessions={terminalSessions} page={page} />;
 }

@@ -157,18 +157,24 @@ function withoutComment(text: string, index: number): { skip: number; keep: stri
   }
   if (text[index + 1] === "*") {
     const end = text.indexOf("*/", index + 2);
-    return { skip: end === -1 ? text.length : end + 2, keep: " " };
+    // Zed refuses a file whose comment never closes.
+    if (end === -1) throw new SyntaxError("Unterminated comment");
+    return { skip: end + 2, keep: " " };
   }
   return null;
 }
 
-/** Drops a comma at `index` that only whitespace separates from a closing bracket. */
+/** Drops a comma at `index` that ends a list or object it follows a member of. */
 function withoutTrailingComma(text: string, index: number): { skip: number; keep: string } | null {
   if (text[index] !== ",") return null;
   // Scanned in place: Hermes copies a slice, and a theme file holds a comma every few characters.
   let next = index + 1;
   while (/\s/.test(text[next] ?? "")) next++;
-  return text[next] === "}" || text[next] === "]" ? { skip: index + 1, keep: "" } : null;
+  if (text[next] !== "}" && text[next] !== "]") return null;
+  // A comma with no member before it, as in `{,}`, is left for JSON to refuse.
+  let previous = index - 1;
+  while (/\s/.test(text[previous] ?? "")) previous--;
+  return "{[,".includes(text[previous] ?? "{") ? null : { skip: index + 1, keep: "" };
 }
 
 /** Copies `text`, letting `edit` change it anywhere outside a JSON string. */
@@ -176,26 +182,28 @@ function outsideStrings(
   text: string,
   edit: (text: string, index: number) => { skip: number; keep: string } | null,
 ): string {
-  let out = "";
+  // Kept text goes in spans, so each character is copied once.
+  const parts: string[] = [];
+  let kept = 0;
   let index = 0;
   while (index < text.length) {
     if (text[index] === '"') {
-      let end = index + 1;
-      while (end < text.length && text[end] !== '"') end += text[end] === "\\" ? 2 : 1;
-      out += text.slice(index, end + 1);
-      index = end + 1;
+      index++;
+      while (index < text.length && text[index] !== '"') index += text[index] === "\\" ? 2 : 1;
+      index++;
       continue;
     }
     const edited = edit(text, index);
     if (edited === null) {
-      out += text[index];
       index++;
     } else {
-      out += edited.keep;
+      parts.push(text.slice(kept, index), edited.keep);
       index = edited.skip;
+      kept = index;
     }
   }
-  return out;
+  parts.push(text.slice(kept));
+  return parts.join("");
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

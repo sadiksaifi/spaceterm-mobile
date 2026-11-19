@@ -157,6 +157,18 @@ describe("reading a Zed theme file", () => {
     expect(padded?.colors.foreground).toBe("#ffffff");
   });
 
+  it("finds no theme in a file Zed could not read, however lenient", () => {
+    const theme = '{ "name": "Paper Light", "appearance": "light", "style": {} }';
+    const read = (file: string) => readZedThemes(file, { kind: "file", fileName: "paper.json" });
+
+    expect(read(`{ "themes": [${theme}] }`)).toHaveLength(1);
+    expect(read(`{ "themes": [${theme}] } /* never closed`)).toEqual([]);
+    expect(
+      read(`{ "themes": [{ "name": "Paper", "appearance": "light", "style": {,} }] }`),
+    ).toEqual([]);
+    expect(read(`{ "themes": [, ${theme}] }`)).toEqual([]);
+  });
+
   it("reads a file that starts with a byte order mark", () => {
     const file = `\uFEFF${JSON.stringify({
       name: "Paper",

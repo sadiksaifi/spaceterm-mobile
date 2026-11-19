@@ -109,7 +109,7 @@ type Color = { rgb: readonly [number, number, number]; alpha: number };
 /** A CSS hex color, short forms included, or null for anything else. A fully clear one counts. */
 function toColor(value: unknown): Color | null {
   if (typeof value !== "string") return null;
-  const match = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(value.trim());
+  const match = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(value);
   if (match === null) return null;
   const digits =
     match[1].length <= 4 ? Array.from(match[1], (digit) => digit + digit).join("") : match[1];

@@ -142,6 +142,21 @@ describe("reading a Zed theme file", () => {
     expect(partial?.colors.bright[4]).toBe(builtInThemes.dark.colors.normal[4]);
   });
 
+  it("passes over a color with space around it, as Desktop does", () => {
+    const file = JSON.stringify({
+      themes: [
+        {
+          name: "Padded",
+          appearance: "dark",
+          style: { "terminal.foreground": " #0000 ", "editor.foreground": "#ffffff" },
+        },
+      ],
+    });
+    const [padded] = readZedThemes(file, { kind: "file", fileName: "padded.json" });
+
+    expect(padded?.colors.foreground).toBe("#ffffff");
+  });
+
   it("reads a file that starts with a byte order mark", () => {
     const file = `\uFEFF${JSON.stringify({
       name: "Paper",

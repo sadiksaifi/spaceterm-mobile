@@ -28,6 +28,22 @@ const SCHEMA = { min: "0", max: "1" } as const;
 const WASM_API = { min: "0.0.0", max: "0.8.0" } as const;
 /** The largest archive SpaceTerm downloads; a theme extension is far smaller. */
 export const MAX_ARCHIVE = 16 * 1024 * 1024;
+/**
+ * How long a search or a download may take, body included. React Native's Android network client
+ * has no read timeout, so a store that stops answering would otherwise leave it under way.
+ */
+const DEADLINE = 30_000;
+
+/** A request that is stopped when it runs past the deadline, or when `abort` is called. */
+function deadlined() {
+  const request = new AbortController();
+  const timer = setTimeout(() => request.abort(), DEADLINE);
+  return {
+    signal: request.signal,
+    abort: () => request.abort(),
+    finish: () => clearTimeout(timer),
+  };
+}
 
 /** A fetch that streams a body and stops its request when aborted, as `expo/fetch` does. */
 export type Fetch = (
@@ -47,8 +63,9 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       const params = new URLSearchParams({ provides: "themes", max_schema_version: SCHEMA.max });
       const filter = query.trim();
       if (filter !== "") params.set("filter", filter);
+      const request = deadlined();
       try {
-        const response = await fetch(`${API}?${params}`);
+        const response = await fetch(`${API}?${params}`, { signal: request.signal });
         if (!response.ok) return "unavailable";
         const body: unknown = await response.json();
         const data = isRecord(body) && Array.isArray(body.data) ? body.data : [];
@@ -57,6 +74,8 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
           .sort((first, second) => second.downloads - first.downloads);
       } catch {
         return "unavailable";
+      } finally {
+        request.finish();
       }
     },
     themes: async (extension) => {
@@ -66,8 +85,8 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
         min_wasm_api_version: WASM_API.min,
         max_wasm_api_version: WASM_API.max,
       });
-      // Stops the download when it is refused before its end.
-      const request = new AbortController();
+      // Also stops the download when it is refused before its end.
+      const request = deadlined();
       let bytes: Uint8Array | "too-large" | "unavailable";
       try {
         const response = await fetch(
@@ -78,9 +97,11 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
           ? "unavailable"
           : Number(response.headers.get("content-length") ?? 0) > MAX_ARCHIVE
             ? "too-large"
-            : await readAtMost(response.body, MAX_ARCHIVE);
+            : await readAtMost(response.body, MAX_ARCHIVE, request.signal);
       } catch {
         bytes = "unavailable";
+      } finally {
+        request.finish();
       }
       if (typeof bytes === "string") {
         request.abort();
@@ -102,13 +123,19 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
   };
 }
 
-/** The whole body, or "too-large" as soon as it runs past `limit` bytes. */
+/**
+ * The whole body, "too-large" as soon as it runs past `limit` bytes, or "unavailable" when
+ * `signal` stops it first.
+ */
 async function readAtMost(
   body: ReadableStream<Uint8Array> | null,
   limit: number,
+  signal: AbortSignal,
 ): Promise<Uint8Array | "too-large" | "unavailable"> {
   if (body === null) return "unavailable";
   const reader = body.getReader();
+  // Canceling ends a read under way, which then looks like the body's end.
+  signal.addEventListener("abort", () => void reader.cancel().catch(() => {}), { once: true });
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (let read = await reader.read(); !read.done; read = await reader.read()) {
@@ -119,6 +146,7 @@ async function readAtMost(
     }
     chunks.push(read.value);
   }
+  if (signal.aborted) return "unavailable";
   const bytes = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) {

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { gzipSync } from "fflate";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createZedCatalog, MAX_ARCHIVE } from "./catalog";
 
@@ -172,6 +172,24 @@ describe("Zed's theme catalog", () => {
     expect(await createZedCatalog(tooMany.fetch).themes({ id: "paper", name: "Paper" })).toBe(
       "too-large",
     );
+  });
+
+  it("gives up on a store that stops answering, before or during a download", async () => {
+    vi.useFakeTimers();
+    /** A fetch whose answer never comes, or whose body never ends. */
+    const stalled = (answers: boolean) => (_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise<Response>((resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        if (answers) resolve(new Response(new ReadableStream<Uint8Array>({ pull: () => {} })));
+      });
+
+    const search = createZedCatalog(stalled(false)).search("");
+    const download = createZedCatalog(stalled(true)).themes({ id: "paper", name: "Paper" });
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await search).toBe("unavailable");
+    expect(await download).toBe("unavailable");
+    vi.useRealTimers();
   });
 
   it("stops a download once it runs past the limit, without reading the rest", async () => {

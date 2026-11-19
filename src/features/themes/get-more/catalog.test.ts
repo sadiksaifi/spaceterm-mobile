@@ -115,6 +115,16 @@ describe("Zed's theme catalog", () => {
     expect(Array.isArray(result) && result[0]?.author).toBe("Evgenii Kislichenko, Ana, Kai Lee");
   });
 
+  it("is unavailable when the store answers without a list, and lists each extension once", async () => {
+    const empty = fakeFetch({ [LIST]: () => Response.json({ error: "maintenance" }) });
+    expect(await createZedCatalog(empty.fetch).search("")).toBe("unavailable");
+
+    const paper = { id: "paper", name: "Paper", authors: [], download_count: 5 };
+    const twice = fakeFetch({ [LIST]: () => Response.json({ data: [paper, paper] }) });
+    const result = await createZedCatalog(twice.fetch).search("");
+    expect(Array.isArray(result) && result.map((extension) => extension.id)).toEqual(["paper"]);
+  });
+
   it("asks for every theme extension when the search is empty", async () => {
     const { fetch, asked } = fakeFetch({ [LIST]: () => Response.json({ data: [] }) });
     await createZedCatalog(fetch).search("");

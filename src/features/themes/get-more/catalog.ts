@@ -79,10 +79,10 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
         if (typeof bytes === "string") return "unavailable";
         readWhole = true;
         const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
-        const data = isRecord(body) && Array.isArray(body.data) ? body.data : [];
-        return data
-          .flatMap(toExtension)
-          .sort((first, second) => second.downloads - first.downloads);
+        if (!isRecord(body) || !Array.isArray(body.data)) return "unavailable";
+        // Both screens key their rows by id, and a repeated key breaks the list.
+        const byId = new Map(body.data.flatMap(toExtension).map((item) => [item.id, item]));
+        return [...byId.values()].sort((first, second) => second.downloads - first.downloads);
       } catch {
         return "unavailable";
       } finally {

@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useColorScheme } from "react-native";
 
@@ -8,13 +9,11 @@ import { usePreferences, usePreferencesStore } from "@/shared/preferences/provid
 import { themesFor } from "./model";
 import ThemesScreen from "./screen";
 
-/** Get More Themes does not exist yet. Its row works and stays on Themes until it is built. */
-const stayOnThemes = () => {};
-
 /** Themes: the appearance terminals use, and the Terminal Theme chosen for Light and for Dark. */
 export default function ThemesRoute() {
   const preferences = usePreferences();
   const store = usePreferencesStore();
+  const router = useRouter();
   const system = useColorScheme();
   // Under Automatic the page opens on the appearance the system shows now.
   const [selected, setSelected] = useState<ThemeAppearance>(() =>
@@ -47,7 +46,7 @@ export default function ThemesRoute() {
         if (removing !== null) store.removeTheme(removing.id);
         setRemoving(null);
       }}
-      onGetMore={stayOnThemes}
+      onGetMore={() => router.navigate("/settings/themes/get-more")}
     />
   );
 }

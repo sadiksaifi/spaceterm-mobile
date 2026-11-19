@@ -15,7 +15,7 @@ export type CatalogList =
 
 /** Get or Import from File that did not add a theme. A new failure is a new object. */
 export type GetMoreFailure =
-  | { kind: "get"; name: string; reason: "unavailable" | "no-themes" }
+  | { kind: "get"; extension: CatalogExtension; reason: "unavailable" | "no-themes" }
   | { kind: "import"; fileName: string };
 
 export type GetMorePage = {
@@ -36,6 +36,8 @@ export type GetMorePage = {
   retry: () => void;
   failure: GetMoreFailure | null;
   dismissFailure: () => void;
+  /** Try Again on a failure: Get or Import from File again. */
+  retryFailure: () => void;
 };
 
 /** Typing waits this long for a pause before it searches. */
@@ -98,7 +100,7 @@ export function useGetMore(
     underway.current.delete(extension.id);
     setInstalling(new Set(underway.current));
     if (typeof themes === "string") {
-      setFailure({ kind: "get", name: extension.name, reason: themes });
+      setFailure({ kind: "get", extension, reason: themes });
     } else {
       store.addThemes(themes);
     }
@@ -139,5 +141,10 @@ export function useGetMore(
     retry: () => setAttempt((count) => count + 1),
     failure,
     dismissFailure: () => setFailure(null),
+    retryFailure: () => {
+      setFailure(null);
+      if (failure?.kind === "get") void getNow(failure.extension);
+      else if (failure?.kind === "import") void importNow();
+    },
   };
 }

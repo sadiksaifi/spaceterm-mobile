@@ -138,26 +138,31 @@ it("gets every theme in an extension, which then shows Remove, and Remove takes 
   expect(result.current.state(catppuccin)).toBe("get");
 });
 
-it("reports an extension it could not get, and leaves Get on it", async () => {
-  const { result } = await render({
-    search: async () => [catppuccin],
-    themes: async () => "unavailable",
-  });
+it("reports an extension it could not get, leaves Get on it, and tries again", async () => {
+  const themes = jest
+    .fn<ThemeCatalog["themes"]>()
+    .mockResolvedValueOnce("unavailable")
+    .mockResolvedValueOnce([mocha]);
+  const { result, store } = await render({ search: async () => [catppuccin], themes });
   await act(settle);
 
   await act(async () => {
     result.current.get(catppuccin);
     await settle();
   });
-
   expect(result.current.failure).toEqual({
     kind: "get",
-    name: "Catppuccin",
+    extension: catppuccin,
     reason: "unavailable",
   });
   expect(result.current.state(catppuccin)).toBe("get");
-  await act(async () => result.current.dismissFailure());
+
+  await act(async () => {
+    result.current.retryFailure();
+    await settle();
+  });
   expect(result.current.failure).toBeNull();
+  expect(store.getSnapshot().themes.at(-1)).toEqual(mocha);
 });
 
 it("imports the themes in a picked Zed theme file, and reports a file that is not one", async () => {

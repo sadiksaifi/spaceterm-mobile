@@ -24,6 +24,13 @@ export default function RootLayout() {
                 headerShown: false,
               }}
             />
+            <Stack.Screen
+              name="settings/themes/get-more"
+              options={{
+                // iOS shows Get More Themes in a sheet; Android shows it as a full-screen page.
+                presentation: process.env.EXPO_OS === "ios" ? "modal" : "card",
+              }}
+            />
           </Stack>
           <StatusBar style="auto" />
         </ThemeProvider>

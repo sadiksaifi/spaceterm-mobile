@@ -26,7 +26,6 @@ export const text = {
   removeTitle: (name: string) => cased(`Remove “${name}”?`, `Remove ${name}?`),
   removeBody: "This removes its themes from this device.",
   cancel: "Cancel",
-  ok: "OK",
   noResults: (query: string) => cased(`No Results for “${query}”`, `No results for ${query}`),
   noResultsBody: "Check the spelling or try a new search.",
   getFailed: (name: string) => cased(`Couldn’t Get “${name}”`, `Couldn’t get ${name}`),

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { usePreferences, usePreferencesStore } from "@/shared/preferences/provider";
 
 import type { CatalogExtension, ThemeCatalog } from "./catalog";
+import type { GetFailure, Installs } from "./installs";
 import { readZedThemes } from "./zed-theme";
 
 /** A file the person picked: its name and its text. */
@@ -14,9 +15,7 @@ export type CatalogList =
   | { kind: "unavailable" };
 
 /** Get or Import from File that did not add a theme. A new failure is a new object. */
-export type GetMoreFailure =
-  | { kind: "get"; extension: CatalogExtension; reason: "unavailable" | "no-themes" }
-  | { kind: "import"; fileName: string };
+export type GetMoreFailure = GetFailure | { kind: "import"; fileName: string };
 
 export type GetMorePage = {
   query: string;
@@ -46,6 +45,7 @@ const SEARCH_DELAY = 300;
 /** Get More Themes: Zed's theme extensions, searched, got and removed, and themes from a file. */
 export function useGetMore(
   catalog: ThemeCatalog,
+  installs: Installs,
   pickFile: () => Promise<PickedFile | null>,
 ): GetMorePage {
   const preferences = usePreferences();
@@ -54,11 +54,11 @@ export function useGetMore(
   const [attempt, setAttempt] = useState(0);
   // The latest answer, with the search it answers; the list loads until the current one answers.
   const [answer, setAnswer] = useState<{ search: string; list: CatalogList } | null>(null);
-  const [installing, setInstalling] = useState<ReadonlySet<string>>(new Set());
+  const gets = useSyncExternalStore(installs.subscribe, installs.getSnapshot);
   const [removing, setRemoving] = useState<CatalogExtension | null>(null);
-  const [failure, setFailure] = useState<GetMoreFailure | null>(null);
-  // Taps can arrive before the next render; this sees them at once.
-  const underway = useRef(new Set<string>());
+  const [importFailure, setImportFailure] = useState<GetMoreFailure | null>(null);
+  // An import failure is the person's latest action, so it shows first.
+  const failure = importFailure ?? gets.failure;
 
   const trimmed = query.trim();
   const search = `${attempt}:${trimmed}`;
@@ -92,18 +92,9 @@ export function useGetMore(
     ),
   );
 
-  async function getNow(extension: CatalogExtension) {
-    if (underway.current.has(extension.id)) return;
-    underway.current.add(extension.id);
-    setInstalling(new Set(underway.current));
-    const themes = await catalog.themes(extension);
-    underway.current.delete(extension.id);
-    setInstalling(new Set(underway.current));
-    if (typeof themes === "string") {
-      setFailure({ kind: "get", extension, reason: themes });
-    } else {
-      store.addThemes(themes);
-    }
+  function dismissFailure() {
+    if (importFailure !== null) setImportFailure(null);
+    else installs.dismissFailure();
   }
 
   async function importNow() {
@@ -115,7 +106,7 @@ export function useGetMore(
     }
     if (picked === null) return;
     const themes = readZedThemes(picked.text, { kind: "file", fileName: picked.name });
-    if (themes.length === 0) setFailure({ kind: "import", fileName: picked.name });
+    if (themes.length === 0) setImportFailure({ kind: "import", fileName: picked.name });
     else store.addThemes(themes);
   }
 
@@ -124,12 +115,12 @@ export function useGetMore(
     setQuery,
     list,
     state: (extension) =>
-      installing.has(extension.id)
+      gets.installing.has(extension.id)
         ? "installing"
         : installed.has(extension.id)
           ? "installed"
           : "get",
-    get: (extension) => void getNow(extension),
+    get: installs.get,
     removing,
     askRemove: setRemoving,
     cancelRemove: () => setRemoving(null),
@@ -140,10 +131,10 @@ export function useGetMore(
     importFile: () => void importNow(),
     retry: () => setAttempt((count) => count + 1),
     failure,
-    dismissFailure: () => setFailure(null),
+    dismissFailure,
     retryFailure: () => {
-      setFailure(null);
-      if (failure?.kind === "get") void getNow(failure.extension);
+      dismissFailure();
+      if (failure?.kind === "get") installs.get(failure.extension);
       else if (failure?.kind === "import") void importNow();
     },
   };

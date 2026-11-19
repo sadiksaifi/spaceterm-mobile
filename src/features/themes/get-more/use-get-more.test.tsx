@@ -7,6 +7,7 @@ import { PreferencesProvider } from "@/shared/preferences/provider";
 import { createPreferencesStore, type KeyValueStorage } from "@/shared/preferences/store";
 
 import type { CatalogExtension, ThemeCatalog } from "./catalog";
+import { createInstalls } from "./installs";
 import { useGetMore, type PickedFile } from "./use-get-more";
 
 const memoryStorage = (): KeyValueStorage => {
@@ -60,11 +61,13 @@ async function render(
   pickFile: () => Promise<PickedFile | null> = async () => null,
 ) {
   const store = createPreferencesStore(memoryStorage());
+  const installs = createInstalls(catalog, store);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <PreferencesProvider store={store}>{children}</PreferencesProvider>
   );
-  const hook = await renderHook(() => useGetMore(catalog, pickFile), { wrapper });
-  return { ...hook, store };
+  const open = () => renderHook(() => useGetMore(catalog, installs, pickFile), { wrapper });
+  const hook = await open();
+  return { ...hook, store, open };
 }
 
 it("lists the newest search's results, even when an older search answers last", async () => {
@@ -136,6 +139,27 @@ it("gets every theme in an extension, which then shows Remove, and Remove takes 
   expect(result.current.removing).toBeNull();
   expect(store.getSnapshot().themes.map((theme) => theme.id)).not.toContain(mocha.id);
   expect(result.current.state(catppuccin)).toBe("get");
+});
+
+it("keeps a Get going after the page closes, and shows it under way when the page opens again", async () => {
+  const answer = deferred<TerminalTheme[] | "unavailable" | "no-themes">();
+  const themes = jest.fn<ThemeCatalog["themes"]>().mockReturnValue(answer.promise);
+  const first = await render({ search: async () => [catppuccin], themes });
+  await act(settle);
+  await act(async () => first.result.current.get(catppuccin));
+  await act(async () => first.unmount());
+
+  const { result } = await first.open();
+  await act(settle);
+  expect(result.current.state(catppuccin)).toBe("installing");
+  await act(async () => result.current.get(catppuccin));
+  await act(async () => {
+    answer.resolve([mocha]);
+    await settle();
+  });
+
+  expect(themes).toHaveBeenCalledTimes(1);
+  expect(result.current.state(catppuccin)).toBe("installed");
 });
 
 it("reports an extension it could not get, leaves Get on it, and tries again", async () => {

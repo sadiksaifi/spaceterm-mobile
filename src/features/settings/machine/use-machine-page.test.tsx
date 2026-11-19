@@ -58,6 +58,22 @@ it("offers Try Again when the Machine refuses Restart, and Try Again asks to res
   expect(result.current.failure).toBeNull();
 });
 
+it("takes away a refused Restart once the Machine is not connected, since it cannot restart", async () => {
+  const { result } = await render();
+  await act(async () => {
+    result.current.restart();
+    await answers();
+  });
+  expect(result.current.failure).not.toBeNull();
+
+  await act(async () => {
+    result.current.disconnect();
+    await answers();
+  });
+
+  expect(result.current.failure).toBeNull();
+});
+
 it("restarts once when Restart is tapped twice before the Machine answers", async () => {
   const { result, client } = await render(createMockClient([mac]));
   const restartCore = jest.spyOn(client, "restartCore");

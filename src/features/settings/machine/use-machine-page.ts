@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import { useMachineClient } from "@/shared/machines/client";
+import { useMachineClient, useMachines } from "@/shared/machines/client";
 
 /** A Restart SpaceTerm Core the Machine refused. A new refusal is a new object. */
 export type RestartFailure = { machineId: string };
@@ -29,6 +29,10 @@ export function useMachinePage(machineId: string, onUnpaired: () => void): Machi
   const [alert, setAlert] = useState<MachinePage["alert"]>(null);
   const [restarting, setRestarting] = useState(false);
   const [failure, setFailure] = useState<RestartFailure | null>(null);
+  // Only a connected Machine can restart, so a refusal leaves with the connection.
+  const connected =
+    useMachines().machines.find((machine) => machine.id === machineId)?.connection === "connected";
+  if (!connected && failure !== null) setFailure(null);
   // Taps can arrive before the next render; these see them at once.
   const underway = useRef(false);
   const unpaired = useRef(false);

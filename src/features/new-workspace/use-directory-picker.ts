@@ -38,9 +38,10 @@ export type DirectoryPicker = {
 
 /**
  * Browses one Machine's directories and opens a Workspace in the one in the field. `onOpened`
- * runs once the Machine has created the Workspace, if the step still shows.
+ * runs once the Machine has created the Workspace, if the step is still mounted, and returns
+ * whether it left the step. A step that stays, such as one under a newer step, can open again.
  */
-export function useDirectoryPicker(machineId: string, onOpened: () => void): DirectoryPicker {
+export function useDirectoryPicker(machineId: string, onOpened: () => boolean): DirectoryPicker {
   const client = useMachineClient();
   const [state, setState] = useState(initialPicker);
   const { listing, request, confirm } = state;
@@ -78,7 +79,7 @@ export function useDirectoryPicker(machineId: string, onOpened: () => void): Dir
       if (!mounted.current) return;
       switch (result.kind) {
         case "created":
-          onOpened();
+          if (!onOpened()) send({ type: "created" });
           return;
         case "missing-directory":
           send({ type: "missing-directory", directory: result.directory });

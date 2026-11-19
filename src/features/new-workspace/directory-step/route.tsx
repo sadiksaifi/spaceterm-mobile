@@ -14,11 +14,15 @@ export default function DirectoryStepRoute() {
   // This step is the first of the flow when the Machine step was skipped. The stack's index can
   // still point at the Machine step while a pushed step first renders, so compare routes instead.
   const route = useRoute();
-  const first = useNavigation().getState()?.routes[0]?.key === route.key;
-  const picker = useDirectoryPicker(machineId, () =>
+  const navigation = useNavigation();
+  const first = navigation.getState()?.routes[0]?.key === route.key;
+  const picker = useDirectoryPicker(machineId, () => {
+    // A link can push a newer step over this one while it opens; leaving would close that one.
+    if (!navigation.isFocused()) return false;
     // The Tabs of the new Workspace do not exist yet, so the flow returns to Home, which lists it.
-    router.dismissTo("/"),
-  );
+    router.dismissTo("/");
+    return true;
+  });
   const machine = machines.find((candidate) => candidate.id === machineId);
   const unknown = machine === undefined;
 

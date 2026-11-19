@@ -41,6 +41,8 @@ export type PickerEvent =
   /** Cancel, in the create alert. */
   | { type: "cancel" }
   | { type: "failed"; failure: PickerFailure }
+  /** The Machine created the Workspace, and the step stays without leaving. */
+  | { type: "created" }
   /** Cancel or the close button on `failure`, the refusal as the picker gave it. */
   | { type: "dismiss-failure"; failure: PickerFailure };
 
@@ -102,6 +104,8 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
       return state.confirm.kind === "opening"
         ? { ...state, confirm: { kind: "failed", ...event.failure } }
         : state;
+    case "created":
+      return state.confirm.kind === "opening" ? { ...state, confirm: { kind: "idle" } } : state;
     case "dismiss-failure":
       // A failure that has since been replaced stays.
       return state.confirm === event.failure ? { ...state, confirm: { kind: "idle" } } : state;

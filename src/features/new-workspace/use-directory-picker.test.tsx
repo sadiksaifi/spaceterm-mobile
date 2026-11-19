@@ -32,7 +32,7 @@ function machine(answers: CreateWorkspaceResult[]) {
   return { client, createWorkspace };
 }
 
-async function render(client: MachineClient, onOpened = jest.fn()) {
+async function render(client: MachineClient, onOpened = jest.fn(() => true)) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <MachinesProvider client={client}>{children}</MachinesProvider>
   );
@@ -91,6 +91,20 @@ it("does not leave the step that has already closed when the Machine answers", a
   await unmount();
   await act(async () => answer(created));
   expect(onOpened).not.toHaveBeenCalled();
+});
+
+it("can open again when the Machine answers while a newer step covers it", async () => {
+  const { client, createWorkspace } = machine([]);
+  const { result, onOpened } = await render(
+    client,
+    jest.fn(() => false),
+  );
+
+  await act(async () => result.current.open());
+  expect(onOpened).toHaveBeenCalledTimes(1);
+  expect(result.current.view.opening).toBe(false);
+  await act(async () => result.current.open());
+  expect(createWorkspace).toHaveBeenCalledTimes(2);
 });
 
 it("opens the Workspace it asked for when the person taps a row before the Machine answers", async () => {

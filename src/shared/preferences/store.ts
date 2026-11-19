@@ -16,10 +16,7 @@ export type KeyValueStorage = {
 /** Terminal text size, in points. */
 export const FONT_SIZE = { min: 9, max: 18, initial: 13 } as const;
 
-/**
- * Whether a change was saved on the device. One that was not, such as on a full disk, shows
- * nowhere: a control set to it stays where it was.
- */
+/** Whether a change was saved on the device. One that was not, such as on a full disk, shows nowhere. */
 export type Saved = "saved" | "not-saved";
 
 export type PreferencesStore = {

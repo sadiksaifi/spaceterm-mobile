@@ -4,6 +4,7 @@ import { useColorScheme } from "react-native";
 import { useMachines } from "@/shared/machines/client";
 import { themeInUse } from "@/shared/preferences/in-use";
 import { usePreferences, usePreferencesStore } from "@/shared/preferences/provider";
+import { useRedrawWhenNotSaved } from "@/shared/preferences/use-redraw";
 
 import SettingsScreen from "./screen";
 
@@ -17,9 +18,11 @@ export default function SettingsRoute() {
   const store = usePreferencesStore();
   const system = useColorScheme();
   const router = useRouter();
+  const redraw = useRedrawWhenNotSaved();
 
   return (
     <SettingsScreen
+      key={redraw.key}
       machines={machines}
       themeName={themeInUse(preferences, system).name}
       fontSize={preferences.fontSize}
@@ -30,8 +33,8 @@ export default function SettingsRoute() {
       }
       onAddMachine={stayOnSettings}
       onOpenThemes={() => router.navigate("/settings/themes")}
-      onFontSize={store.setFontSize}
-      onPrivacy={store.setPrivacy}
+      onFontSize={(points) => redraw.check(store.setFontSize(points))}
+      onPrivacy={(setting, on) => redraw.check(store.setPrivacy(setting, on))}
     />
   );
 }

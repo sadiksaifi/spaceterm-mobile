@@ -1,4 +1,3 @@
-import { Host } from "@expo/ui";
 import { Box, Column } from "@expo/ui/jetpack-compose";
 import { background, fillMaxSize } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
@@ -7,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
 import { SnackbarSlot, useSnackbar } from "@/shared/ui/android/snackbar";
+import { ScreenHost } from "@/shared/ui/android/screen-host";
 
 import { homeControls, type HomeScreenProps } from "./actions";
 import { HomeContent } from "./components/android/home-content";
@@ -51,7 +51,7 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
       {/* Compose draws the top of the screen: the search bar, or the top app bar. */}
       <Stack.Screen options={{ headerShown: false }} />
 
-      <Host style={{ flex: 1 }}>
+      <ScreenHost>
         <Box modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
           <Column modifiers={[fillMaxSize()]}>
             {controls.searchable ? (
@@ -85,7 +85,7 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
           {controls.newWorkspace && <NewWorkspaceButton control={controls.newWorkspace} />}
           <RowAlertsView alerts={alerts} />
         </Box>
-      </Host>
+      </ScreenHost>
     </>
   );
 }

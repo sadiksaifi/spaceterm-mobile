@@ -3,7 +3,6 @@ import arrowUpwardIcon from "@expo/material-symbols/arrow_upward.xml";
 import closeIcon from "@expo/material-symbols/close.xml";
 import folderIcon from "@expo/material-symbols/folder.xml";
 import warningIcon from "@expo/material-symbols/warning.xml";
-import { Host } from "@expo/ui";
 import {
   AlertDialog,
   Box,
@@ -41,6 +40,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/shared/theme/colors";
 import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
 import { SnackbarSlot, useSnackbar } from "@/shared/ui/android/snackbar";
+import { ScreenHost } from "@/shared/ui/android/screen-host";
 import {
   Centered,
   StateActions,
@@ -95,7 +95,7 @@ export default function DirectoryStepScreen({
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <Host style={{ flex: 1 }}>
+      <ScreenHost>
         <Box modifiers={[fillMaxSize(), background(colors.groupedBackground), imePadding()]}>
           <Column modifiers={[fillMaxSize()]}>
             <TopAppBar>
@@ -174,7 +174,7 @@ export default function DirectoryStepScreen({
             onCreate={picker.create}
           />
         )}
-      </Host>
+      </ScreenHost>
     </>
   );
 }

@@ -1,7 +1,6 @@
 import closeIcon from "@expo/material-symbols/close.xml";
 import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml";
 import machineIcon from "@expo/material-symbols/desktop_windows.xml";
-import { Host } from "@expo/ui";
 import {
   Column,
   Icon,
@@ -27,6 +26,7 @@ import type { Machine } from "@/shared/machines/model";
 import { connectionStateText } from "@/shared/machines/text";
 import { useColors } from "@/shared/theme/colors";
 import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
+import { ScreenHost } from "@/shared/ui/android/screen-host";
 
 import { text } from "../text";
 import type ScreenContract from "./screen";
@@ -41,7 +41,7 @@ export default function MachineStepScreen({ machines, onPick, onCancel }: Machin
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <Host style={{ flex: 1 }}>
+      <ScreenHost>
         <Column modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
           <TopAppBar>
             <TopAppBar.NavigationIcon>
@@ -77,7 +77,7 @@ export default function MachineStepScreen({ machines, onPick, onCancel }: Machin
             ))}
           </Column>
         </Column>
-      </Host>
+      </ScreenHost>
     </>
   );
 }

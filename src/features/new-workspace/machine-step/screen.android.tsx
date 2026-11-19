@@ -15,6 +15,7 @@ import {
 import {
   alpha,
   background,
+  defaultMinSize,
   fillMaxSize,
   fillMaxWidth,
   padding,
@@ -22,6 +23,7 @@ import {
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { heading } from "@/modules/compose-modifiers";
 import type { Machine } from "@/shared/machines/model";
@@ -36,10 +38,15 @@ import type { MachineStepProps } from "./screen";
 
 /** Material gives a Machine that cannot be picked the disabled look. */
 const DIMMED = 0.5;
+/** Space below the last Machine, above the gesture area. */
+const LIST_MARGIN = 16;
+/** A Machine that says why it cannot be picked takes two lines, at Material's two-line height. */
+const TWO_LINE_HEIGHT = 72;
 
 export default function MachineStepScreen({ machines, onPick, onCancel }: MachineStepProps) {
   const colors = useColors();
   const material = useMaterialColors();
+  const insets = useSafeAreaInsets();
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -64,10 +71,15 @@ export default function MachineStepScreen({ machines, onPick, onCancel }: Machin
           >
             {text.machine}
           </Text>
-          {/* The heading stays; the Machines scroll when they outgrow the window. */}
+          {/* The heading stays; the Machines scroll when they outgrow the window, and the last ends
+              clear of the gesture area. */}
           <Column
             verticalArrangement={{ spacedBy: GROUPED_GAP }}
-            modifiers={[weight(1), verticalScroll(), padding(16, 0, 16, 16)]}
+            modifiers={[
+              weight(1),
+              verticalScroll(),
+              padding(16, 0, 16, insets.bottom + LIST_MARGIN),
+            ]}
           >
             {machines.map((machine, index) => (
               <MachineRow
@@ -111,7 +123,11 @@ function MachineRow({
       <Row
         verticalAlignment="center"
         horizontalArrangement={{ spacedBy: 16 }}
-        modifiers={[fillMaxWidth(), padding(16, connected ? 16 : 10, 16, connected ? 16 : 10)]}
+        modifiers={[
+          fillMaxWidth(),
+          ...(connected ? [] : [defaultMinSize({ minHeight: TWO_LINE_HEIGHT })]),
+          padding(16, connected ? 16 : 10, 16, connected ? 16 : 10),
+        ]}
       >
         <Icon source={connected ? machineIcon : notConnectedIcon} tint={colors.secondaryText} />
         <Column>

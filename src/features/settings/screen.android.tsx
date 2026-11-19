@@ -20,7 +20,7 @@ import { GROUPED_GAP } from "@/shared/ui/android/grouped";
 import { GroupedRow, GroupHeader } from "@/shared/ui/android/grouped-row";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 
-import { Gap, GROUP_SPACE, PageTopBar } from "./components/android/page";
+import { Gap, GROUP_SPACE, PageTopBar } from "@/shared/ui/android/page";
 import type ScreenContract from "./screen";
 import type { SettingsProps } from "./screen";
 import { machineStatus, text } from "./text";
@@ -50,7 +50,7 @@ export default function SettingsScreen({
       <Stack.Screen options={{ headerShown: false }} />
       <ScreenHost>
         <Column modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
-          <PageTopBar title={text.title} />
+          <PageTopBar title={text.title} backLabel={text.back} />
           <Column
             verticalArrangement={{ spacedBy: GROUPED_GAP }}
             modifiers={[

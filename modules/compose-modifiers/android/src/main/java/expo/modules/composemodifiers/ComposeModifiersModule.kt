@@ -2,7 +2,11 @@ package expo.modules.composemodifiers
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -14,6 +18,9 @@ import expo.modules.ui.ModifierRegistry
 
 @OptimizedRecord
 data class MaxWidthFractionParams(@Field val fraction: Float = 1f) : Record
+
+@OptimizedRecord
+data class RadioSelectedParams(@Field val selected: Boolean = false) : Record
 
 /** Caps the width at a fraction of the width offered. In a Row, that is the space left for the view. */
 fun maxWidthFraction(fraction: Float): Modifier =
@@ -34,11 +41,23 @@ class ComposeModifiersModule : Module() {
         maxWidthFraction(recordFromMap<MaxWidthFractionParams>(map, converterContext).fraction)
       }
       ModifierRegistry.register("heading") { _, _, _, _ -> Modifier.semantics { heading() } }
+      ModifierRegistry.register("radioSelected") { map, _, converterContext, _ ->
+        val selected = recordFromMap<RadioSelectedParams>(map, converterContext).selected
+        Modifier.semantics {
+          role = Role.RadioButton
+          this.selected = selected
+        }
+      }
+      ModifierRegistry.register("hiddenFromAccessibility") { _, _, _, _ ->
+        Modifier.clearAndSetSemantics {}
+      }
     }
 
     OnDestroy {
       ModifierRegistry.unregister("maxWidthFraction")
       ModifierRegistry.unregister("heading")
+      ModifierRegistry.unregister("radioSelected")
+      ModifierRegistry.unregister("hiddenFromAccessibility")
     }
   }
 }

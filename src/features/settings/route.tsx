@@ -7,10 +7,7 @@ import { usePreferences, usePreferencesStore } from "@/shared/preferences/provid
 
 import SettingsScreen from "./screen";
 
-/**
- * The pages these rows open do not exist yet: Add Machine and Themes. Each row works and stays on
- * Settings until its page is built.
- */
+/** Add Machine does not exist yet. Its row works and stays on Settings until it is built. */
 const stayOnSettings = () => {};
 
 /** Settings: the paired Machines, the Terminal Theme, Font Size and Privacy. */
@@ -32,7 +29,7 @@ export default function SettingsRoute() {
         router.navigate({ pathname: "/settings/machines/[machineId]", params: { machineId } })
       }
       onAddMachine={stayOnSettings}
-      onOpenThemes={stayOnSettings}
+      onOpenThemes={() => router.navigate("/settings/themes")}
       onFontSize={store.setFontSize}
       onPrivacy={store.setPrivacy}
     />

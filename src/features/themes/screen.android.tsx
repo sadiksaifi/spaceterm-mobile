@@ -1,0 +1,484 @@
+import addIcon from "@expo/material-symbols/add.xml";
+import backIcon from "@expo/material-symbols/arrow_back.xml";
+import closeIcon from "@expo/material-symbols/close.xml";
+import deleteIcon from "@expo/material-symbols/delete.xml";
+import searchIcon from "@expo/material-symbols/search.xml";
+import {
+  Box,
+  Column,
+  DropdownMenu,
+  DropdownMenuItem,
+  Icon,
+  IconButton,
+  ListItem,
+  RadioButton,
+  Row,
+  SegmentedButton,
+  SingleChoiceSegmentedButtonRow,
+  Surface,
+  Text,
+  TextField,
+  TopAppBar,
+  useMaterialColors,
+  useNativeState,
+} from "@expo/ui/jetpack-compose";
+import {
+  background,
+  clip,
+  combinedClickable,
+  defaultMinSize,
+  fillMaxSize,
+  fillMaxWidth,
+  padding,
+  selectable,
+  selectableGroup,
+  Shapes,
+  verticalScroll,
+  weight,
+  width,
+} from "@expo/ui/jetpack-compose/modifiers";
+import { Stack } from "expo-router";
+import { useEffect, useState } from "react";
+import { BackHandler } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { radioSelected } from "@/modules/compose-modifiers";
+import type { Appearance, TerminalTheme } from "@/shared/preferences/model";
+import { useColors } from "@/shared/theme/colors";
+import { ConfirmDialog } from "@/shared/ui/android/confirm-dialog";
+import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
+import { GroupedRow, GroupHeader } from "@/shared/ui/android/grouped-row";
+import { GROUP_SPACE, PageTopBar } from "@/shared/ui/android/page";
+import { ScreenHost } from "@/shared/ui/android/screen-host";
+
+import { TerminalPreview, ThemeThumbnail } from "./components/android/terminal-preview";
+import { removable } from "./model";
+import { THUMBNAIL } from "./preview";
+import type ScreenContract from "./screen";
+import type { ThemesProps } from "./screen";
+import { text, themeSource } from "./text";
+
+const APPEARANCES: readonly { value: Appearance; label: string }[] = [
+  { value: "light", label: text.light },
+  { value: "dark", label: text.dark },
+  { value: "automatic", label: text.automatic },
+];
+
+/** A card's corners: 16 dp outside, 4 dp where the pair meets. */
+const OUTER = 16;
+const INNER = 4;
+const LEFT_CARD = { topStart: OUTER, bottomStart: OUTER, topEnd: INNER, bottomEnd: INNER };
+const RIGHT_CARD = { topStart: INNER, bottomStart: INNER, topEnd: OUTER, bottomEnd: OUTER };
+/** A radio button that leaves the taps to its row draws 24 dp wide. */
+const RADIO_WIDTH = 24;
+const LEADING_GAP = 16;
+/** The touch and hold menu, as wide as the design draws it. */
+const MENU_WIDTH = 220;
+const MENU_CORNER = 16;
+const MENU_ELEVATION = 3;
+
+export default function ThemesScreen({
+  appearance,
+  shown,
+  chosen,
+  themes,
+  query,
+  removing,
+  onAppearance,
+  onShow,
+  onChoose,
+  onQuery,
+  onAskRemove,
+  onCancelRemove,
+  onRemove,
+  onGetMore,
+}: ThemesProps) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  // The search action turns the top bar into the search field until Back closes it.
+  const [searching, setSearching] = useState(false);
+  const filtering = query.trim() !== "";
+
+  const endSearch = () => {
+    setSearching(false);
+    onQuery("");
+  };
+
+  useEffect(() => {
+    if (!searching) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setSearching(false);
+      onQuery("");
+      return true;
+    });
+    return () => subscription.remove();
+  }, [searching, onQuery]);
+
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHost>
+        <Column modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
+          {searching ? (
+            <SearchTopBar onQuery={onQuery} onClose={endSearch} />
+          ) : (
+            <PageTopBar
+              title={text.title}
+              backLabel={text.back}
+              actions={
+                <IconButton onClick={() => setSearching(true)}>
+                  <Icon source={searchIcon} contentDescription={text.searchThemes} />
+                </IconButton>
+              }
+            />
+          )}
+          <Column
+            verticalArrangement={{ spacedBy: GROUPED_GAP }}
+            modifiers={[
+              weight(1),
+              verticalScroll(),
+              padding(16, 0, 16, insets.bottom + GROUP_SPACE),
+            ]}
+          >
+            {/* While a search has text, the page shows only the themes it finds. */}
+            {!filtering && (
+              <>
+                <GroupHeader>{text.appearance}</GroupHeader>
+                <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
+                  {APPEARANCES.map(({ value, label }) => (
+                    <SegmentedButton
+                      key={value}
+                      selected={appearance === value}
+                      onClick={() => onAppearance(value)}
+                      modifiers={[weight(1)]}
+                    >
+                      <SegmentedButton.Label>
+                        <Text maxLines={1}>{label}</Text>
+                      </SegmentedButton.Label>
+                    </SegmentedButton>
+                  ))}
+                </SingleChoiceSegmentedButtonRow>
+
+                <GroupHeader>{text.currentTheme}</GroupHeader>
+                {appearance === "automatic" ? (
+                  <>
+                    <Row
+                      horizontalArrangement={{ spacedBy: GROUPED_GAP }}
+                      modifiers={[fillMaxWidth(), selectableGroup()]}
+                    >
+                      <ThemeCard
+                        label={text.light}
+                        theme={chosen.light}
+                        corners={LEFT_CARD}
+                        selected={shown === "light"}
+                        onSelect={() => onShow("light")}
+                      />
+                      <ThemeCard
+                        label={text.dark}
+                        theme={chosen.dark}
+                        corners={RIGHT_CARD}
+                        selected={shown === "dark"}
+                        onSelect={() => onShow("dark")}
+                      />
+                    </Row>
+                    <Text
+                      style={{ typography: "bodySmall" }}
+                      color={colors.secondaryText}
+                      modifiers={[padding(16, 6, 16, 0)]}
+                    >
+                      {text.cardsFooter}
+                    </Text>
+                  </>
+                ) : (
+                  <CurrentTheme theme={chosen[shown]} />
+                )}
+              </>
+            )}
+
+            <GroupHeader>{text.themesFor(shown)}</GroupHeader>
+            <Column
+              verticalArrangement={{ spacedBy: GROUPED_GAP }}
+              modifiers={[fillMaxWidth(), selectableGroup()]}
+            >
+              {filtering && themes.length === 0 && (
+                <GroupedRow
+                  first
+                  last={false}
+                  headline={text.noResultsTitle(query.trim())}
+                  supporting={text.noResultsBody}
+                />
+              )}
+              {themes.map((theme, index) => (
+                <ThemeRow
+                  key={theme.id}
+                  theme={theme}
+                  first={index === 0 && !(filtering && themes.length === 0)}
+                  chosen={theme.id === chosen[shown].id}
+                  onChoose={() => onChoose(theme.id)}
+                  onAskRemove={() => onAskRemove(theme)}
+                />
+              ))}
+              <GetMoreRow first={themes.length === 0 && !filtering} onClick={onGetMore} />
+            </Column>
+          </Column>
+        </Column>
+        {removing !== null && (
+          <ConfirmDialog
+            title={text.removeTitle(removing.name)}
+            cancel={text.cancel}
+            action={text.remove}
+            onCancel={onCancelRemove}
+            onConfirm={onRemove}
+          />
+        )}
+      </ScreenHost>
+    </>
+  );
+}
+
+/** The top bar while search is open: Back, the field, and Clear once it has text. */
+function SearchTopBar({
+  onQuery,
+  onClose,
+}: {
+  onQuery: (query: string) => void;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const field = useNativeState("");
+  const [empty, setEmpty] = useState(true);
+  return (
+    <TopAppBar>
+      <TopAppBar.NavigationIcon>
+        <IconButton onClick={onClose}>
+          <Icon source={backIcon} contentDescription={text.back} />
+        </IconButton>
+      </TopAppBar.NavigationIcon>
+      <TopAppBar.Title>
+        <TextField
+          value={field}
+          autoFocus
+          singleLine
+          onValueChange={(value) => {
+            setEmpty(value === "");
+            onQuery(value);
+          }}
+          keyboardOptions={{ imeAction: "search" }}
+          colors={{
+            focusedContainerColor: "transparent",
+            unfocusedContainerColor: "transparent",
+            focusedIndicatorColor: "transparent",
+            unfocusedIndicatorColor: "transparent",
+          }}
+          modifiers={[fillMaxWidth()]}
+        >
+          <TextField.Placeholder>
+            <Text color={colors.secondaryText}>{text.searchThemes}</Text>
+          </TextField.Placeholder>
+        </TextField>
+      </TopAppBar.Title>
+      {!empty && (
+        <TopAppBar.Actions>
+          <IconButton
+            onClick={() => {
+              field.set("");
+              setEmpty(true);
+              onQuery("");
+            }}
+          >
+            <Icon source={closeIcon} contentDescription={text.clearText} />
+          </IconButton>
+        </TopAppBar.Actions>
+      )}
+    </TopAppBar>
+  );
+}
+
+/**
+ * One appearance's current theme under Automatic, half of a connected pair. The selected card
+ * takes the secondary container, and its list shows below.
+ */
+function ThemeCard({
+  label,
+  theme,
+  corners,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  theme: TerminalTheme;
+  corners: typeof LEFT_CARD;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const colors = useColors();
+  const material = useMaterialColors();
+  return (
+    <Surface
+      color={selected ? material.secondaryContainer : colors.groupedRow}
+      contentColor={selected ? material.onSecondaryContainer : colors.text}
+      modifiers={[
+        weight(1),
+        clip(Shapes.RoundedCorner(corners)),
+        selectable(selected, onSelect, "tab"),
+      ]}
+    >
+      <Column verticalArrangement={{ spacedBy: 8 }} modifiers={[padding(12, 12, 12, 14)]}>
+        <TerminalPreview colors={theme.colors} size="card" />
+        <Column modifiers={[padding(4, 0, 4, 0)]}>
+          <Text style={{ typography: "titleSmall" }} maxLines={1}>
+            {label}
+          </Text>
+          <Text
+            style={{ typography: "bodySmall" }}
+            color={selected ? material.onSecondaryContainer : colors.secondaryText}
+            maxLines={1}
+            overflow="ellipsis"
+          >
+            {theme.name}
+          </Text>
+        </Column>
+      </Column>
+    </Surface>
+  );
+}
+
+/** Under Light or Dark, the one current theme: a larger preview and its name. */
+function CurrentTheme({ theme }: { theme: TerminalTheme }) {
+  const colors = useColors();
+  return (
+    <Surface
+      color={colors.groupedRow}
+      contentColor={colors.text}
+      modifiers={[fillMaxWidth(), clip(Shapes.RoundedCorner(OUTER))]}
+    >
+      <Column verticalArrangement={{ spacedBy: 8 }} modifiers={[padding(12, 12, 12, 14)]}>
+        <TerminalPreview colors={theme.colors} size="single" />
+        <Text style={{ typography: "titleSmall" }} modifiers={[padding(4, 0, 4, 0)]}>
+          {theme.name}
+        </Text>
+      </Column>
+    </Surface>
+  );
+}
+
+/**
+ * A theme: a radio button, its thumbnail, name and source. Tapping it chooses it. A theme the
+ * person added has a remove button, and touch and hold opens a menu with Remove.
+ */
+function ThemeRow({
+  theme,
+  first,
+  chosen,
+  onChoose,
+  onAskRemove,
+}: {
+  theme: TerminalTheme;
+  first: boolean;
+  chosen: boolean;
+  onChoose: () => void;
+  onAskRemove: () => void;
+}) {
+  const colors = useColors();
+  const material = useMaterialColors();
+  const [held, setHeld] = useState(false);
+  const canRemove = removable(theme);
+
+  const row = (
+    <Surface
+      color={held ? material.surfaceContainerHighest : colors.groupedRow}
+      contentColor={colors.text}
+      modifiers={[
+        fillMaxWidth(),
+        clip(Shapes.RoundedCorner(groupedCorners(first, false))),
+        combinedClickable({
+          onClick: onChoose,
+          onLongClick: canRemove ? () => setHeld(true) : undefined,
+        }),
+        radioSelected(chosen),
+      ]}
+    >
+      <ListItem
+        colors={{
+          containerColor: "transparent",
+          contentColor: colors.text,
+          supportingContentColor: colors.secondaryText,
+        }}
+      >
+        <ListItem.LeadingContent>
+          <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: LEADING_GAP }}>
+            <RadioButton selected={chosen} />
+            <ThemeThumbnail colors={theme.colors} />
+          </Row>
+        </ListItem.LeadingContent>
+        <ListItem.HeadlineContent>
+          <Text>{theme.name}</Text>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <Text>{themeSource(theme)}</Text>
+        </ListItem.SupportingContent>
+        {canRemove && (
+          <ListItem.TrailingContent>
+            <IconButton onClick={onAskRemove}>
+              <Icon
+                source={deleteIcon}
+                tint={colors.secondaryText}
+                contentDescription={text.removeLabel(theme.name)}
+              />
+            </IconButton>
+          </ListItem.TrailingContent>
+        )}
+      </ListItem>
+    </Surface>
+  );
+
+  if (!canRemove) return row;
+  // Touch and hold opens the menu at the row with no dimming; the held row takes a higher tone.
+  return (
+    <DropdownMenu
+      expanded={held}
+      onDismissRequest={() => setHeld(false)}
+      color={material.surfaceContainerHigh}
+      cornerRadius={MENU_CORNER}
+      shadowElevation={MENU_ELEVATION}
+    >
+      <DropdownMenu.Trigger>{row}</DropdownMenu.Trigger>
+      <DropdownMenu.Items>
+        <DropdownMenuItem
+          modifiers={[defaultMinSize({ minWidth: MENU_WIDTH })]}
+          onClick={() => {
+            setHeld(false);
+            onAskRemove();
+          }}
+        >
+          <DropdownMenuItem.Text>
+            <Text>{text.remove}</Text>
+          </DropdownMenuItem.Text>
+        </DropdownMenuItem>
+      </DropdownMenu.Items>
+    </DropdownMenu>
+  );
+}
+
+/** The last row: Get more themes, its icon lined up with the thumbnails above. */
+function GetMoreRow({ first, onClick }: { first: boolean; onClick: () => void }) {
+  const colors = useColors();
+  return (
+    <GroupedRow
+      first={first}
+      last
+      leading={
+        <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: LEADING_GAP }}>
+          <Box modifiers={[width(RADIO_WIDTH)]} />
+          <Box contentAlignment="center" modifiers={[width(THUMBNAIL.width)]}>
+            <Icon source={addIcon} tint={colors.secondaryText} />
+          </Box>
+        </Row>
+      }
+      headline={text.getMoreThemes}
+      onClick={onClick}
+    />
+  );
+}
+
+ThemesScreen satisfies typeof ScreenContract;

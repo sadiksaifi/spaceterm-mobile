@@ -1,13 +1,4 @@
-import {
-  AlertDialog,
-  Box,
-  Button,
-  Column,
-  LoadingIndicator,
-  OutlinedButton,
-  Text,
-  useMaterialColors,
-} from "@expo/ui/jetpack-compose";
+import { Box, Column, LoadingIndicator, useMaterialColors } from "@expo/ui/jetpack-compose";
 import {
   background,
   fillMaxSize,
@@ -21,12 +12,13 @@ import { Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
+import { ConfirmDialog } from "@/shared/ui/android/confirm-dialog";
 import { GROUPED_GAP } from "@/shared/ui/android/grouped";
 import { GroupedRow } from "@/shared/ui/android/grouped-row";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 import { SnackbarSlot, useSnackbar } from "@/shared/ui/android/snackbar";
 
-import { Gap, GROUP_SPACE, PageTopBar } from "../components/android/page";
+import { Gap, GROUP_SPACE, PageTopBar } from "@/shared/ui/android/page";
 import { machineStatus, restartBody, text } from "../text";
 import type ScreenContract from "./screen";
 import type { MachinePageProps } from "./screen";
@@ -57,7 +49,7 @@ export default function MachinePageScreen({ machine, terminalSessions, page }: M
       <ScreenHost>
         <Box modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
           <Column modifiers={[fillMaxSize()]}>
-            <PageTopBar title={machine.name} />
+            <PageTopBar title={machine.name} backLabel={text.back} />
             <Column
               verticalArrangement={{ spacedBy: GROUPED_GAP }}
               modifiers={[
@@ -116,6 +108,7 @@ export default function MachinePageScreen({ machine, terminalSessions, page }: M
 
         {page.alert === "restart" && (
           <ConfirmDialog
+            cancel={text.cancel}
             title={text.restartTitle}
             body={restartBody(terminalSessions, machine.name)}
             action={text.restart}
@@ -125,6 +118,7 @@ export default function MachinePageScreen({ machine, terminalSessions, page }: M
         )}
         {page.alert === "unpair" && (
           <ConfirmDialog
+            cancel={text.cancel}
             title={text.unpairTitle}
             body={text.unpairBody(machine.name)}
             action={text.unpairAction}
@@ -134,43 +128,6 @@ export default function MachinePageScreen({ machine, terminalSessions, page }: M
         )}
       </ScreenHost>
     </>
-  );
-}
-
-function ConfirmDialog({
-  title,
-  body,
-  action,
-  onCancel,
-  onConfirm,
-}: {
-  title: string;
-  body: string | null;
-  action: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <AlertDialog onDismissRequest={onCancel}>
-      <AlertDialog.Title>
-        <Text style={{ typography: "headlineSmall" }}>{title}</Text>
-      </AlertDialog.Title>
-      {body !== null && (
-        <AlertDialog.Text>
-          <Text style={{ typography: "bodyMedium" }}>{body}</Text>
-        </AlertDialog.Text>
-      )}
-      <AlertDialog.DismissButton>
-        <OutlinedButton onClick={onCancel}>
-          <Text>{text.cancel}</Text>
-        </OutlinedButton>
-      </AlertDialog.DismissButton>
-      <AlertDialog.ConfirmButton>
-        <Button onClick={onConfirm}>
-          <Text>{action}</Text>
-        </Button>
-      </AlertDialog.ConfirmButton>
-    </AlertDialog>
   );
 }
 

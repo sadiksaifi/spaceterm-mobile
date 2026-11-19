@@ -44,7 +44,7 @@ import { BackHandler } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { radioSelected } from "@/modules/compose-modifiers";
-import type { Appearance, TerminalTheme } from "@/shared/preferences/model";
+import type { TerminalTheme } from "@/shared/preferences/model";
 import { useColors } from "@/shared/theme/colors";
 import { ConfirmDialog } from "@/shared/ui/android/confirm-dialog";
 import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
@@ -57,13 +57,7 @@ import { removable } from "./model";
 import { THUMBNAIL } from "./preview";
 import type ScreenContract from "./screen";
 import type { ThemesProps } from "./screen";
-import { text, themeSource } from "./text";
-
-const APPEARANCES: readonly { value: Appearance; label: string }[] = [
-  { value: "light", label: text.light },
-  { value: "dark", label: text.dark },
-  { value: "automatic", label: text.automatic },
-];
+import { appearances, text, themeSource } from "./text";
 
 /** A card's corners: 16 dp outside, 4 dp where the pair meets. */
 const OUTER = 16;
@@ -146,7 +140,7 @@ export default function ThemesScreen({
               <>
                 <GroupHeader>{text.appearance}</GroupHeader>
                 <SingleChoiceSegmentedButtonRow modifiers={[fillMaxWidth()]}>
-                  {APPEARANCES.map(({ value, label }) => (
+                  {appearances.map(({ value, label }) => (
                     <SegmentedButton
                       key={value}
                       selected={appearance === value}

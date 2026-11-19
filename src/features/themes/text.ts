@@ -1,4 +1,4 @@
-import type { TerminalTheme, ThemeAppearance } from "@/shared/preferences/model";
+import type { Appearance, TerminalTheme, ThemeAppearance } from "@/shared/preferences/model";
 import { cased } from "@/shared/text";
 
 export const text = {
@@ -29,6 +29,13 @@ export const text = {
   noResultsTitle: (query: string) => cased(`No Results for “${query}”`, `No results for ${query}`),
   noResultsBody: "Check the spelling or try a new search.",
 };
+
+/** The Appearance choices, in the order they show. */
+export const appearances: readonly { value: Appearance; label: string }[] = [
+  { value: "light", label: text.light },
+  { value: "dark", label: text.dark },
+  { value: "automatic", label: text.automatic },
+];
 
 /** Where a theme came from, as its row says it. */
 export function themeSource(theme: TerminalTheme): string {

@@ -33,8 +33,8 @@ import { useLargeText } from "@/shared/ui/large-text";
 import type { CatalogExtension } from "./catalog";
 import type ScreenContract from "./screen";
 import type { GetMoreProps } from "./screen";
-import { text } from "./text";
-import type { GetMoreFailure, GetMorePage } from "./use-get-more";
+import { failureText, text } from "./text";
+import type { GetMorePage } from "./use-get-more";
 
 /** The Get, spinner and Remove slot, as wide as the design draws it, so rows line up. */
 const CONTROL = { width: 64, height: 32 } as const;
@@ -65,7 +65,7 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
 
       <Host style={{ flex: 1, backgroundColor: colors.groupedBackground }}>
         <Alert
-          title={failure === null ? "" : failureTitle(failure)}
+          title={failure === null ? "" : failureText(failure).title}
           isPresented={failure !== null}
           onIsPresentedChange={(shown) => !shown && page.dismissFailure()}
         >
@@ -107,7 +107,7 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
           </Alert.Actions>
           {failure !== null && (
             <Alert.Message>
-              <Text>{failureBody(failure)}</Text>
+              <Text>{failureText(failure).body}</Text>
             </Alert.Message>
           )}
         </Alert>
@@ -252,17 +252,5 @@ function ExtensionRow({ extension, page }: { extension: CatalogExtension; page: 
     </HStack>
   );
 }
-
-const failureTitle = (failure: GetMoreFailure) =>
-  failure.kind === "get"
-    ? text.getFailed(failure.extension.name)
-    : text.importFailed(failure.fileName);
-
-const failureBody = (failure: GetMoreFailure) =>
-  failure.kind === "import"
-    ? text.notATheme
-    : failure.reason === "no-themes"
-      ? text.noThemes
-      : text.checkConnection;
 
 GetMoreScreen satisfies typeof ScreenContract;

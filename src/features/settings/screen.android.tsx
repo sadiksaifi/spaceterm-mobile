@@ -15,7 +15,6 @@ import {
 import { Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { PrivacySetting } from "@/shared/preferences/model";
 import { FONT_SIZE } from "@/shared/preferences/store";
 import { useColors } from "@/shared/theme/colors";
 import { GROUPED_GAP } from "@/shared/ui/android/grouped";
@@ -25,14 +24,7 @@ import { ScreenHost } from "@/shared/ui/android/screen-host";
 import { Gap, GROUP_SPACE, PageTopBar } from "@/shared/ui/android/page";
 import type ScreenContract from "./screen";
 import type { SettingsProps } from "./screen";
-import { machineStatus, text } from "./text";
-
-const PRIVACY: readonly { setting: PrivacySetting; label: string }[] = [
-  { setting: "notifications", label: text.notifications },
-  { setting: "terminalAttention", label: text.terminalAttention },
-  { setting: "programsCopyText", label: text.programsCopyText },
-  { setting: "programsReadClipboard", label: text.programsReadClipboard },
-];
+import { machineStatus, privacySwitches, text } from "./text";
 
 export default function SettingsScreen({
   machines,
@@ -117,11 +109,11 @@ export default function SettingsScreen({
             />
 
             <GroupHeader>{text.privacy}</GroupHeader>
-            {PRIVACY.map(({ setting, label }, index) => (
+            {privacySwitches.map(({ setting, label }, index) => (
               <GroupedRow
                 key={setting}
                 first={index === 0}
-                last={index === PRIVACY.length - 1}
+                last={index === privacySwitches.length - 1}
                 headline={label}
                 trailing={
                   <Switch value={privacy[setting]} onCheckedChange={(on) => onPrivacy(setting, on)}>

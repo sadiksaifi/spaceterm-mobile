@@ -1,4 +1,5 @@
 import type { ConnectionState } from "@/shared/machines/model";
+import type { PrivacySetting } from "@/shared/preferences/model";
 import { connectionStateText } from "@/shared/machines/text";
 import { cased } from "@/shared/text";
 
@@ -38,6 +39,14 @@ export const text = {
   restartFailed: cased("Couldn’t Restart SpaceTerm Core", "Couldn’t restart SpaceTerm Core"),
   tryAgain: cased("Try Again", "Try again"),
 };
+
+/** The Privacy switches, in the order they show. */
+export const privacySwitches: readonly { setting: PrivacySetting; label: string }[] = [
+  { setting: "notifications", label: text.notifications },
+  { setting: "terminalAttention", label: text.terminalAttention },
+  { setting: "programsCopyText", label: text.programsCopyText },
+  { setting: "programsReadClipboard", label: text.programsReadClipboard },
+];
 
 /** The sentence under Restart SpaceTerm Core's title: what is lost. `null` when nothing runs. */
 export function restartBody(terminalSessions: number, machine: string): string | null {

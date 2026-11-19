@@ -34,7 +34,7 @@ import {
 import { Stack } from "expo-router";
 import { useState } from "react";
 
-import type { Appearance, TerminalTheme } from "@/shared/preferences/model";
+import type { TerminalTheme } from "@/shared/preferences/model";
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
 import { useLargeText } from "@/shared/ui/large-text";
@@ -43,13 +43,7 @@ import { ThemeThumbnail, TerminalPreview } from "./components/ios/terminal-previ
 import { removable } from "./model";
 import type ScreenContract from "./screen";
 import type { ThemesProps } from "./screen";
-import { text, themeSource } from "./text";
-
-const APPEARANCES: readonly { value: Appearance; label: string }[] = [
-  { value: "light", label: text.light },
-  { value: "dark", label: text.dark },
-  { value: "automatic", label: text.automatic },
-];
+import { appearances, text, themeSource } from "./text";
 
 /** The selected card's outline: a gap in the row's color, then the tint, around the preview. */
 const RING = { gap: 2, width: 2, corner: 14 } as const;
@@ -140,7 +134,7 @@ export default function ThemesScreen({
                       onSelectionChange={onAppearance}
                       modifiers={[pickerStyle("segmented"), ...onPage(0)]}
                     >
-                      {APPEARANCES.map(({ value, label }) => (
+                      {appearances.map(({ value, label }) => (
                         <Text key={value} modifiers={[tag(value)]}>
                           {label}
                         </Text>

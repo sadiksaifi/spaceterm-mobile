@@ -24,7 +24,6 @@ import {
 import { Stack } from "expo-router";
 import type { ReactNode } from "react";
 
-import type { PrivacySetting } from "@/shared/preferences/model";
 import { FONT_SIZE } from "@/shared/preferences/store";
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
@@ -32,16 +31,9 @@ import { useLargeText } from "@/shared/ui/large-text";
 
 import type ScreenContract from "./screen";
 import type { SettingsProps } from "./screen";
-import { machineStatus, text } from "./text";
+import { machineStatus, privacySwitches, text } from "./text";
 
 const tertiary = foregroundStyle({ type: "hierarchical", style: "tertiary" });
-
-const PRIVACY: readonly { setting: PrivacySetting; label: string }[] = [
-  { setting: "notifications", label: text.notifications },
-  { setting: "terminalAttention", label: text.terminalAttention },
-  { setting: "programsCopyText", label: text.programsCopyText },
-  { setting: "programsReadClipboard", label: text.programsReadClipboard },
-];
 
 export default function SettingsScreen({
   machines,
@@ -109,7 +101,7 @@ export default function SettingsScreen({
             </HStack>
           </Section>
           <Section title={text.privacy}>
-            {PRIVACY.map(({ setting, label }) => (
+            {privacySwitches.map(({ setting, label }) => (
               <Toggle
                 key={setting}
                 label={label}

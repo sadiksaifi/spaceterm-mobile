@@ -50,8 +50,8 @@ import { SnackbarSlot, useSnackbar } from "@/shared/ui/android/snackbar";
 import type { CatalogExtension } from "./catalog";
 import type ScreenContract from "./screen";
 import type { GetMoreProps } from "./screen";
-import { text } from "./text";
-import type { GetMoreFailure, GetMorePage } from "./use-get-more";
+import { failureText, text } from "./text";
+import type { GetMorePage } from "./use-get-more";
 
 /** A row's height at the default font scale, for rows not measured yet. */
 const ROW_HEIGHT = 72;
@@ -69,7 +69,10 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
   const filtering = page.query.trim() !== "";
   const snackbar = useSnackbar(
     page.failure,
-    (failure) => ({ message: failureMessage(failure), actionLabel: text.tryAgain }),
+    (failure) => {
+      const { title, body } = failureText(failure);
+      return { message: `${title}. ${body}`, actionLabel: text.tryAgain };
+    },
     page.retryFailure,
     page.dismissFailure,
   );
@@ -374,12 +377,5 @@ const corners = (radius: number) => ({
   bottomStart: radius,
   bottomEnd: radius,
 });
-
-const failureMessage = (failure: GetMoreFailure) =>
-  failure.kind === "import"
-    ? `${text.importFailed(failure.fileName)}. ${text.notATheme}`
-    : `${text.getFailed(failure.extension.name)}. ${
-        failure.reason === "no-themes" ? text.noThemes : text.checkConnection
-      }`;
 
 GetMoreScreen satisfies typeof ScreenContract;

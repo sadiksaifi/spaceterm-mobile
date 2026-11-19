@@ -1,5 +1,7 @@
 import { cased } from "@/shared/text";
 
+import type { GetMoreFailure } from "./use-get-more";
+
 export const text = {
   title: cased("Get More Themes", "Get more themes"),
   close: "Close",
@@ -33,6 +35,17 @@ export const text = {
   importFailed: (file: string) => cased(`Couldn’t Import “${file}”`, `Couldn’t import ${file}`),
   notATheme: "The file is not a Zed theme.",
 };
+
+/** What a failed Get or Import from File says: what failed, then why. */
+export function failureText(failure: GetMoreFailure): { title: string; body: string } {
+  if (failure.kind === "import") {
+    return { title: text.importFailed(failure.fileName), body: text.notATheme };
+  }
+  return {
+    title: text.getFailed(failure.extension.name),
+    body: failure.reason === "no-themes" ? text.noThemes : text.checkConnection,
+  };
+}
 
 const UNITS = ["", "K", "M", "B"] as const;
 

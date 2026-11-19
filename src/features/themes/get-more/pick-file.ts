@@ -1,5 +1,5 @@
 import { getDocumentAsync } from "expo-document-picker";
-import { File } from "expo-file-system";
+import { File, FileMode } from "expo-file-system";
 
 import type { PickedFile } from "./use-get-more";
 
@@ -16,7 +16,7 @@ const MAX_THEME_FILE = 8 * 1024 * 1024;
  * picker gives the name the person saw; on Android a picked file's path holds only an id.
  */
 export async function pickThemeFile(): Promise<PickedFile | null> {
-  // No copy of its own: its size is checked before any of it is read or copied.
+  // No copy of its own: the file is read once, and no further than the limit.
   const picked = await getDocumentAsync({ type: THEME_FILE_TYPES, copyToCacheDirectory: false });
   const asset = picked.canceled ? undefined : picked.assets[0];
   if (asset === undefined) return null;
@@ -25,9 +25,19 @@ export async function pickThemeFile(): Promise<PickedFile | null> {
   // Android hands over the person's document itself, which must stay.
   const ownCopy = asset.uri.startsWith("file:");
   try {
-    if ((asset.size ?? file.size) > MAX_THEME_FILE)
+    if ((asset.size ?? 0) > MAX_THEME_FILE)
       return { kind: "failed", name: asset.name, reason: "too-large" };
-    return { kind: "read", name: asset.name, text: await file.text() };
+    // A provider may not give the size, so the read itself stops one byte past the limit.
+    const handle = file.open(FileMode.ReadOnly);
+    let bytes: Uint8Array;
+    try {
+      bytes = await handle.readBytes(MAX_THEME_FILE + 1);
+    } finally {
+      handle.close();
+    }
+    if (bytes.length > MAX_THEME_FILE)
+      return { kind: "failed", name: asset.name, reason: "too-large" };
+    return { kind: "read", name: asset.name, text: new TextDecoder().decode(bytes) };
   } catch {
     return { kind: "failed", name: asset.name, reason: "unreadable" };
   } finally {

@@ -59,12 +59,21 @@ const initial: Kept = {
 
 /** The preferences kept in `storage`, which every change is written back to. */
 export function createPreferencesStore(storage: KeyValueStorage): PreferencesStore {
-  let kept = read(storage.getItemSync(KEY));
+  let stored: string | null = null;
+  // Preferences that could not be read may still be there, so nothing is saved over them.
+  let readable = true;
+  try {
+    stored = storage.getItemSync(KEY);
+  } catch {
+    readable = false;
+  }
+  let kept = read(stored);
   let snapshot = toSnapshot(kept);
   const listeners = new Set<() => void>();
 
   /** Saves first, so a change that could not be saved shows nowhere. */
   function change(next: Kept): Saved {
+    if (!readable) return "not-saved";
     const candidate = withChosenThemes(next);
     try {
       storage.setItemSync(KEY, JSON.stringify(candidate));

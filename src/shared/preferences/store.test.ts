@@ -104,6 +104,21 @@ describe("the preferences store", () => {
     expect(store.getSnapshot().themes.map((theme) => theme.id)).not.toContain(oneDark.id);
   });
 
+  it("starts from the defaults when its storage cannot be read, and saves over nothing", () => {
+    const written: string[] = [];
+    const store = createPreferencesStore({
+      getItemSync: () => {
+        throw new Error("database disk image is malformed");
+      },
+      setItemSync: (_key, value) => void written.push(value),
+    });
+
+    expect(store.getSnapshot().fontSize).toBe(13);
+    expect(store.setFontSize(10)).toBe("not-saved");
+    expect(store.getSnapshot().fontSize).toBe(13);
+    expect(written).toEqual([]);
+  });
+
   it("keeps the text size between 9 and 18 pt", () => {
     const store = createPreferencesStore(memoryStorage());
     store.setFontSize(40);

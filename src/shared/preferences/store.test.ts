@@ -86,6 +86,22 @@ describe("the preferences store", () => {
     expect(store.getSnapshot().fontSize).toBe(14);
   });
 
+  it("shows no change it could not save, and tells the caller", () => {
+    const storage = memoryStorage();
+    const store = createPreferencesStore({
+      ...storage,
+      setItemSync: () => {
+        throw new Error("database or disk is full");
+      },
+    });
+    let changes = 0;
+    store.subscribe(() => changes++);
+
+    expect(() => store.addThemes([oneDark])).toThrow("database or disk is full");
+    expect(changes).toBe(0);
+    expect(store.getSnapshot().themes.map((theme) => theme.id)).not.toContain(oneDark.id);
+  });
+
   it("keeps the text size between 9 and 18 pt", () => {
     const store = createPreferencesStore(memoryStorage());
     store.setFontSize(40);

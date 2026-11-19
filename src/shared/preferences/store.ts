@@ -57,10 +57,12 @@ export function createPreferencesStore(storage: KeyValueStorage): PreferencesSto
   let snapshot = toSnapshot(kept);
   const listeners = new Set<() => void>();
 
+  /** Saves first, so a change that could not be saved throws to its caller and shows nowhere. */
   function change(next: Kept) {
-    kept = withChosenThemes(next);
+    const candidate = withChosenThemes(next);
+    storage.setItemSync(KEY, JSON.stringify(candidate));
+    kept = candidate;
     snapshot = toSnapshot(kept);
-    storage.setItemSync(KEY, JSON.stringify(kept));
     for (const listener of listeners) listener();
   }
 

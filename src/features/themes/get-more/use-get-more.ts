@@ -148,7 +148,11 @@ export function useGetMore(
 
   return {
     query,
-    setQuery,
+    setQuery: (next) => {
+      // A changed search drops the last answer, so coming back to its search loads it again.
+      if (next.trim() !== trimmed) setAnswer(null);
+      setQuery(next);
+    },
     list,
     state: (extension) =>
       gets.installing.has(extension.id)

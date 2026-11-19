@@ -97,6 +97,35 @@ it("lists the newest search's results, even when an older search answers last", 
   expect(result.current.list).toEqual({ kind: "ready", extensions: [nightfox] });
 });
 
+it("loads a search again when it comes back to an earlier one, without its old answer", async () => {
+  const again = deferred<CatalogExtension[] | "unavailable">();
+  const search = jest
+    .fn<ThemeCatalog["search"]>()
+    .mockResolvedValueOnce([catppuccin])
+    .mockResolvedValueOnce("unavailable")
+    .mockReturnValueOnce(again.promise);
+  const { result } = await render({ search, themes: jest.fn<ThemeCatalog["themes"]>() });
+  await act(settle);
+
+  await act(async () => result.current.setQuery("nord"));
+  await act(settle);
+  expect(result.current.list).toEqual({ kind: "unavailable" });
+
+  // "nordic" never searches: "nord" comes back before the pause ends.
+  await act(async () => result.current.setQuery("nordic"));
+  await act(async () => result.current.setQuery("nord"));
+  expect(result.current.list).toEqual({ kind: "loading" });
+  await act(settle);
+  expect(result.current.list).toEqual({ kind: "loading" });
+
+  await act(async () => {
+    again.resolve([catppuccin]);
+    await settle();
+  });
+  expect(search.mock.calls.map(([query]) => query)).toEqual(["", "nord", "nord"]);
+  expect(result.current.list).toEqual({ kind: "ready", extensions: [catppuccin] });
+});
+
 it("loads the list again with Try Again after it could not load", async () => {
   const search = jest
     .fn<ThemeCatalog["search"]>()

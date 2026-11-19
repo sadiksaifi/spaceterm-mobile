@@ -6,6 +6,20 @@ export type ZedThemeOrigin =
   | { kind: "extension"; id: string; name: string }
   | { kind: "file"; fileName: string };
 
+/**
+ * The most themes one Get or file adds, so a file cannot fill the device's preferences. Zed's
+ * largest theme extension, base16, holds 251.
+ */
+export const MAX_THEMES = 500;
+/** The longest theme or family name read; a longer one is left out. */
+const MAX_NAME = 200;
+
+/** A name as a person would see it, or null when there is none worth showing. */
+const toName = (value: unknown) => {
+  const name = typeof value === "string" ? value.trim() : "";
+  return name === "" || name.length > MAX_NAME ? null : name;
+};
+
 const ANSI = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const;
 
 /**
@@ -17,11 +31,8 @@ export function readZedThemes(file: string, origin: ZedThemeOrigin): TerminalThe
   const family = parseLenient(file);
   if (!isRecord(family) || !Array.isArray(family.themes)) return [];
   const familyName =
-    typeof family.name === "string" && family.name.trim() !== ""
-      ? family.name.trim()
-      : origin.kind === "file"
-        ? origin.fileName.replace(/\.json$/i, "")
-        : origin.name;
+    toName(family.name) ??
+    (origin.kind === "file" ? origin.fileName.replace(/\.json$/i, "") : origin.name);
   const source =
     origin.kind === "extension"
       ? ({ kind: "extension", id: origin.id, name: origin.name } as const)
@@ -29,11 +40,12 @@ export function readZedThemes(file: string, origin: ZedThemeOrigin): TerminalThe
   const idPrefix = origin.kind === "extension" ? origin.id : `file/${familyName}`;
 
   return family.themes.flatMap((theme): TerminalTheme[] => {
-    if (!isRecord(theme) || typeof theme.name !== "string" || theme.name.trim() === "") return [];
+    if (!isRecord(theme)) return [];
+    const name = toName(theme.name);
+    if (name === null) return [];
     if (theme.appearance !== "light" && theme.appearance !== "dark") return [];
     // A color theme has a style, though any color in it may be missing; an icon theme has none.
     if (!isRecord(theme.style)) return [];
-    const name = theme.name.trim();
     return [
       {
         id: `${idPrefix}/${name}`,

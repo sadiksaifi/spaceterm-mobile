@@ -1,7 +1,7 @@
 import type { TerminalTheme } from "@/shared/preferences/model";
 
 import { extractTarGz } from "./tar-gz";
-import { readZedThemes } from "./zed-theme";
+import { MAX_THEMES, readZedThemes } from "./zed-theme";
 
 /** A theme extension in Zed's store. Getting it adds every theme it holds. */
 export type CatalogExtension = {
@@ -98,6 +98,7 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
             name: extension.name,
           }),
         );
+      if (themes.length > MAX_THEMES) return "too-large";
       return themes.length === 0 ? "no-themes" : themes;
     },
   };

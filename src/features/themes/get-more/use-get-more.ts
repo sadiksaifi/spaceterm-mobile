@@ -4,7 +4,7 @@ import { usePreferences, usePreferencesStore } from "@/shared/preferences/provid
 
 import type { CatalogExtension, ThemeCatalog } from "./catalog";
 import type { GetFailure, Installs } from "./installs";
-import { readZedThemes } from "./zed-theme";
+import { MAX_THEMES, readZedThemes } from "./zed-theme";
 
 /** A file the person picked: its name and its text, or why it could not be read. */
 export type PickedFile =
@@ -124,6 +124,8 @@ export function useGetMore(
     const themes = readZedThemes(picked.text, { kind: "file", fileName: picked.name });
     if (themes.length === 0) {
       setImportFailure({ kind: "import", fileName: picked.name, reason: "not-a-theme" });
+    } else if (themes.length > MAX_THEMES) {
+      setImportFailure({ kind: "import", fileName: picked.name, reason: "too-large" });
     } else {
       store.addThemes(themes);
     }

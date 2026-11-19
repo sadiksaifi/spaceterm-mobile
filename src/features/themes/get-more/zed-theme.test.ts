@@ -160,6 +160,22 @@ describe("reading a Zed theme file", () => {
     ).toEqual([]);
   });
 
+  it("leaves out a name longer than any a person would pick", () => {
+    const long = "x".repeat(201);
+    const file = JSON.stringify({
+      name: long,
+      themes: [
+        { name: long, appearance: "dark", style: {} },
+        { name: "y".repeat(200), appearance: "dark", style: {} },
+      ],
+    });
+
+    const themes = readZedThemes(file, { kind: "file", fileName: "long.json" });
+
+    // The family is named after its file instead, and the theme with the long name is left out.
+    expect(themes.map((theme) => theme.id)).toEqual([`file/long/${"y".repeat(200)}`]);
+  });
+
   it("finds no theme in a Zed icon theme, which has no style", () => {
     const icons = JSON.stringify({
       name: "Material Icons",

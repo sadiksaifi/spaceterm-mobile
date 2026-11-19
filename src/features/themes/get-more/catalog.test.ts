@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 
+import { gzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 
 import { createZedCatalog, MAX_ARCHIVE } from "./catalog";
@@ -18,6 +19,35 @@ function fakeFetch(routes: Record<string, () => Response>) {
   };
   return { fetch: fetch as typeof globalThis.fetch, asked };
 }
+
+/** A gzipped ustar archive that holds `files`, by path. */
+function tarGz(files: Record<string, string>): Uint8Array<ArrayBuffer> {
+  const encoder = new TextEncoder();
+  const blocks: number[] = [];
+  for (const [path, text] of Object.entries(files)) {
+    const data = encoder.encode(text);
+    const header = new Uint8Array(512);
+    header.set(encoder.encode(path), 0);
+    header.set(encoder.encode(`${data.length.toString(8).padStart(11, "0")}\0`), 124);
+    header.fill(32, 148, 156);
+    header.set(encoder.encode("0"), 156);
+    const sum = header.reduce((total, byte) => total + byte, 0);
+    header.set(encoder.encode(`${sum.toString(8).padStart(6, "0")}\0 `), 148);
+    blocks.push(...header, ...data, ...new Uint8Array((512 - (data.length % 512)) % 512));
+  }
+  return new Uint8Array(gzipSync(new Uint8Array([...blocks, ...new Uint8Array(1024)])));
+}
+
+/** A Zed theme family that holds `count` dark themes. */
+const family = (name: string, count: number) =>
+  JSON.stringify({
+    name,
+    themes: Array.from({ length: count }, (_, index) => ({
+      name: `${name} ${index}`,
+      appearance: "dark",
+      style: {},
+    })),
+  });
 
 const LIST = "https://api.zed.dev/extensions?";
 const DOWNLOAD = "https://api.zed.dev/extensions/paper/download?";
@@ -127,6 +157,19 @@ describe("Zed's theme catalog", () => {
       [DOWNLOAD]: () => new Response(new Uint8Array(MAX_ARCHIVE + 1)),
     });
     expect(await createZedCatalog(undeclared.fetch).themes({ id: "paper", name: "Paper" })).toBe(
+      "too-large",
+    );
+  });
+
+  it("refuses an extension with more themes than one Get adds", async () => {
+    const themes = (count: number) =>
+      tarGz({ "themes/a.json": family("A", 250), "themes/b.json": family("B", count) });
+    const fits = fakeFetch({ [DOWNLOAD]: () => new Response(themes(250)) });
+    const tooMany = fakeFetch({ [DOWNLOAD]: () => new Response(themes(251)) });
+
+    const got = await createZedCatalog(fits.fetch).themes({ id: "paper", name: "Paper" });
+    expect(Array.isArray(got) && got.length).toBe(500);
+    expect(await createZedCatalog(tooMany.fetch).themes({ id: "paper", name: "Paper" })).toBe(
       "too-large",
     );
   });

@@ -240,3 +240,32 @@ it("imports the themes in a picked Zed theme file, and reports a file it could n
   });
   expect(result.current.failure).toEqual({ kind: "import", fileName: null, reason: "unreadable" });
 });
+
+it("refuses a file with more themes than one import adds", async () => {
+  const themes = Array.from({ length: 501 }, (_, index) => ({
+    name: `Many ${index}`,
+    appearance: "dark",
+    style: {},
+  }));
+  const pickFile = async (): Promise<PickedFile> => ({
+    kind: "read",
+    name: "many.json",
+    text: JSON.stringify({ name: "Many", themes }),
+  });
+  const { result, store } = await render(
+    { search: async () => [], themes: jest.fn<ThemeCatalog["themes"]>() },
+    pickFile,
+  );
+
+  await act(async () => {
+    result.current.importFile();
+    await settle();
+  });
+
+  expect(result.current.failure).toEqual({
+    kind: "import",
+    fileName: "many.json",
+    reason: "too-large",
+  });
+  expect(store.getSnapshot().themes).toHaveLength(2);
+});

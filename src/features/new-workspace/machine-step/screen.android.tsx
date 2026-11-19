@@ -18,6 +18,8 @@ import {
   fillMaxSize,
   fillMaxWidth,
   padding,
+  verticalScroll,
+  weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
 
@@ -62,9 +64,10 @@ export default function MachineStepScreen({ machines, onPick, onCancel }: Machin
           >
             {text.machine}
           </Text>
+          {/* The heading stays; the Machines scroll when they outgrow the window. */}
           <Column
             verticalArrangement={{ spacedBy: GROUPED_GAP }}
-            modifiers={[padding(16, 0, 16, 0)]}
+            modifiers={[weight(1), verticalScroll(), padding(16, 0, 16, 16)]}
           >
             {machines.map((machine, index) => (
               <MachineRow

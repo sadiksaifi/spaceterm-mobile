@@ -401,14 +401,16 @@ function ThemeRow({
           supportingContentColor: colors.secondaryText,
         }}
         // On the list item, which merges the name and source into one node for screen readers, so
-        // the radio reads with its label. The remove button stays a control of its own.
-        modifiers={[
-          combinedClickable({
-            onClick: onChoose,
-            onLongClick: canRemove ? () => setHeld(true) : undefined,
-          }),
-          radioSelected(chosen),
-        ]}
+        // the radio reads with its label. The remove button stays a control of its own. Only a
+        // theme that can be removed takes touch and hold, so a built-in one offers none.
+        modifiers={
+          canRemove
+            ? [
+                combinedClickable({ onClick: onChoose, onLongClick: () => setHeld(true) }),
+                radioSelected(chosen),
+              ]
+            : [selectable(chosen, onChoose, "radioButton")]
+        }
       >
         <ListItem.LeadingContent>
           <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: LEADING_GAP }}>

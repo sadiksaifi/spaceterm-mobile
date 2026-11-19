@@ -196,8 +196,9 @@ function SearchField({ onQuery }: { onQuery: (query: string) => void }) {
       <TextField.Placeholder>
         <Text color={colors.secondaryText}>{text.searchThemes}</Text>
       </TextField.Placeholder>
-      {!empty && (
-        <TextField.TrailingIcon>
+      {/* The field reads which slots it has only when it is first drawn, so this one stays. */}
+      <TextField.TrailingIcon>
+        {!empty && (
           <IconButton
             onClick={() => {
               field.set("");
@@ -207,8 +208,8 @@ function SearchField({ onQuery }: { onQuery: (query: string) => void }) {
           >
             <Icon source={closeIcon} contentDescription={text.clearText} />
           </IconButton>
-        </TextField.TrailingIcon>
-      )}
+        )}
+      </TextField.TrailingIcon>
     </TextField>
   );
 }

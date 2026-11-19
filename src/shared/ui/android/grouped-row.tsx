@@ -48,6 +48,9 @@ export function GroupedRow({
       modifiers={[fillMaxWidth()]}
     >
       <ListItem
+        // The list item reads which slots it has only when it is first drawn, so a slot that comes
+        // or goes draws a new one.
+        key={[supporting, leading, trailing].map((slot) => slot !== undefined).join()}
         colors={{
           containerColor: "transparent",
           contentColor: colors.text,

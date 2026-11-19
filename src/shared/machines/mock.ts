@@ -37,6 +37,8 @@ export function createMockClient(
     ...machine,
     directories: withChildEntries(machine.directories),
     workspaces: machine.workspaces && [...machine.workspaces],
+    /** Counts Connect tries and Disconnects, so a late answer can tell it is no longer current. */
+    connectTry: 0,
   }));
   type State = (typeof machines)[number];
 
@@ -69,7 +71,7 @@ export function createMockClient(
       }, latency),
     );
 
-  const attempts = { create: 0, rename: 0, kill: 0 };
+  const attempts = { create: 0, rename: 0, kill: 0, connect: 0, restart: 0 };
   /** Counts an attempt; true when the Machine refuses it. */
   const refuses = (command: keyof typeof attempts) => refuse && attempts[command]++ % 2 === 0;
 
@@ -170,6 +172,51 @@ export function createMockClient(
         );
         changed();
       });
+    },
+
+    disconnect: (machineId) => {
+      const target = machine(machineId);
+      if (target === undefined || target.connection === "not-connected") return;
+      target.connectTry++;
+      target.connection = "not-connected";
+      changed();
+    },
+
+    connect: async (machineId) => {
+      const target = machine(machineId);
+      if (target === undefined || target.connection === "connected") return;
+      if (target.connection === "reconnecting") return;
+      // Numbered before subscribers hear of it, so a Disconnect from one of them ends this try.
+      const connectTry = ++target.connectTry;
+      target.connection = "reconnecting";
+      changed();
+      const reached = !refuses("connect");
+      await answer(undefined, () => {
+        // Disconnect, or Unpair, may have ended the try while it ran.
+        if (!machines.includes(target) || target.connectTry !== connectTry) return;
+        target.connection = reached ? "connected" : "still-not-connected";
+        changed();
+      });
+    },
+
+    restartCore: (machineId) => {
+      const target = machine(machineId);
+      if (target === undefined || target.connection !== "connected") return failed();
+      if (refuses("restart")) return failed();
+      return done(() => {
+        target.workspaces = (target.workspaces ?? []).map((workspace) => ({
+          ...workspace,
+          terminalSessions: 0,
+        }));
+        changed();
+      });
+    },
+
+    unpair: (machineId) => {
+      const index = machines.findIndex((candidate) => candidate.id === machineId);
+      if (index === -1) return;
+      machines.splice(index, 1);
+      changed();
     },
   };
 

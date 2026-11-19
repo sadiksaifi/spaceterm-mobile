@@ -9,8 +9,8 @@ import HomeScreen from "./screen";
 const DESKTOP_PROJECT_URL = "https://github.com/sadiksaifi/spaceterm";
 
 /**
- * The screens these controls open do not exist yet: the Tabs of a Workspace, Add Machine,
- * Settings and Machine Settings. Each control works and stays on Home until its screen is built.
+ * The screens these controls open do not exist yet: the Tabs of a Workspace and Add Machine.
+ * Each control works and stays on Home until its screen is built.
  */
 const stayOnHome = () => {};
 
@@ -35,9 +35,21 @@ export default function HomeRoute() {
       onAddMachine={stayOnHome}
       onScanQrCode={stayOnHome}
       onPasteInvitationLink={stayOnHome}
-      onOpenSettings={stayOnHome}
-      onMachineSettings={stayOnHome}
-      onTryAgain={stayOnHome}
+      onOpenSettings={() => router.navigate("/settings")}
+      onMachineSettings={(machineId) =>
+        router.navigate({ pathname: "/settings/machines/[machineId]", params: { machineId } })
+      }
+      // Try Again reaches every Machine that is not connected and not already being reached.
+      onTryAgain={() => {
+        for (const machine of snapshot.machines) {
+          if (
+            machine.connection === "not-connected" ||
+            machine.connection === "still-not-connected"
+          ) {
+            void client.connect(machine.id);
+          }
+        }
+      }}
       // The page opens inside the app. If it cannot open, the person stays on Home.
       onGetDesktop={() => void openBrowserAsync(DESKTOP_PROJECT_URL).catch(() => {})}
     />

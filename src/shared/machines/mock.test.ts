@@ -147,4 +147,95 @@ describe("the mock client", () => {
     expect(await client.killWorkspace("mac", "w2")).toEqual({ kind: "failed" });
     expect(await client.renameWorkspace("gone", "w1", "web")).toEqual({ kind: "failed" });
   });
+
+  it("disconnects at once, and reconnects when the Machine answers Connect", async () => {
+    vi.useFakeTimers();
+    const client = createMockClient([mac], { latency: 100 });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+
+    client.disconnect("mac");
+    expect(connection()).toBe("not-connected");
+
+    client.connect("mac");
+    expect(connection()).toBe("reconnecting");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(connection()).toBe("connected");
+    vi.useRealTimers();
+  });
+
+  it("lets Disconnect end a Connect still under way, so its late answer changes nothing", async () => {
+    vi.useFakeTimers();
+    const client = createMockClient([{ ...mac, connection: "not-connected" }], {
+      latency: 100,
+      refuse: true,
+    });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+
+    // The first try will be refused, the second reached. Disconnect ends the first.
+    client.connect("mac");
+    client.disconnect("mac");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(connection()).toBe("not-connected");
+
+    // A try started after Disconnect waits for its own answer, not an earlier one's.
+    client.connect("mac");
+    await vi.advanceTimersByTimeAsync(50);
+    client.disconnect("mac");
+    client.connect("mac");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(connection()).toBe("reconnecting");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(connection()).toBe("still-not-connected");
+    vi.useRealTimers();
+  });
+
+  it("lets a subscriber that disconnects on seeing Reconnecting end that try", async () => {
+    vi.useFakeTimers();
+    const client = createMockClient([{ ...mac, connection: "not-connected" }], { latency: 100 });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+    client.subscribe(() => {
+      if (connection() === "reconnecting") client.disconnect("mac");
+    });
+
+    client.connect("mac");
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(connection()).toBe("not-connected");
+    vi.useRealTimers();
+  });
+
+  it("is still not connected when Connect fails, and Connect tries again", async () => {
+    const client = createMockClient([{ ...mac, connection: "not-connected" }], { refuse: true });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+
+    await client.connect("mac");
+    expect(connection()).toBe("still-not-connected");
+    await client.connect("mac");
+    expect(connection()).toBe("connected");
+  });
+
+  it("restarts SpaceTerm Core on a connected Machine, which ends its Terminal Sessions", async () => {
+    const client = createMockClient([
+      { ...mac, workspaces: [{ ...workspace, terminalSessions: 3 }] },
+      { ...mac, id: "away", connection: "not-connected", workspaces: [workspace] },
+    ]);
+
+    expect(await client.restartCore("away")).toEqual({ kind: "failed" });
+    expect(await client.restartCore("mac")).toEqual({ kind: "done" });
+    expect(client.getSnapshot().machines[0]?.workspaces).toEqual([
+      { ...workspace, terminalSessions: 0 },
+    ]);
+  });
+
+  it("unpairs at once, connected or not, so the Machine leaves the list", () => {
+    const client = createMockClient([mac, { ...mac, id: "away", connection: "not-connected" }]);
+    let changes = 0;
+    client.subscribe(() => changes++);
+
+    client.unpair("away");
+    client.unpair("mac");
+
+    expect(client.getSnapshot().machines).toEqual([]);
+    expect(changes).toBe(2);
+  });
 });

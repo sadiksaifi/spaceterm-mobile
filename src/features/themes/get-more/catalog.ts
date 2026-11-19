@@ -1,0 +1,215 @@
+import type { TerminalTheme } from "@/shared/preferences/model";
+
+import { extractTarGz } from "./tar-gz";
+import { MAX_THEME_FILE, MAX_THEMES, readZedThemes } from "./zed-theme";
+
+/** A theme extension in Zed's store. Getting it adds every theme it holds. */
+export type CatalogExtension = {
+  id: string;
+  name: string;
+  /** Its authors' names, without their email addresses. */
+  author: string;
+  /** Null when Zed gives no count. */
+  downloads: number | null;
+};
+
+export type ThemeCatalog = {
+  /** The theme extensions whose name matches `query`, most downloaded first. */
+  search: (query: string) => Promise<CatalogExtension[] | "unavailable">;
+  /** Every theme in an extension: "no-themes" when it holds none SpaceTerm can read. */
+  themes: (extension: {
+    id: string;
+    name: string;
+  }) => Promise<TerminalTheme[] | "unavailable" | "no-themes" | "too-large">;
+};
+
+const API = "https://api.zed.dev/extensions";
+/** The newest extension format SpaceTerm reads, and the range Zed's store serves for it. */
+const SCHEMA = { min: "0", max: "1" } as const;
+const WASM_API = { min: "0.0.0", max: "0.8.0" } as const;
+/** The largest archive SpaceTerm downloads; a theme extension is far smaller. */
+export const MAX_ARCHIVE = 16 * 1024 * 1024;
+const THEME_FAMILY = /^themes\/[^/]+\.json$/;
+/** The largest list SpaceTerm reads; every theme extension in the store lists in about 260 KiB. */
+const MAX_LIST = 4 * 1024 * 1024;
+/**
+ * How long a search or a download may take, body included. React Native's Android network client
+ * has no read timeout, so a store that stops answering would otherwise leave it under way.
+ */
+const DEADLINE = 30_000;
+
+/**
+ * A request that is stopped when it runs past the deadline. `finish` ends the deadline and stops a
+ * request whose body was not read to its end, so a refused answer is not downloaded.
+ */
+function deadlined() {
+  const request = new AbortController();
+  const timer = setTimeout(() => request.abort(), DEADLINE);
+  return {
+    signal: request.signal,
+    finish: (readWhole: boolean) => {
+      clearTimeout(timer);
+      if (!readWhole) request.abort();
+    },
+  };
+}
+
+/** A fetch that streams a body and stops its request when aborted, as `expo/fetch` does. */
+export type Fetch = (
+  url: string,
+  init?: { signal?: AbortSignal },
+) => Promise<{
+  ok: boolean;
+  headers: { get: (name: string) => string | null };
+  body: ReadableStream<Uint8Array> | null;
+}>;
+
+/** Zed's extension store, reached with `fetch`. */
+export function createZedCatalog(fetch: Fetch): ThemeCatalog {
+  return {
+    search: async (query) => {
+      const params = new URLSearchParams({ provides: "themes", max_schema_version: SCHEMA.max });
+      const filter = query.trim();
+      if (filter !== "") params.set("filter", filter);
+      const request = deadlined();
+      let readWhole = false;
+      try {
+        const response = await fetch(`${API}?${params}`, { signal: request.signal });
+        if (!response.ok) return "unavailable";
+        // Read like a download, so an answer cut off is not taken for a whole one.
+        const bytes = await readBody(response, MAX_LIST, request.signal);
+        if (typeof bytes === "string") return "unavailable";
+        readWhole = true;
+        const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
+        if (!isRecord(body) || !Array.isArray(body.data)) return "unavailable";
+        // Both screens key their rows by id, and a repeated key breaks the list.
+        const byId = new Map(body.data.flatMap(toExtension).map((item) => [item.id, item]));
+        return [...byId.values()].sort(
+          (first, second) => (second.downloads ?? -1) - (first.downloads ?? -1),
+        );
+      } catch {
+        return "unavailable";
+      } finally {
+        request.finish(readWhole);
+      }
+    },
+    themes: async (extension) => {
+      const params = new URLSearchParams({
+        min_schema_version: SCHEMA.min,
+        max_schema_version: SCHEMA.max,
+        min_wasm_api_version: WASM_API.min,
+        max_wasm_api_version: WASM_API.max,
+      });
+      const request = deadlined();
+      let bytes: Uint8Array | "too-large" | "unavailable" = "unavailable";
+      try {
+        const response = await fetch(
+          `${API}/${encodeURIComponent(extension.id)}/download?${params}`,
+          { signal: request.signal },
+        );
+        bytes = response.ok ? await readBody(response, MAX_ARCHIVE, request.signal) : "unavailable";
+      } catch {
+        bytes = "unavailable";
+      } finally {
+        request.finish(typeof bytes !== "string");
+      }
+      if (typeof bytes === "string") return bytes;
+      const files = extractTarGz(bytes);
+      if (files === null) return "no-themes";
+      const decoder = new TextDecoder();
+      const origin = { kind: "extension", id: extension.id, name: extension.name } as const;
+      const themes: TerminalTheme[] = [];
+      for (const [path, file] of files) {
+        // An extension keeps its theme families directly in themes/, as Desktop reads them.
+        if (!THEME_FAMILY.test(path)) continue;
+        if (file.length > MAX_THEME_FILE) return "too-large";
+        // The room left is shared by every file, so the extension's themes stop one past it.
+        themes.push(...readZedThemes(decoder.decode(file), origin, MAX_THEMES - themes.length));
+        if (themes.length > MAX_THEMES) return "too-large";
+      }
+      return themes.length === 0 ? "no-themes" : themes;
+    },
+  };
+}
+
+/**
+ * The whole body of `response`, checked against the length it declares: "too-large" past `limit`,
+ * and "unavailable" when it ends short, because Android's fetch ends a body the network cut off as
+ * if it were whole.
+ */
+async function readBody(
+  response: Awaited<ReturnType<Fetch>>,
+  limit: number,
+  signal: AbortSignal,
+): Promise<Uint8Array | "too-large" | "unavailable"> {
+  // The length of the bytes as they arrive; a body the network decoded has another length.
+  const declared =
+    response.headers.get("content-encoding") === null
+      ? Number(response.headers.get("content-length") ?? Number.NaN)
+      : Number.NaN;
+  if (declared > limit) return "too-large";
+  const bytes = await readAtMost(response.body, limit, signal);
+  return typeof bytes !== "string" && Number.isFinite(declared) && bytes.length !== declared
+    ? "unavailable"
+    : bytes;
+}
+
+/**
+ * The whole body, "too-large" as soon as it runs past `limit` bytes, or "unavailable" when
+ * `signal` stops it first.
+ */
+async function readAtMost(
+  body: ReadableStream<Uint8Array> | null,
+  limit: number,
+  signal: AbortSignal,
+): Promise<Uint8Array | "too-large" | "unavailable"> {
+  if (body === null) return "unavailable";
+  const reader = body.getReader();
+  // Canceling ends a read under way, which then looks like the body's end.
+  signal.addEventListener("abort", () => void reader.cancel().catch(() => {}), { once: true });
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (let read = await reader.read(); !read.done; read = await reader.read()) {
+    size += read.value.length;
+    if (size > limit) {
+      void reader.cancel().catch(() => {});
+      return "too-large";
+    }
+    chunks.push(read.value);
+  }
+  if (signal.aborted) return "unavailable";
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
+/** An email address, bare or in angle brackets, parentheses or square brackets. */
+const EMAIL = /<[^>]*>|\([^)]*@[^)]*\)|\[[^\]]*@[^\]]*\]|\S+@\S+/g;
+
+function toExtension(item: unknown): CatalogExtension[] {
+  if (!isRecord(item) || typeof item.id !== "string" || typeof item.name !== "string") return [];
+  const authors = Array.isArray(item.authors) ? item.authors : [];
+  return [
+    {
+      id: item.id,
+      name: item.name,
+      author: authors
+        .filter((author): author is string => typeof author === "string")
+        // "Catppuccin <releases@catppuccin.com>" names Catppuccin.
+        .map((author) => author.replace(EMAIL, "").trim())
+        .filter((author) => author !== "")
+        .join(", "),
+      downloads:
+        Number.isSafeInteger(item.download_count) && Number(item.download_count) >= 0
+          ? Number(item.download_count)
+          : null,
+    },
+  ];
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);

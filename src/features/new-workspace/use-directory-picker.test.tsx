@@ -28,6 +28,10 @@ function machine(answers: CreateWorkspaceResult[]) {
     createWorkspace: createWorkspace as MachineClient["createWorkspace"],
     renameWorkspace: async () => ({ kind: "done" }),
     killWorkspace: async () => ({ kind: "done" }),
+    disconnect: () => {},
+    connect: async () => {},
+    restartCore: async () => ({ kind: "done" }),
+    unpair: () => {},
   };
   return { client, createWorkspace };
 }

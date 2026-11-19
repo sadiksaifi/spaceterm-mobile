@@ -108,6 +108,8 @@ export default function ThemesScreen({
         placeholder={text.search}
         onChangeText={(event) => onQuery(event.nativeEvent.text)}
         onCancelButtonPress={() => onQuery("")}
+        // Hiding the bar during search left a band its height above the list after Cancel.
+        hideNavigationBar={false}
       />
       <Stack.Toolbar placement="bottom">
         <Stack.Toolbar.SearchBarSlot />

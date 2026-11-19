@@ -105,7 +105,17 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
         ? { ...state, confirm: { kind: "failed", ...event.failure } }
         : state;
     case "created":
-      return state.confirm.kind === "opening" ? { ...state, confirm: { kind: "idle" } } : state;
+      if (state.confirm.kind !== "opening") return state;
+      // The Workspace may have made a directory the listing shows, so the listing loads again; a
+      // typed path stays in the field.
+      return state.listing.kind === "loading"
+        ? { ...state, confirm: { kind: "idle" } }
+        : {
+            ...state,
+            confirm: { kind: "idle" },
+            listing: { kind: "loading", path: state.listing.path },
+            request: state.request + 1,
+          };
     case "dismiss-failure":
       // A failure that has since been replaced stays.
       return state.confirm === event.failure ? { ...state, confirm: { kind: "idle" } } : state;

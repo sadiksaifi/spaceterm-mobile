@@ -128,6 +128,38 @@ describe("the Directory Picker", () => {
     expect(pickerView(cancelled)).toMatchObject({ field: "~/Projects/notes", canOpen: true });
   });
 
+  it("lists its directory again when it stays after the Machine creates the Workspace", () => {
+    const atScratch = run(
+      [
+        { type: "navigate", path: "~/scratch/" },
+        { type: "answered", request: atHome.request + 1, listing: scratch },
+      ],
+      atHome,
+    );
+    const created = run(
+      [{ type: "edit", field: "~/scratch/notes" }, { type: "create" }, { type: "created" }],
+      atScratch,
+    );
+    expect(created.confirm).toEqual({ kind: "idle" });
+    expect(created.listing).toEqual({ kind: "loading", path: "~/scratch/" });
+
+    const notes = { name: "notes", path: "~/scratch/notes/" };
+    const relisted = run(
+      [
+        {
+          type: "answered",
+          request: created.request,
+          listing: { ...scratch, directories: [notes] },
+        },
+      ],
+      created,
+    );
+    expect(pickerView(relisted)).toMatchObject({
+      field: "~/scratch/notes",
+      content: { kind: "directories", directories: [notes] },
+    });
+  });
+
   it("keeps a failed attempt for Try Again, and offers Open again", () => {
     const failed = run(
       [{ type: "open" }, { type: "failed", failure: { directory: "~/", createDirectory: false } }],

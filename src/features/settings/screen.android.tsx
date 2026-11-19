@@ -116,7 +116,8 @@ export default function SettingsScreen({
                 last={index === privacySwitches.length - 1}
                 headline={label}
                 trailing={
-                  <Switch value={privacy[setting]} onCheckedChange={(on) => onPrivacy(setting, on)}>
+                  // The row turns the switch, so a screen reader finds one control with its label.
+                  <Switch value={privacy[setting]}>
                     {/* The switch reads its slots again when it turns, so this one can come and go. */}
                     {privacy[setting] && (
                       <Switch.ThumbContent>
@@ -125,7 +126,10 @@ export default function SettingsScreen({
                     )}
                   </Switch>
                 }
-                onClick={() => onPrivacy(setting, !privacy[setting])}
+                toggle={{
+                  on: privacy[setting],
+                  onToggle: () => onPrivacy(setting, !privacy[setting]),
+                }}
               />
             ))}
           </Column>

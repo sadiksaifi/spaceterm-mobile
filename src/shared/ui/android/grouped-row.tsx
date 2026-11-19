@@ -1,5 +1,5 @@
 import { ListItem, Shape, Surface, Text, useMaterialColors } from "@expo/ui/jetpack-compose";
-import { alpha, fillMaxWidth, padding } from "@expo/ui/jetpack-compose/modifiers";
+import { alpha, fillMaxWidth, padding, toggleable } from "@expo/ui/jetpack-compose/modifiers";
 import type { ColorValue } from "react-native";
 import type { ReactNode } from "react";
 
@@ -14,6 +14,7 @@ const DISABLED = 0.38;
 /**
  * One row of a grouped card: Material's list item on the card's color, with the corners of its
  * place in the group. A row with `onClick` takes taps; a disabled row is dimmed and takes none.
+ * A row with `toggle` is one switch to a screen reader: its trailing switch should take no taps.
  */
 export function GroupedRow({
   first,
@@ -25,6 +26,7 @@ export function GroupedRow({
   enabled = true,
   color,
   onClick,
+  toggle,
 }: {
   first: boolean;
   last: boolean;
@@ -36,6 +38,7 @@ export function GroupedRow({
   /** The card color, for a row that is held or selected. */
   color?: ColorValue;
   onClick?: () => void;
+  toggle?: { on: boolean; onToggle: () => void };
 }) {
   const colors = useColors();
   return (
@@ -57,7 +60,13 @@ export function GroupedRow({
           supportingContentColor: colors.secondaryText,
           leadingContentColor: colors.secondaryText,
         }}
-        modifiers={enabled ? [] : [alpha(DISABLED)]}
+        modifiers={[
+          ...(enabled ? [] : [alpha(DISABLED)]),
+          // Inside the card, so its ripple keeps the card's corners.
+          ...(toggle === undefined
+            ? []
+            : [toggleable(toggle.on, toggle.onToggle, { role: "switch", enabled })]),
+        ]}
       >
         <ListItem.HeadlineContent>
           {typeof headline === "string" ? <Text>{headline}</Text> : headline}

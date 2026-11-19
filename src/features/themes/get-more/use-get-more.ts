@@ -62,7 +62,8 @@ export function useGetMore(
   const preferences = usePreferences();
   const store = usePreferencesStore();
   const [query, setQuery] = useState("");
-  const [attempt, setAttempt] = useState(0);
+  // Counts Try Again and each edit that changes the search, so every one of them searches anew.
+  const [requests, setRequests] = useState(0);
   // The latest answer, with the search it answers; the list loads until the current one answers.
   const [answer, setAnswer] = useState<{ search: string; list: CatalogList } | null>(null);
   const gets = useSyncExternalStore(installs.subscribe, installs.getSnapshot);
@@ -74,7 +75,7 @@ export function useGetMore(
   const failure = importFailure ?? gets.failure;
 
   const trimmed = query.trim();
-  const search = `${attempt}:${trimmed}`;
+  const search = `${requests}:${trimmed}`;
   useEffect(() => {
     let current = true;
     const timer = setTimeout(
@@ -149,8 +150,8 @@ export function useGetMore(
   return {
     query,
     setQuery: (next) => {
-      // A changed search drops the last answer, so coming back to its search loads it again.
-      if (next.trim() !== trimmed) setAnswer(null);
+      // A changed search is a new request, so coming back to an earlier search loads it again.
+      if (next.trim() !== trimmed) setRequests((count) => count + 1);
       setQuery(next);
     },
     list,
@@ -169,7 +170,7 @@ export function useGetMore(
       setRemoving(null);
     },
     importFile: () => void importNow(),
-    retry: () => setAttempt((count) => count + 1),
+    retry: () => setRequests((count) => count + 1),
     failure,
     dismissFailure,
     retryFailure: (shown) => {

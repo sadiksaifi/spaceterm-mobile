@@ -126,6 +126,24 @@ it("loads a search again when it comes back to an earlier one, without its old a
   expect(result.current.list).toEqual({ kind: "ready", extensions: [catppuccin] });
 });
 
+it("searches again after edits that end where they started", async () => {
+  const search = jest
+    .fn<ThemeCatalog["search"]>()
+    .mockResolvedValueOnce([catppuccin])
+    .mockResolvedValueOnce([nightfox]);
+  const { result } = await render({ search, themes: jest.fn<ThemeCatalog["themes"]>() });
+  await act(settle);
+
+  // Both edits land in one render.
+  await act(async () => {
+    result.current.setQuery("n");
+    result.current.setQuery("");
+  });
+  await act(settle);
+
+  expect(result.current.list).toEqual({ kind: "ready", extensions: [nightfox] });
+});
+
 it("loads the list again with Try Again after it could not load", async () => {
   const search = jest
     .fn<ThemeCatalog["search"]>()

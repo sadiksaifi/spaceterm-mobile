@@ -186,9 +186,12 @@ function read(stored: string | null): Kept {
   });
 }
 
-/** The first of each theme by id; screens list themes by id, so one kept twice would break them. */
+/**
+ * The first of each theme by id, leaving out any under the id of SpaceTerm's own. Screens list
+ * themes by id, so one id twice would break them.
+ */
 function oncePerId(themes: TerminalTheme[]): TerminalTheme[] {
-  const seen = new Set<string>();
+  const seen = new Set<string>([builtInThemes.light.id, builtInThemes.dark.id]);
   return themes.filter((theme) => {
     if (seen.has(theme.id)) return false;
     seen.add(theme.id);

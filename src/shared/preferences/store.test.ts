@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { builtInThemes } from "./built-in-themes";
 import type { TerminalTheme } from "./model";
 import { createPreferencesStore, type KeyValueStorage } from "./store";
 
@@ -126,6 +127,15 @@ describe("the preferences store", () => {
     const { themes } = createPreferencesStore(memoryStorage({ preferences: stored })).getSnapshot();
 
     expect(themes.slice(2)).toEqual([oneDark, oneLight]);
+  });
+
+  it("keeps no added theme under the id of SpaceTerm's own", () => {
+    const impostor = { ...oneDark, id: builtInThemes.dark.id };
+    const stored = JSON.stringify({ added: [impostor, oneLight] });
+
+    const { themes } = createPreferencesStore(memoryStorage({ preferences: stored })).getSnapshot();
+
+    expect(themes).toEqual([builtInThemes.light, builtInThemes.dark, oneLight]);
   });
 
   it("keeps the text size between 9 and 18 pt", () => {

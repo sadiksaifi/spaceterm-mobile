@@ -86,7 +86,7 @@ describe("the preferences store", () => {
     expect(store.getSnapshot().fontSize).toBe(14);
   });
 
-  it("shows no change it could not save, and tells the caller", () => {
+  it("shows no change it could not save, and tells the caller it was not saved", () => {
     const storage = memoryStorage();
     const store = createPreferencesStore({
       ...storage,
@@ -97,8 +97,10 @@ describe("the preferences store", () => {
     let changes = 0;
     store.subscribe(() => changes++);
 
-    expect(() => store.addThemes([oneDark])).toThrow("database or disk is full");
+    expect(store.addThemes([oneDark])).toBe("not-saved");
+    expect(store.setFontSize(10)).toBe("not-saved");
     expect(changes).toBe(0);
+    expect(store.getSnapshot().fontSize).toBe(13);
     expect(store.getSnapshot().themes.map((theme) => theme.id)).not.toContain(oneDark.id);
   });
 

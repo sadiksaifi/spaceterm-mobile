@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { usePreferences, usePreferencesStore } from "@/shared/preferences/provider";
 
@@ -16,15 +16,16 @@ export type CatalogList =
   | { kind: "ready"; extensions: readonly CatalogExtension[] }
   | { kind: "unavailable" };
 
+/** An Import from File that did not add a theme. */
+type ImportFailure = {
+  kind: "import";
+  /** `null` when the picker failed before it named the file. */
+  fileName: string | null;
+  reason: "not-a-theme" | "too-large" | "unreadable" | "not-saved";
+};
+
 /** Get or Import from File that did not add a theme. A new failure is a new object. */
-export type GetMoreFailure =
-  | GetFailure
-  | {
-      kind: "import";
-      /** `null` when the picker failed before it named the file. */
-      fileName: string | null;
-      reason: "not-a-theme" | "too-large" | "unreadable";
-    };
+export type GetMoreFailure = GetFailure | ImportFailure;
 
 export type GetMorePage = {
   query: string;
@@ -67,6 +68,8 @@ export function useGetMore(
   const gets = useSyncExternalStore(installs.subscribe, installs.getSnapshot);
   const [removing, setRemoving] = useState<CatalogExtension | null>(null);
   const [importFailure, setImportFailure] = useState<GetMoreFailure | null>(null);
+  // Set at once, unlike state, so a second tap while the picker opens opens no second picker.
+  const importing = useRef(false);
   // An import failure is the person's latest action, so it shows first.
   const failure = importFailure ?? gets.failure;
 
@@ -109,6 +112,20 @@ export function useGetMore(
   }
 
   async function importNow() {
+    if (importing.current) return;
+    importing.current = true;
+    // A new import answers the last one's failure, so its Try Again goes away.
+    setImportFailure(null);
+    try {
+      const failure = await pickAndAdd();
+      if (failure !== null) setImportFailure(failure);
+    } finally {
+      importing.current = false;
+    }
+  }
+
+  /** Picks a file and adds its themes; null when it added them or the person canceled. */
+  async function pickAndAdd(): Promise<ImportFailure | null> {
     let picked: PickedFile | null;
     try {
       picked = await pickFile();
@@ -116,19 +133,17 @@ export function useGetMore(
       // The picker failed while it copied the file, before it gave the file's name.
       picked = { kind: "failed", name: null, reason: "unreadable" };
     }
-    if (picked === null) return;
-    if (picked.kind === "failed") {
-      setImportFailure({ kind: "import", fileName: picked.name, reason: picked.reason });
-      return;
-    }
+    if (picked === null) return null;
+    const failed = (reason: ImportFailure["reason"]): ImportFailure => ({
+      kind: "import",
+      fileName: picked.name,
+      reason,
+    });
+    if (picked.kind === "failed") return failed(picked.reason);
     const themes = readZedThemes(picked.text, { kind: "file", fileName: picked.name });
-    if (themes.length === 0) {
-      setImportFailure({ kind: "import", fileName: picked.name, reason: "not-a-theme" });
-    } else if (themes.length > MAX_THEMES) {
-      setImportFailure({ kind: "import", fileName: picked.name, reason: "too-large" });
-    } else {
-      store.addThemes(themes);
-    }
+    if (themes.length === 0) return failed("not-a-theme");
+    if (themes.length > MAX_THEMES) return failed("too-large");
+    return store.addThemes(themes) === "saved" ? null : failed("not-saved");
   }
 
   return {

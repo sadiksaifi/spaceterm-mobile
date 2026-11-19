@@ -6,7 +6,7 @@ import type { CatalogExtension, ThemeCatalog } from "./catalog";
 export type GetFailure = {
   kind: "get";
   extension: CatalogExtension;
-  reason: "unavailable" | "no-themes" | "too-large";
+  reason: "unavailable" | "no-themes" | "too-large" | "not-saved";
 };
 
 export type InstallsSnapshot = {
@@ -55,7 +55,8 @@ export function createInstalls(catalog: ThemeCatalog, store: PreferencesStore): 
     try {
       const themes = await catalog.themes(extension);
       if (typeof themes === "string") failure = { kind: "get", extension, reason: themes };
-      else store.addThemes(themes);
+      else if (store.addThemes(themes) === "not-saved")
+        failure = { kind: "get", extension, reason: "not-saved" };
     } catch {
       failure = { kind: "get", extension, reason: "unavailable" };
     } finally {

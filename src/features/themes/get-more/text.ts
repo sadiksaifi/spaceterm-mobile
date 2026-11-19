@@ -40,6 +40,7 @@ export const text = {
   notATheme: "The file is not a Zed theme.",
   fileTooLarge: "The file is too large to be a Zed theme.",
   unreadable: "The file couldn’t be read.",
+  notSaved: "Its themes couldn’t be saved on this device.",
 };
 
 /** What a failed Get or Import from File says: what failed, then why. */
@@ -49,6 +50,7 @@ export function failureText(failure: GetMoreFailure): { title: string; body: str
       "not-a-theme": text.notATheme,
       "too-large": text.fileTooLarge,
       unreadable: text.unreadable,
+      "not-saved": text.notSaved,
     };
     return { title: text.importFailed(failure.fileName), body: body[failure.reason] };
   }
@@ -56,6 +58,7 @@ export function failureText(failure: GetMoreFailure): { title: string; body: str
     unavailable: text.checkConnection,
     "no-themes": text.noThemes,
     "too-large": text.extensionTooLarge,
+    "not-saved": text.notSaved,
   };
   return { title: text.getFailed(failure.extension.name), body: body[failure.reason] };
 }

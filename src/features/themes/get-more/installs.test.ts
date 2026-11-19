@@ -138,4 +138,26 @@ describe("Gets under way", () => {
     if (stale !== null) installs.dismissFailure(stale);
     expect(installs.getSnapshot().failure?.extension).toEqual(nord);
   });
+
+  it("reports themes it got but could not save on the device", async () => {
+    const store = createPreferencesStore({
+      ...memoryStorage(),
+      setItemSync: () => {
+        throw new Error("database or disk is full");
+      },
+    });
+    const installs = createInstalls(
+      catalogWith(async () => [mocha]),
+      store,
+    );
+
+    installs.get(catppuccin);
+    await vi.waitFor(() => expect(installs.getSnapshot().installing.size).toBe(0));
+
+    expect(installs.getSnapshot().failure).toEqual({
+      kind: "get",
+      extension: catppuccin,
+      reason: "not-saved",
+    });
+  });
 });

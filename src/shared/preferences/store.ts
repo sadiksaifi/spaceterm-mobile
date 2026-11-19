@@ -16,20 +16,26 @@ export type KeyValueStorage = {
 /** Terminal text size, in points. */
 export const FONT_SIZE = { min: 9, max: 18, initial: 13 } as const;
 
+/**
+ * Whether a change was saved on the device. One that was not, such as on a full disk, shows
+ * nowhere: a control set to it stays where it was.
+ */
+export type Saved = "saved" | "not-saved";
+
 export type PreferencesStore = {
   getSnapshot: () => Preferences;
   subscribe: (listener: () => void) => () => void;
-  setFontSize: (points: number) => void;
-  setPrivacy: (setting: PrivacySetting, on: boolean) => void;
-  setAppearance: (appearance: Appearance) => void;
+  setFontSize: (points: number) => Saved;
+  setPrivacy: (setting: PrivacySetting, on: boolean) => Saved;
+  setAppearance: (appearance: Appearance) => Saved;
   /** Makes a theme the chosen one for the appearance it is made for. */
-  chooseTheme: (themeId: string) => void;
+  chooseTheme: (themeId: string) => Saved;
   /** Adds themes after the others. One with the id of a theme already here replaces it in place. */
-  addThemes: (themes: readonly TerminalTheme[]) => void;
+  addThemes: (themes: readonly TerminalTheme[]) => Saved;
   /** Removes an added theme. A removed chosen theme gives way to SpaceTerm's own. */
-  removeTheme: (themeId: string) => void;
+  removeTheme: (themeId: string) => Saved;
   /** Removes every theme a Zed extension added. */
-  removeExtension: (extensionId: string) => void;
+  removeExtension: (extensionId: string) => Saved;
 };
 
 /** What the store keeps under its key: the built-in themes are not kept. */
@@ -57,18 +63,23 @@ export function createPreferencesStore(storage: KeyValueStorage): PreferencesSto
   let snapshot = toSnapshot(kept);
   const listeners = new Set<() => void>();
 
-  /** Saves first, so a change that could not be saved throws to its caller and shows nowhere. */
-  function change(next: Kept) {
+  /** Saves first, so a change that could not be saved shows nowhere. */
+  function change(next: Kept): Saved {
     const candidate = withChosenThemes(next);
-    storage.setItemSync(KEY, JSON.stringify(candidate));
+    try {
+      storage.setItemSync(KEY, JSON.stringify(candidate));
+    } catch {
+      return "not-saved";
+    }
     kept = candidate;
     snapshot = toSnapshot(kept);
     for (const listener of listeners) listener();
+    return "saved";
   }
 
-  const withoutThemes = (removed: (theme: TerminalTheme) => boolean) => {
+  const withoutThemes = (removed: (theme: TerminalTheme) => boolean): Saved => {
     const added = kept.added.filter((theme) => !removed(theme));
-    if (added.length !== kept.added.length) change({ ...kept, added });
+    return added.length === kept.added.length ? "saved" : change({ ...kept, added });
   };
 
   return {
@@ -79,26 +90,28 @@ export function createPreferencesStore(storage: KeyValueStorage): PreferencesSto
     },
     setFontSize: (points) => {
       const fontSize = Math.min(FONT_SIZE.max, Math.max(FONT_SIZE.min, Math.round(points)));
-      if (fontSize !== kept.fontSize) change({ ...kept, fontSize });
+      return fontSize === kept.fontSize ? "saved" : change({ ...kept, fontSize });
     },
     setPrivacy: (setting, on) => {
-      if (kept.privacy[setting] !== on)
-        change({ ...kept, privacy: { ...kept.privacy, [setting]: on } });
+      return kept.privacy[setting] === on
+        ? "saved"
+        : change({ ...kept, privacy: { ...kept.privacy, [setting]: on } });
     },
     setAppearance: (appearance) => {
-      if (appearance !== kept.appearance) change({ ...kept, appearance });
+      return appearance === kept.appearance ? "saved" : change({ ...kept, appearance });
     },
     chooseTheme: (themeId) => {
       const theme = snapshot.themes.find((candidate) => candidate.id === themeId);
-      if (theme === undefined || kept.chosen[theme.appearance] === themeId) return;
-      change({ ...kept, chosen: { ...kept.chosen, [theme.appearance]: themeId } });
+      // A theme that is not here cannot be chosen, so there is nothing to save.
+      if (theme === undefined || kept.chosen[theme.appearance] === themeId) return "saved";
+      return change({ ...kept, chosen: { ...kept.chosen, [theme.appearance]: themeId } });
     },
     addThemes: (themes) => {
       const incoming = new Map(themes.map((theme) => [theme.id, theme]));
       const replaced = kept.added.map((theme) => incoming.get(theme.id) ?? theme);
       const known = new Set(kept.added.map((theme) => theme.id));
       const fresh = [...incoming.values()].filter((theme) => !known.has(theme.id));
-      change({ ...kept, added: [...replaced, ...fresh] });
+      return change({ ...kept, added: [...replaced, ...fresh] });
     },
     removeTheme: (themeId) => withoutThemes((theme) => theme.id === themeId),
     removeExtension: (extensionId) =>

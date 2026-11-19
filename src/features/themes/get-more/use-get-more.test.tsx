@@ -59,8 +59,9 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 400));
 async function render(
   catalog: ThemeCatalog,
   pickFile: () => Promise<PickedFile | null> = async () => null,
+  storage: KeyValueStorage = memoryStorage(),
 ) {
-  const store = createPreferencesStore(memoryStorage());
+  const store = createPreferencesStore(storage);
   const installs = createInstalls(catalog, store);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <PreferencesProvider store={store}>{children}</PreferencesProvider>
@@ -268,4 +269,69 @@ it("refuses a file with more themes than one import adds", async () => {
     reason: "too-large",
   });
   expect(store.getSnapshot().themes).toHaveLength(2);
+});
+
+it("starts one import at a time, and a new import answers the last one's failure", async () => {
+  const paper = JSON.stringify({
+    name: "Paper",
+    themes: [{ name: "Paper Light", appearance: "light", style: {} }],
+  });
+  const picked = deferred<PickedFile | null>();
+  const pickFile = jest
+    .fn<() => Promise<PickedFile | null>>()
+    .mockResolvedValueOnce({ kind: "read", name: "notes.json", text: "{}" })
+    .mockReturnValueOnce(picked.promise);
+  const { result } = await render(
+    { search: async () => [], themes: jest.fn<ThemeCatalog["themes"]>() },
+    pickFile,
+  );
+
+  await act(async () => {
+    result.current.importFile();
+    await settle();
+  });
+  expect(result.current.failure).toMatchObject({ kind: "import", reason: "not-a-theme" });
+
+  // A second tap while the picker is open opens no second picker.
+  await act(async () => {
+    result.current.importFile();
+    result.current.importFile();
+    await settle();
+  });
+  expect(pickFile).toHaveBeenCalledTimes(2);
+  expect(result.current.failure).toBeNull();
+
+  await act(async () => {
+    picked.resolve({ kind: "read", name: "paper.json", text: paper });
+    await settle();
+  });
+  expect(result.current.failure).toBeNull();
+});
+
+it("reports a file whose themes could not be saved on the device", async () => {
+  const theme = JSON.stringify({
+    name: "Paper",
+    themes: [{ name: "Paper Light", appearance: "light", style: {} }],
+  });
+  const { result } = await render(
+    { search: async () => [], themes: jest.fn<ThemeCatalog["themes"]>() },
+    async () => ({ kind: "read", name: "paper.json", text: theme }),
+    {
+      ...memoryStorage(),
+      setItemSync: () => {
+        throw new Error("database or disk is full");
+      },
+    },
+  );
+
+  await act(async () => {
+    result.current.importFile();
+    await settle();
+  });
+
+  expect(result.current.failure).toEqual({
+    kind: "import",
+    fileName: "paper.json",
+    reason: "not-saved",
+  });
 });

@@ -163,6 +163,32 @@ describe("the mock client", () => {
     vi.useRealTimers();
   });
 
+  it("lets Disconnect end a Connect still under way, so its late answer changes nothing", async () => {
+    vi.useFakeTimers();
+    const client = createMockClient([{ ...mac, connection: "not-connected" }], {
+      latency: 100,
+      refuse: true,
+    });
+    const connection = () => client.getSnapshot().machines[0]?.connection;
+
+    // The first try will be refused, the second reached. Disconnect ends the first.
+    client.connect("mac");
+    client.disconnect("mac");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(connection()).toBe("not-connected");
+
+    // A try started after Disconnect waits for its own answer, not an earlier one's.
+    client.connect("mac");
+    await vi.advanceTimersByTimeAsync(50);
+    client.disconnect("mac");
+    client.connect("mac");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(connection()).toBe("reconnecting");
+    await vi.advanceTimersByTimeAsync(50);
+    expect(connection()).toBe("still-not-connected");
+    vi.useRealTimers();
+  });
+
   it("is still not connected when Connect fails, and Connect tries again", async () => {
     const client = createMockClient([{ ...mac, connection: "not-connected" }], { refuse: true });
     const connection = () => client.getSnapshot().machines[0]?.connection;

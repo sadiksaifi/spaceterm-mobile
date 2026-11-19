@@ -37,6 +37,8 @@ export function createMockClient(
     ...machine,
     directories: withChildEntries(machine.directories),
     workspaces: machine.workspaces && [...machine.workspaces],
+    /** Counts Connect tries and Disconnects, so a late answer can tell it is no longer current. */
+    connectTry: 0,
   }));
   type State = (typeof machines)[number];
 
@@ -175,6 +177,7 @@ export function createMockClient(
     disconnect: (machineId) => {
       const target = machine(machineId);
       if (target === undefined || target.connection === "not-connected") return;
+      target.connectTry++;
       target.connection = "not-connected";
       changed();
     },
@@ -185,10 +188,11 @@ export function createMockClient(
       if (target.connection === "reconnecting") return;
       target.connection = "reconnecting";
       changed();
+      const connectTry = ++target.connectTry;
       const reached = !refuses("connect");
       await answer(undefined, () => {
-        // The Machine may have been unpaired while the try ran.
-        if (!machines.includes(target)) return;
+        // Disconnect, or Unpair, may have ended the try while it ran.
+        if (!machines.includes(target) || target.connectTry !== connectTry) return;
         target.connection = reached ? "connected" : "still-not-connected";
         changed();
       });

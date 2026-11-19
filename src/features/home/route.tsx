@@ -9,8 +9,8 @@ import HomeScreen from "./screen";
 const DESKTOP_PROJECT_URL = "https://github.com/sadiksaifi/spaceterm";
 
 /**
- * The screens these controls open do not exist yet: the Tabs of a Workspace, Add Machine,
- * Settings and Machine Settings. Each control works and stays on Home until its screen is built.
+ * The screens these controls open do not exist yet: the Tabs of a Workspace, Add Machine and
+ * Machine Settings. Each control works and stays on Home until its screen is built.
  */
 const stayOnHome = () => {};
 
@@ -35,7 +35,7 @@ export default function HomeRoute() {
       onAddMachine={stayOnHome}
       onScanQrCode={stayOnHome}
       onPasteInvitationLink={stayOnHome}
-      onOpenSettings={stayOnHome}
+      onOpenSettings={() => router.navigate("/settings")}
       onMachineSettings={stayOnHome}
       onTryAgain={stayOnHome}
       // The page opens inside the app. If it cannot open, the person stays on Home.

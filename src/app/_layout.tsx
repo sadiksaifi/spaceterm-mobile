@@ -14,7 +14,8 @@ export default function RootLayout() {
     <MachinesProvider>
       <PreferencesProvider>
         <ThemeProvider value={useNavigationTheme()}>
-          <Stack>
+          {/* iOS shows Back as the chevron alone, as the design draws it. */}
+          <Stack screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
             <Stack.Screen
               name="new-workspace"
               options={{

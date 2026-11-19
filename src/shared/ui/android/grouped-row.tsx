@@ -1,5 +1,11 @@
 import { ListItem, Shape, Surface, Text, useMaterialColors } from "@expo/ui/jetpack-compose";
-import { alpha, fillMaxWidth, padding, toggleable } from "@expo/ui/jetpack-compose/modifiers";
+import {
+  alpha,
+  clickable,
+  fillMaxWidth,
+  padding,
+  toggleable,
+} from "@expo/ui/jetpack-compose/modifiers";
 import type { ColorValue } from "react-native";
 import type { ReactNode } from "react";
 
@@ -46,8 +52,6 @@ export function GroupedRow({
       color={color ?? colors.groupedRow}
       contentColor={colors.text}
       shape={Shape.RoundedCorner({ cornerRadii: groupedCorners(first, last) })}
-      enabled={enabled && onClick !== undefined}
-      onClick={onClick}
       modifiers={[fillMaxWidth()]}
     >
       <ListItem
@@ -60,9 +64,11 @@ export function GroupedRow({
           supportingContentColor: colors.secondaryText,
           leadingContentColor: colors.secondaryText,
         }}
+        // The list item merges its text into one node for screen readers, so the tap goes on that
+        // node, which then reads as one labeled control. Inside the card, the ripple keeps its corners.
         modifiers={[
           ...(enabled ? [] : [alpha(DISABLED)]),
-          // Inside the card, so its ripple keeps the card's corners.
+          ...(onClick !== undefined && enabled ? [clickable(onClick)] : []),
           ...(toggle === undefined
             ? []
             : [toggleable(toggle.on, toggle.onToggle, { role: "switch", enabled })]),

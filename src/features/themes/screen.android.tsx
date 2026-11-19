@@ -392,15 +392,7 @@ function ThemeRow({
     <Surface
       color={held ? material.surfaceContainerHighest : colors.groupedRow}
       contentColor={colors.text}
-      modifiers={[
-        fillMaxWidth(),
-        clip(Shapes.RoundedCorner(groupedCorners(first, false))),
-        combinedClickable({
-          onClick: onChoose,
-          onLongClick: canRemove ? () => setHeld(true) : undefined,
-        }),
-        radioSelected(chosen),
-      ]}
+      modifiers={[fillMaxWidth(), clip(Shapes.RoundedCorner(groupedCorners(first, false)))]}
     >
       <ListItem
         colors={{
@@ -408,6 +400,15 @@ function ThemeRow({
           contentColor: colors.text,
           supportingContentColor: colors.secondaryText,
         }}
+        // On the list item, which merges the name and source into one node for screen readers, so
+        // the radio reads with its label. The remove button stays a control of its own.
+        modifiers={[
+          combinedClickable({
+            onClick: onChoose,
+            onLongClick: canRemove ? () => setHeld(true) : undefined,
+          }),
+          radioSelected(chosen),
+        ]}
       >
         <ListItem.LeadingContent>
           <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: LEADING_GAP }}>

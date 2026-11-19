@@ -9,7 +9,8 @@ export type CatalogExtension = {
   name: string;
   /** Its authors' names, without their email addresses. */
   author: string;
-  downloads: number;
+  /** Null when Zed gives no count. */
+  downloads: number | null;
 };
 
 export type ThemeCatalog = {
@@ -82,7 +83,9 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
         if (!isRecord(body) || !Array.isArray(body.data)) return "unavailable";
         // Both screens key their rows by id, and a repeated key breaks the list.
         const byId = new Map(body.data.flatMap(toExtension).map((item) => [item.id, item]));
-        return [...byId.values()].sort((first, second) => second.downloads - first.downloads);
+        return [...byId.values()].sort(
+          (first, second) => (second.downloads ?? -1) - (first.downloads ?? -1),
+        );
       } catch {
         return "unavailable";
       } finally {
@@ -179,7 +182,10 @@ function toExtension(item: unknown): CatalogExtension[] {
         .map((author) => author.replace(EMAIL, "").trim())
         .filter((author) => author !== "")
         .join(", "),
-      downloads: typeof item.download_count === "number" ? item.download_count : 0,
+      downloads:
+        Number.isSafeInteger(item.download_count) && Number(item.download_count) >= 0
+          ? Number(item.download_count)
+          : null,
     },
   ];
 }

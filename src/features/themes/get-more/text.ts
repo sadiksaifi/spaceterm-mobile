@@ -16,10 +16,10 @@ export const text = {
   installing: (name: string) => `Installing ${name}`,
   remove: "Remove",
   removeLabel: (name: string) => `Remove ${name}`,
-  details: (author: string, downloads: number) =>
-    author === ""
-      ? `${downloadCount(downloads)} downloads`
-      : `${author} · ${downloadCount(downloads)} downloads`,
+  details: (author: string, downloads: number | null) =>
+    [author, downloads === null ? "" : `${downloadCount(downloads)} downloads`]
+      .filter((part) => part !== "")
+      .join(" · "),
   loading: "Loading",
   unavailableTitle: cased("Couldn’t Load Themes", "Couldn’t load themes"),
   checkConnection: "Check your internet connection.",

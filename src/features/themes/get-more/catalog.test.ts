@@ -125,6 +125,25 @@ describe("Zed's theme catalog", () => {
     expect(Array.isArray(result) && result.map((extension) => extension.id)).toEqual(["paper"]);
   });
 
+  it("keeps no download count Zed does not supply, and lists those extensions last", async () => {
+    const { fetch } = fakeFetch({
+      [LIST]: () =>
+        Response.json({
+          data: [
+            { id: "uncounted", name: "Uncounted", authors: [] },
+            { id: "paper", name: "Paper", authors: [], download_count: 0 },
+          ],
+        }),
+    });
+
+    const result = await createZedCatalog(fetch).search("");
+
+    expect(result).toEqual([
+      { id: "paper", name: "Paper", author: "", downloads: 0 },
+      { id: "uncounted", name: "Uncounted", author: "", downloads: null },
+    ]);
+  });
+
   it("asks for every theme extension when the search is empty", async () => {
     const { fetch, asked } = fakeFetch({ [LIST]: () => Response.json({ data: [] }) });
     await createZedCatalog(fetch).search("");

@@ -48,6 +48,11 @@ export default function SettingsScreen({
 }: SettingsProps) {
   const colors = useColors();
   const largeText = useLargeText();
+  const points = (
+    <Text modifiers={[secondary, monospacedDigit(), accessibilityHidden()]}>
+      {text.points(fontSize)}
+    </Text>
+  );
   return (
     <>
       <Stack.Screen.Title>{text.title}</Stack.Screen.Title>
@@ -84,11 +89,17 @@ export default function SettingsScreen({
             </NavigationRow>
             {/* The value sits beside the stepper, which draws no value of its own; the stepper reads it out. */}
             <HStack>
-              <Text>{text.fontSize}</Text>
+              {/* Large text puts the value under the label, so neither breaks mid-word. */}
+              {largeText ? (
+                <VStack alignment="leading" spacing={2}>
+                  <Text>{text.fontSize}</Text>
+                  {points}
+                </VStack>
+              ) : (
+                <Text>{text.fontSize}</Text>
+              )}
               <Spacer minLength={8} />
-              <Text modifiers={[secondary, monospacedDigit(), accessibilityHidden()]}>
-                {text.points(fontSize)}
-              </Text>
+              {!largeText && points}
               <Stepper
                 label={text.fontSize}
                 value={fontSize}

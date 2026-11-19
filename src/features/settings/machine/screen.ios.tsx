@@ -8,12 +8,14 @@ import {
   Section,
   Spacer,
   Text,
+  VStack,
 } from "@expo/ui/swift-ui";
 import { accessibilityLabel, disabled, listStyle } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
+import { useLargeText } from "@/shared/ui/large-text";
 
 import { machineStatus, restartBody, text } from "../text";
 import type ScreenContract from "./screen";
@@ -51,19 +53,12 @@ export default function MachinePageScreen({ machine, terminalSessions, page }: M
                   <Alert.Trigger>
                     <List modifiers={[listStyle("insetGrouped")]}>
                       <Section>
-                        <HStack>
-                          <Text>{text.status}</Text>
-                          <Spacer minLength={8} />
-                          {reconnecting && (
-                            <ProgressView modifiers={[accessibilityLabel(text.loading)]} />
-                          )}
-                          <Text modifiers={[secondary]}>{machineStatus(connection)}</Text>
-                        </HStack>
-                        <HStack>
-                          <Text>{text.connection}</Text>
-                          <Spacer minLength={8} />
-                          <Text modifiers={[secondary]}>{text.network}</Text>
-                        </HStack>
+                        <ValueRow
+                          label={text.status}
+                          value={machineStatus(connection)}
+                          busy={reconnecting}
+                        />
+                        <ValueRow label={text.connection} value={text.network} />
                       </Section>
                       <Section>
                         {connected ? (
@@ -121,3 +116,34 @@ export default function MachinePageScreen({ machine, terminalSessions, page }: M
 }
 
 MachinePageScreen satisfies typeof ScreenContract;
+
+/** A label and its value. Large text puts the value under the label, whole, as iOS Settings does. */
+function ValueRow({
+  label,
+  value,
+  busy = false,
+}: {
+  label: string;
+  value: string;
+  busy?: boolean;
+}) {
+  const largeText = useLargeText();
+  const shown = (
+    <HStack spacing={12}>
+      {busy && <ProgressView modifiers={[accessibilityLabel(text.loading)]} />}
+      <Text modifiers={[secondary]}>{value}</Text>
+    </HStack>
+  );
+  return largeText ? (
+    <VStack alignment="leading" spacing={2}>
+      <Text>{label}</Text>
+      {shown}
+    </VStack>
+  ) : (
+    <HStack>
+      <Text>{label}</Text>
+      <Spacer minLength={8} />
+      {shown}
+    </HStack>
+  );
+}

@@ -38,6 +38,8 @@ import type { GetMoreFailure, GetMorePage } from "./use-get-more";
 
 /** The Get, spinner and Remove slot, as wide as the design draws it, so rows line up. */
 const CONTROL = { width: 64, height: 32 } as const;
+/** How long an iOS alert takes to close, after which another can open. */
+const ALERT_CLOSE_MS = 400;
 /** The empty, loading and error states sit lower in the space below the Import row. */
 const STATE_PADDING = 48;
 
@@ -48,7 +50,10 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
   // it closes, so closing it answers only that one; a failure that arrives meanwhile opens next.
   const [failure, setFailure] = useState<GetMoreFailure | null>(null);
   const waiting = page.removing === null ? page.failure : null;
-  if (failure === null && waiting !== null) setFailure(waiting);
+  // The native alert opens again only once it has seen `isPresented` turn false and finished
+  // closing, so the next failure waits that long.
+  const [closing, setClosing] = useState(false);
+  if (failure === null && !closing && waiting !== null) setFailure(waiting);
   return (
     <>
       <Stack.Screen.Title>{text.title}</Stack.Screen.Title>
@@ -75,6 +80,8 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
             if (shown || failure === null) return;
             page.dismissFailure(failure);
             setFailure(null);
+            setClosing(true);
+            setTimeout(() => setClosing(false), ALERT_CLOSE_MS);
           }}
         >
           <Alert.Trigger>

@@ -117,7 +117,7 @@ export function createPreferencesStore(storage: KeyValueStorage): PreferencesSto
       const replaced = kept.added.map((theme) => incoming.get(theme.id) ?? theme);
       const known = new Set(kept.added.map((theme) => theme.id));
       const fresh = [...incoming.values()].filter((theme) => !known.has(theme.id));
-      return change({ ...kept, added: [...replaced, ...fresh] });
+      return change({ ...kept, added: oncePerId([...replaced, ...fresh]) });
     },
     removeTheme: (themeId) => withoutThemes((theme) => theme.id === themeId),
     removeExtension: (extensionId) =>

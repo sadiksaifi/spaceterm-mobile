@@ -138,6 +138,14 @@ describe("the preferences store", () => {
     expect(themes).toEqual([builtInThemes.light, builtInThemes.dark, oneLight]);
   });
 
+  it("adds no theme under the id of SpaceTerm's own", () => {
+    const store = createPreferencesStore(memoryStorage());
+
+    store.addThemes([{ ...oneDark, id: builtInThemes.light.id }, oneLight]);
+
+    expect(store.getSnapshot().themes).toEqual([builtInThemes.light, builtInThemes.dark, oneLight]);
+  });
+
   it("keeps the text size between 9 and 18 pt", () => {
     const store = createPreferencesStore(memoryStorage());
     store.setFontSize(40);

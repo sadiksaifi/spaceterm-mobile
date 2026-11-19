@@ -24,7 +24,7 @@ import {
   padding,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
@@ -34,7 +34,7 @@ import type { CatalogExtension } from "./catalog";
 import type ScreenContract from "./screen";
 import type { GetMoreProps } from "./screen";
 import { failureText, text } from "./text";
-import type { GetMorePage } from "./use-get-more";
+import type { GetMoreFailure, GetMorePage } from "./use-get-more";
 
 /** The Get, spinner and Remove slot, as wide as the design draws it, so rows line up. */
 const CONTROL = { width: 64, height: 32 } as const;
@@ -44,8 +44,11 @@ const STATE_PADDING = 48;
 export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
   const colors = useColors();
   const filtering = page.query.trim() !== "";
-  // A failure waits for an open alert to close.
-  const failure = page.removing === null ? page.failure : null;
+  // A failure waits for an open alert to close. The alert keeps the failure it opened with until
+  // it closes, so closing it answers only that one; a failure that arrives meanwhile opens next.
+  const [failure, setFailure] = useState<GetMoreFailure | null>(null);
+  const waiting = page.removing === null ? page.failure : null;
+  if (failure === null && waiting !== null) setFailure(waiting);
   return (
     <>
       <Stack.Screen.Title>{text.title}</Stack.Screen.Title>
@@ -68,9 +71,11 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
           title={failure === null ? "" : failureText(failure).title}
           isPresented={failure !== null}
           // The alert reports closing after Try Again too; by then its failure is answered.
-          onIsPresentedChange={(shown) =>
-            !shown && failure !== null && page.dismissFailure(failure)
-          }
+          onIsPresentedChange={(shown) => {
+            if (shown || failure === null) return;
+            page.dismissFailure(failure);
+            setFailure(null);
+          }}
         >
           <Alert.Trigger>
             <Alert

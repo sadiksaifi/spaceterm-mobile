@@ -1,5 +1,7 @@
+import { StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
+
 import { text } from "../../../text";
-import { Centered, StateBody, StateIcon, StateTitle } from "./layout";
+import { Centered } from "./layout";
 
 export function NoWorkspaces() {
   return (

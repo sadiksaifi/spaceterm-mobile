@@ -38,7 +38,7 @@
                 "message": "Material Symbols are Android vector drawables."
               },
               {
-                "regex": "(^|/)modules/(search-bar|compose-modifiers)(/|$)",
+                "regex": "(^|/)modules/(search-bar|compose-modifiers|swipe-row)(/|$)",
                 "message": "These local modules are built for Android only."
               }
             ]
@@ -86,7 +86,7 @@
                 "message": "Material Symbols are Android vector drawables."
               },
               {
-                "regex": "(^|/)modules/(search-bar|compose-modifiers)(/|$)",
+                "regex": "(^|/)modules/(search-bar|compose-modifiers|swipe-row)(/|$)",
                 "message": "These local modules are built for Android only."
               }
             ]

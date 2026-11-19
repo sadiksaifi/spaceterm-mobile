@@ -1,13 +1,15 @@
 import { LoadingIndicator } from "@expo/ui/jetpack-compose";
-import { semantics } from "@expo/ui/jetpack-compose/modifiers";
+
+import { Centered, StateBody } from "@/shared/ui/android/state";
 
 import { text } from "../../../text";
-import { Centered } from "./layout";
 
 export function Loading({ bottom }: { bottom: number }) {
   return (
     <Centered bottom={bottom}>
-      <LoadingIndicator modifiers={[semantics({ contentDescription: text.loading })]} />
+      {/* The word says what the shape means, as on iOS; screen readers read it too. */}
+      <LoadingIndicator />
+      <StateBody>{text.loading}</StateBody>
     </Centered>
   );
 }

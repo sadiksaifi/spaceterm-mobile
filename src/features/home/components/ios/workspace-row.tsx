@@ -1,34 +1,61 @@
-import { Button, HStack, Image, Spacer, Text, VStack } from "@expo/ui/swift-ui";
+import {
+  Button,
+  ContextMenu,
+  Divider,
+  HStack,
+  Image,
+  ProgressView,
+  Spacer,
+  SwipeActions,
+  Text,
+  VStack,
+  ZStack,
+} from "@expo/ui/swift-ui";
 import {
   accessibilityHidden,
+  accessibilityLabel,
+  controlSize,
   disabled,
   font,
   foregroundStyle,
+  frame,
+  labelStyle,
   lineLimit,
+  opacity,
+  tint,
 } from "@expo/ui/swift-ui/modifiers";
-import type { ReactNode } from "react";
+import { Color } from "expo-router";
+import type { ComponentProps, ReactNode } from "react";
+import type { ColorValue } from "react-native";
 
+import { connectionStateText } from "@/shared/machines/text";
 import { useColors } from "@/shared/theme/colors";
+import { secondary } from "@/shared/ui/ios/modifiers";
+import { useLargeText } from "@/shared/ui/large-text";
 
-import type { HomeActions } from "../../actions";
-import { useLargeText } from "../../large-text";
+import type { Control, HomeActions, RowCommands } from "../../actions";
 import type { WorkspaceRow } from "../../model";
-import { rowStateText } from "../../text";
-import { secondary } from "./modifiers";
+import { text } from "../../text";
 
 const detailFont = font({ textStyle: "subheadline" });
+/** How far a row's text fades while its command waits for the Machine. */
+const UNDERWAY_OPACITY = 0.45;
 
 export function WorkspaceRowView({
   row,
+  commands,
   onOpen,
 }: {
   row: WorkspaceRow;
+  commands: RowCommands;
   onOpen: HomeActions["onOpenWorkspace"];
 }) {
   const colors = useColors();
   const largeText = useLargeText();
   const { workspace, connection } = row;
   const connected = connection === "connected";
+  const { underway } = commands;
+  const faded = underway === null ? [] : [opacity(UNDERWAY_OPACITY)];
   // Side by side, each part keeps to one line. Stacked, each part wraps to show all of it.
   const oneLine = largeText ? [] : [lineLimit(1)];
 
@@ -46,7 +73,7 @@ export function WorkspaceRowView({
   const machine = <Text modifiers={[detailFont, secondary, ...oneLine]}>{row.machineName}</Text>;
   const directory = (
     <Text modifiers={[detailFont, secondary, ...oneLine]}>
-      {connected ? workspace.directory : rowStateText(connection)}
+      {connected ? workspace.directory : connectionStateText(connection)}
     </Text>
   );
   const branch = connected && workspace.branch !== undefined && (
@@ -59,34 +86,109 @@ export function WorkspaceRowView({
     </HStack>
   );
 
-  return (
-    <Button onPress={() => onOpen?.(row.machineId, workspace.id)} modifiers={[disabled(!onOpen)]}>
+  // A row whose command waits for the Machine takes no input until the answer.
+  const button = (
+    <Button
+      onPress={() => onOpen?.(row.machineId, workspace.id)}
+      modifiers={[disabled(!onOpen || underway !== null)]}
+    >
       {/* A Button in a List tints its label. The row reads as text, so it starts from the text color. */}
       <HStack spacing={10} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
         {largeText ? (
-          <VStack alignment="leading" spacing={2}>
+          <VStack alignment="leading" spacing={2} modifiers={faded}>
             {name}
             {machine}
             {directory}
             {branch}
           </VStack>
         ) : (
-          <VStack alignment="leading" spacing={2}>
+          <VStack alignment="leading" spacing={2} modifiers={faded}>
             <Line start={name} end={machine} alignment="firstTextBaseline" />
             <Line start={directory} end={branch} />
           </VStack>
         )}
         {largeText && <Spacer />}
-        <Image
-          systemName="chevron.forward"
-          modifiers={[
-            font({ textStyle: "footnote", weight: "semibold" }),
-            foregroundStyle({ type: "hierarchical", style: "tertiary" }),
-            accessibilityHidden(),
-          ]}
-        />
+        {/*
+          While a command waits for the Machine, the system spinner takes the chevron's place. The
+          hidden chevron keeps the slot's width, so the text beside it does not move.
+        */}
+        <ZStack>
+          <Image
+            systemName="chevron.forward"
+            modifiers={[
+              font({ textStyle: "footnote", weight: "semibold" }),
+              foregroundStyle({ type: "hierarchical", style: "tertiary" }),
+              accessibilityHidden(),
+              ...(underway === null ? [] : [opacity(0)]),
+            ]}
+          />
+          {underway !== null && (
+            <ProgressView
+              modifiers={[
+                controlSize("small"),
+                frame({ width: 0 }),
+                accessibilityLabel(text.underway(underway)),
+              ]}
+            />
+          )}
+        </ZStack>
       </HStack>
     </Button>
+  );
+
+  if (underway !== null) return button;
+
+  // Touch and hold dims the screen and shows the menu beside the lit row.
+  const withMenu = (
+    <ContextMenu>
+      <ContextMenu.Items>
+        {menuItem(text.newTab, "plus.square.on.square", commands.newTab)}
+        {menuItem(text.renameWorkspace, "pencil", commands.rename)}
+        <Divider />
+        {menuItem(text.killWorkspace, "xmark", commands.kill, true)}
+      </ContextMenu.Items>
+      <ContextMenu.Trigger>{button}</ContextMenu.Trigger>
+    </ContextMenu>
+  );
+  if (!commands.swipes) return withMenu;
+
+  // The trailing swipe shows two circles with no words. The first, Kill Workspace, sits at the
+  // edge and runs on a full swipe; it asks first, so it is tinted red rather than destructive,
+  // which would take the row away before the answer.
+  return (
+    <SwipeActions>
+      {withMenu}
+      <SwipeActions.Actions edge="trailing">
+        {swipeButton(text.killWorkspace, "xmark", commands.kill, Color.ios.systemRed)}
+        {swipeButton(text.renameWorkspace, "pencil", commands.rename)}
+      </SwipeActions.Actions>
+    </SwipeActions>
+  );
+}
+
+type SymbolName = NonNullable<ComponentProps<typeof Button>["systemImage"]>;
+
+function menuItem(label: string, symbol: SymbolName, { onPress }: Control, destructive = false) {
+  return (
+    <Button
+      label={label}
+      systemImage={symbol}
+      role={destructive ? "destructive" : undefined}
+      onPress={onPress}
+      modifiers={[disabled(!onPress)]}
+    />
+  );
+}
+
+/** A swipe action, in `color`, or in the gray the system gives an action without one. */
+function swipeButton(label: string, symbol: SymbolName, { onPress }: Control, color?: ColorValue) {
+  return (
+    <Button
+      label={label}
+      systemImage={symbol}
+      onPress={onPress}
+      modifiers={[labelStyle("iconOnly"), ...(color === undefined ? [] : [tint(color)])]}
+    />
   );
 }
 

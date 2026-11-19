@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { rowStateText, unreachableText } from "./text";
+import { killBody, text, unreachableText } from "./text";
 
 // Vitest runs without EXPO_OS, so these are the sentence-case words Android shows.
 describe("unreachableText", () => {
@@ -33,11 +33,12 @@ describe("unreachableText", () => {
   });
 });
 
-describe("rowStateText", () => {
-  it("states why a row is dimmed", () => {
-    expect(rowStateText("reconnecting")).toBe("Reconnecting…");
-    expect(rowStateText("still-not-connected")).toBe("Still not connected");
-    expect(rowStateText("not-connected")).toBe("Not connected");
+describe("Kill Workspace", () => {
+  it("names the Workspace and counts the Terminal Sessions that end", () => {
+    expect(text.killTitle("spaceterm-mobile")).toBe("Kill spaceterm-mobile?");
+    expect(killBody(5)).toBe("This ends its 5 Terminal Sessions.");
+    expect(killBody(1)).toBe("This ends its 1 Terminal Session.");
+    expect(killBody(0)).toBeNull();
   });
 });
 
@@ -53,6 +54,6 @@ describe("on iOS", () => {
     const ios = await import("./text");
     expect(ios.text.more).toBe("More");
     expect(ios.unreachableText("not-connected", "Mac mini").title).toBe("Machine Not Connected");
-    expect(ios.rowStateText("still-not-connected")).toBe("Still Not Connected");
+    expect(ios.text.killTitle("spaceterm-mobile")).toBe("Kill “spaceterm-mobile”?");
   });
 });

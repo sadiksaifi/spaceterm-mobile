@@ -1,26 +1,35 @@
 import { Box, Text } from "@expo/ui/jetpack-compose";
 import { fillMaxSize, fillMaxWidth, imePadding, padding } from "@expo/ui/jetpack-compose/modifiers";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar } from "@/modules/search-bar";
+import type { MachinesSnapshot } from "@/shared/machines/model";
 
 import type { HomeActions, HomeControls } from "../../actions";
-import { homeView, type HomeSnapshot } from "../../model";
+import { homeView } from "../../model";
+import type { RowAlerts } from "../../row-alerts";
 import { text } from "../../text";
 import { HomeContent } from "./home-content";
+import { EMPTY_BOTTOM_IN_SEARCH } from "./states/empty-state";
 import { MoreMenu } from "./more-menu";
-import { EMPTY_BOTTOM_IN_SEARCH } from "./states/layout";
 
 /** The search pill in the header's place. It opens a full-screen search of the Workspaces. */
 export function HomeSearchBar({
   snapshot,
   actions,
   controls,
+  alerts,
+  onSearchingChange,
+  overResults,
 }: {
-  snapshot: HomeSnapshot;
+  snapshot: MachinesSnapshot;
   actions: HomeActions;
   controls: HomeControls;
+  alerts: RowAlerts;
+  onSearchingChange: (searching: boolean) => void;
+  /** What shows over the results while search is open, such as the snackbar. */
+  overResults: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const insets = useSafeAreaInsets();
@@ -28,6 +37,7 @@ export function HomeSearchBar({
   return (
     <SearchBar
       onQueryChange={setQuery}
+      onExpandedChange={onSearchingChange}
       backLabel={text.back}
       clearLabel={text.clearText}
       modifiers={[fillMaxWidth(), padding(16, insets.top + 4, 16, 0)]}
@@ -44,9 +54,11 @@ export function HomeSearchBar({
           <HomeContent
             view={homeView(snapshot, query)}
             actions={actions}
+            alerts={alerts}
             bottomPadding={insets.bottom + 16}
             emptyBottom={EMPTY_BOTTOM_IN_SEARCH}
           />
+          {overResults}
         </Box>
       </SearchBar.Results>
     </SearchBar>

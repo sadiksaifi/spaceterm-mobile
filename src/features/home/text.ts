@@ -1,8 +1,7 @@
-import type { UnreachableState } from "./model";
+import type { UnreachableState } from "@/shared/machines/model";
+import { cased } from "@/shared/text";
 
-/** Our words are the same on both platforms; only capitalization follows the platform. */
-const cased = (titleCase: string, sentenceCase: string) =>
-  process.env.EXPO_OS === "ios" ? titleCase : sentenceCase;
+import type { RowCommand } from "./actions";
 
 export const text = {
   title: "Workspaces",
@@ -17,6 +16,8 @@ export const text = {
   back: "Back",
   clearText: "Clear text",
   loading: "Loading",
+  /** What screen readers say for the spinner on a row whose command waits for its Machine. */
+  underway: (command: RowCommand) => (command === "rename" ? "Renaming" : "Killing"),
 
   noMachines: "No Machines",
   /** The sentence around the command, which is set in a monospaced font where the platform allows. */
@@ -33,7 +34,29 @@ export const text = {
 
   noResultsTitle: (query: string) => cased(`No Results for “${query}”`, `No results for ${query}`),
   noResultsBody: "Check the spelling or try a new search.",
+
+  newTab: "New Tab",
+  renameWorkspace: "Rename Workspace",
+  killWorkspace: "Kill Workspace",
+  cancel: "Cancel",
+  rename: "Rename",
+  /** The label of Rename Workspace's field. */
+  name: "Name",
+  /** iOS sets a name in an alert title in quotation marks; Android does not. */
+  killTitle: (workspace: string) => cased(`Kill “${workspace}”?`, `Kill ${workspace}?`),
+  /** The failure a refused command shows: an alert on iOS, a snackbar on Android. */
+  failedTitle: (command: "rename" | "kill", workspace: string) =>
+    command === "rename"
+      ? cased(`Couldn’t Rename “${workspace}”`, `Couldn’t rename ${workspace}`)
+      : cased(`Couldn’t Kill “${workspace}”`, `Couldn’t kill ${workspace}`),
 };
+
+/** The sentence under Kill Workspace's title: what is lost. `null` when nothing is running. */
+export function killBody(terminalSessions: number): string | null {
+  if (terminalSessions === 0) return null;
+  const noun = terminalSessions === 1 ? "Terminal Session" : "Terminal Sessions";
+  return `This ends its ${terminalSessions} ${noun}.`;
+}
 
 /** The title and sentence for a screen with nothing to list. `machine` is `null` for several Machines. */
 export function unreachableText(
@@ -61,17 +84,5 @@ export function unreachableText(
             title: cased("Machine Not Connected", "Machine not connected"),
             body: `${machine} is not connected.`,
           };
-  }
-}
-
-/** The state a dimmed Workspace row shows in place of its directory. */
-export function rowStateText(state: UnreachableState): string {
-  switch (state) {
-    case "reconnecting":
-      return "Reconnecting…";
-    case "still-not-connected":
-      return cased("Still Not Connected", "Still not connected");
-    case "not-connected":
-      return cased("Not Connected", "Not connected");
   }
 }

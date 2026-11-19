@@ -3,10 +3,16 @@ import { Button, FilledTonalButton, Text, TextButton } from "@expo/ui/jetpack-co
 import { padding } from "@expo/ui/jetpack-compose/modifiers";
 
 import { useColors } from "@/shared/theme/colors";
+import {
+  Centered,
+  StateActions,
+  StateBody,
+  StateTile,
+  StateTitle,
+} from "@/shared/ui/android/state";
 
 import type { HomeActions } from "../../../actions";
 import { text } from "../../../text";
-import { Centered, StateActions, StateBody, StateTile, StateTitle } from "./layout";
 
 /** The command in the sentence, as the mockup sets it: 13 sp monospace, medium, in the text color. */
 const COMMAND_SIZE = 13;

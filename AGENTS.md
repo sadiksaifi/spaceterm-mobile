@@ -31,6 +31,7 @@ modules/                            # Local Expo modules with native code
 
 - Target **iOS and Android only**. Prefer `@expo/ui` with SwiftUI/Jetpack Compose. Share logic, not forced visual uniformity.
 - Read `DESIGN.md` before building or changing a screen, a control, or user-facing text.
+- Match the mockups. Where a small detail differs from what the native control draws, keep the native one and tell the user why, so the mockup can be updated.
 
 ## Documentation
 

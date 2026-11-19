@@ -1,41 +1,10 @@
-export type ConnectionState =
-  | "connected"
-  | "reconnecting"
-  | "still-not-connected"
-  | "not-connected";
-
-export type UnreachableState = Exclude<ConnectionState, "connected">;
-
-export type Workspace = {
-  id: string;
-  name: string;
-  directory: string;
-  /** Absent when the directory is in no repository. */
-  branch?: string;
-};
-
-/** What a view needs to name a Machine and open its settings. */
-export type MachineRef = { id: string; name: string };
-
-/**
- * A paired Machine as Home sees it. A connected Machine has answered, so its list is known.
- * Any other Machine has the list kept from an earlier run, or `null` when none was kept.
- */
-export type Machine = MachineRef &
-  (
-    | { connection: "connected"; workspaces: readonly Workspace[] }
-    | {
-        connection: UnreachableState;
-        workspaces: readonly Workspace[] | null;
-      }
-  );
-
-export type HomeSnapshot = {
-  /** Paired Machines, in the order they were paired. */
-  machines: readonly Machine[];
-  /** True from app start until a Machine answers or every Machine's first tries fail. */
-  starting: boolean;
-};
+import type {
+  ConnectionState,
+  MachineRef,
+  MachinesSnapshot,
+  UnreachableState,
+  Workspace,
+} from "@/shared/machines/model";
 
 export type WorkspaceRow = {
   key: string;
@@ -69,7 +38,7 @@ const UNREACHABLE_PRIORITY: readonly UnreachableState[] = [
   "not-connected",
 ];
 
-export function homeView(snapshot: HomeSnapshot, query = ""): HomeView {
+export function homeView(snapshot: MachinesSnapshot, query = ""): HomeView {
   const { machines } = snapshot;
   if (machines.length === 0) return { kind: "no-machines" };
 

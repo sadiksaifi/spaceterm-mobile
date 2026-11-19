@@ -12,10 +12,6 @@ import type { ReactNode } from "react";
 import { heading } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 
-/** Empty states sit above center: clear of New Workspace on the page, just above the keyboard in search. */
-export const EMPTY_BOTTOM = 120;
-export const EMPTY_BOTTOM_IN_SEARCH = 40;
-
 /** Fills the space it has and centers its content, keeping `bottom` free below it. */
 export function Centered({ children, bottom }: { children: ReactNode; bottom: number }) {
   return (

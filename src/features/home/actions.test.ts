@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { homeControls, unreachableControls, type HomeActions } from "./actions";
-import type { HomeView } from "./model";
+import {
+  homeControls,
+  renameOutcome,
+  rowCommands,
+  unreachableControls,
+  type HomeActions,
+} from "./actions";
+import type { HomeView, WorkspaceRow } from "./model";
 
 const noop = () => {};
 const all: HomeActions = {
@@ -86,5 +92,84 @@ describe("unreachableControls", () => {
     const reconnecting: HomeView = { kind: "unreachable", state: "reconnecting", machine: one };
     expect(unreachableControls(failed, all).tryAgain).toEqual({ onPress: all.onTryAgain });
     expect(unreachableControls(reconnecting, all).tryAgain).toBeNull();
+  });
+});
+
+describe("rowCommands", () => {
+  const workspace = {
+    id: "w1",
+    name: "spaceterm-mobile",
+    directory: "~/Projects/spaceterm-mobile",
+    terminalSessions: 5,
+  };
+  const row = (connection: WorkspaceRow["connection"]): WorkspaceRow => ({
+    key: "m1/w1",
+    machineId: "m1",
+    machineName: "MacBook Pro",
+    workspace,
+    connection,
+  });
+  const commands = {
+    onNewTab: vi.fn(),
+    onRenameWorkspace: vi.fn(),
+    onKillWorkspace: vi.fn(),
+  };
+
+  it("offers New Tab, Rename Workspace and Kill Workspace on a connected row, which swipes", () => {
+    const result = rowCommands(row("connected"), commands);
+    expect(result.swipes).toBe(true);
+    result.newTab.onPress?.();
+    result.rename.onPress?.();
+    result.kill.onPress?.();
+    expect(commands.onNewTab).toHaveBeenCalledWith(row("connected"));
+    expect(commands.onRenameWorkspace).toHaveBeenCalledWith(row("connected"));
+    expect(commands.onKillWorkspace).toHaveBeenCalledWith(row("connected"));
+  });
+
+  it("does not swipe while Kill Workspace is unavailable", () => {
+    const { onKillWorkspace: _, ...withoutKill } = commands;
+    expect(rowCommands(row("connected"), withoutKill).swipes).toBe(false);
+  });
+
+  it("leaves every command unavailable on a row whose Machine is not connected, which does not swipe", () => {
+    for (const connection of ["reconnecting", "still-not-connected", "not-connected"] as const) {
+      expect(rowCommands(row(connection), commands)).toEqual({
+        swipes: false,
+        newTab: { onPress: undefined },
+        rename: { onPress: undefined },
+        kill: { onPress: undefined },
+        underway: null,
+      });
+    }
+  });
+
+  it("offers nothing on a row whose Rename or Kill is under way, which does not swipe", () => {
+    for (const underway of ["rename", "kill"] as const) {
+      expect(rowCommands(row("connected"), commands, underway)).toEqual({
+        swipes: false,
+        newTab: { onPress: undefined },
+        rename: { onPress: undefined },
+        kill: { onPress: undefined },
+        underway,
+      });
+    }
+  });
+});
+
+describe("renameOutcome", () => {
+  it("renames to the typed name without the spaces around it", () => {
+    expect(renameOutcome("spaceterm-mobile", "  mobile app ")).toEqual({
+      kind: "rename",
+      name: "mobile app",
+    });
+  });
+
+  it("is unavailable while the field is empty or holds only spaces", () => {
+    expect(renameOutcome("spaceterm-mobile", "")).toEqual({ kind: "unavailable" });
+    expect(renameOutcome("spaceterm-mobile", "   ")).toEqual({ kind: "unavailable" });
+  });
+
+  it("sends nothing when the name is unchanged", () => {
+    expect(renameOutcome("spaceterm-mobile", "spaceterm-mobile ")).toEqual({ kind: "unchanged" });
   });
 });

@@ -89,16 +89,14 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       const files = extractTarGz(bytes);
       if (files === null) return "no-themes";
       const decoder = new TextDecoder();
-      const themes = [...files]
-        .filter(([path]) => path.endsWith(".json"))
-        .flatMap(([, file]) =>
-          readZedThemes(decoder.decode(file), {
-            kind: "extension",
-            id: extension.id,
-            name: extension.name,
-          }),
-        );
-      if (themes.length > MAX_THEMES) return "too-large";
+      const origin = { kind: "extension", id: extension.id, name: extension.name } as const;
+      const themes: TerminalTheme[] = [];
+      for (const [path, file] of files) {
+        if (!path.endsWith(".json")) continue;
+        // The room left is shared by every file, so the extension's themes stop one past it.
+        themes.push(...readZedThemes(decoder.decode(file), origin, MAX_THEMES - themes.length));
+        if (themes.length > MAX_THEMES) return "too-large";
+      }
       return themes.length === 0 ? "no-themes" : themes;
     },
   };

@@ -25,9 +25,14 @@ const ANSI = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "whi
 /**
  * The Terminal Themes in a Zed theme file: its terminal colors, with the editor's colors and then
  * SpaceTerm's own palette standing in for any it leaves out. A file that is not a Zed theme
- * holds none.
+ * holds none. It stops one theme past `room`, so a caller can tell a file with more than that
+ * without building them all.
  */
-export function readZedThemes(file: string, origin: ZedThemeOrigin): TerminalTheme[] {
+export function readZedThemes(
+  file: string,
+  origin: ZedThemeOrigin,
+  room: number = MAX_THEMES,
+): TerminalTheme[] {
   const family = parseLenient(file);
   if (!isRecord(family) || !Array.isArray(family.themes)) return [];
   const familyName =
@@ -39,23 +44,24 @@ export function readZedThemes(file: string, origin: ZedThemeOrigin): TerminalThe
       : ({ kind: "file", name: familyName } as const);
   const idPrefix = origin.kind === "extension" ? origin.id : `file/${familyName}`;
 
-  return family.themes.flatMap((theme): TerminalTheme[] => {
-    if (!isRecord(theme)) return [];
+  const themes: TerminalTheme[] = [];
+  for (const theme of family.themes) {
+    if (themes.length > room) break;
+    if (!isRecord(theme)) continue;
     const name = toName(theme.name);
-    if (name === null) return [];
-    if (theme.appearance !== "light" && theme.appearance !== "dark") return [];
+    if (name === null) continue;
+    if (theme.appearance !== "light" && theme.appearance !== "dark") continue;
     // A color theme has a style, though any color in it may be missing; an icon theme has none.
-    if (!isRecord(theme.style)) return [];
-    return [
-      {
-        id: `${idPrefix}/${name}`,
-        name,
-        appearance: theme.appearance,
-        source,
-        colors: terminalColors(theme.style, theme.appearance),
-      },
-    ];
-  });
+    if (!isRecord(theme.style)) continue;
+    themes.push({
+      id: `${idPrefix}/${name}`,
+      name,
+      appearance: theme.appearance,
+      source,
+      colors: terminalColors(theme.style, theme.appearance),
+    });
+  }
+  return themes;
 }
 
 function terminalColors(style: Record<string, unknown>, appearance: ThemeAppearance) {

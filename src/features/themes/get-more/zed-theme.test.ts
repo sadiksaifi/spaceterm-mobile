@@ -176,6 +176,19 @@ describe("reading a Zed theme file", () => {
     expect(themes.map((theme) => theme.id)).toEqual([`file/long/${"y".repeat(200)}`]);
   });
 
+  it("stops one theme past the room it is given", () => {
+    const file = JSON.stringify({
+      name: "Many",
+      themes: Array.from({ length: 600 }, (_, index) => ({
+        name: `Many ${index}`,
+        appearance: "dark",
+        style: {},
+      })),
+    });
+
+    expect(readZedThemes(file, { kind: "file", fileName: "many.json" }, 10)).toHaveLength(11);
+  });
+
   it("finds no theme in a Zed icon theme, which has no style", () => {
     const icons = JSON.stringify({
       name: "Material Icons",

@@ -158,6 +158,7 @@ function read(stored: string | null): Kept {
   const chosen = isRecord(value.chosen) ? value.chosen : {};
   return withChosenThemes({
     fontSize:
+      Number.isInteger(value.fontSize) &&
       typeof value.fontSize === "number" &&
       value.fontSize >= FONT_SIZE.min &&
       value.fontSize <= FONT_SIZE.max

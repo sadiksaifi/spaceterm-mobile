@@ -149,6 +149,10 @@ describe("the preferences store", () => {
   it("starts from the defaults where what it kept cannot be read", () => {
     const garbled = createPreferencesStore(memoryStorage({ preferences: "{not json" }));
     expect(garbled.getSnapshot().fontSize).toBe(13);
+    const between = createPreferencesStore(
+      memoryStorage({ preferences: JSON.stringify({ fontSize: 13.5 }) }),
+    );
+    expect(between.getSnapshot().fontSize).toBe(13);
 
     const partly = createPreferencesStore(
       memoryStorage({

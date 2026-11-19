@@ -24,10 +24,11 @@ export async function pickThemeFile(): Promise<PickedFile | null> {
   // iOS hands over the system's copy in the app's own folders, which is SpaceTerm's to delete.
   // Android hands over the person's document itself, which must stay.
   const ownCopy = asset.uri.startsWith("file:");
+  // Android gives null, not undefined, when the provider has no size.
+  const size: unknown = asset.size;
   try {
-    if (asset.size !== undefined) {
-      if (asset.size > MAX_THEME_FILE)
-        return { kind: "failed", name: asset.name, reason: "too-large" };
+    if (typeof size === "number" && Number.isFinite(size) && size >= 0) {
+      if (size > MAX_THEME_FILE) return { kind: "failed", name: asset.name, reason: "too-large" };
       // A provider may stream the file through a pipe, which only a whole read can take.
       return { kind: "read", name: asset.name, text: await file.text() };
     }

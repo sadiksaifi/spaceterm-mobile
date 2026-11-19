@@ -23,6 +23,8 @@ import {
   font,
   foregroundStyle,
   lineLimit,
+  listRowBackground,
+  listRowInsets,
   listStyle,
   padding,
   pickerStyle,
@@ -51,6 +53,20 @@ const APPEARANCES: readonly { value: Appearance; label: string }[] = [
 
 /** The selected card's outline: a gap in the row's color, then the tint, around the preview. */
 const RING = { gap: 2, width: 2, corner: 14 } as const;
+/** A preview sits this far inside the edges of the rows below, as the design draws it. */
+const PREVIEW_INSET = 4;
+/** A preview's labels sit this far inside its edges. */
+const LABEL_INSET = 16;
+/** The design's gap between the two cards' previews. */
+const CARD_GAP = 16;
+/** The room the outline takes around a card's preview, selected or not. */
+const RING_ROOM = RING.gap + RING.width;
+
+/** Draws a row's content on the page, with no row behind it, `inset` inside the rows' edges. */
+const onPage = (inset: number) => [
+  listRowBackground("clear"),
+  listRowInsets({ top: 0, bottom: 0, leading: inset, trailing: inset }),
+];
 
 export default function ThemesScreen({
   appearance,
@@ -122,7 +138,7 @@ export default function ThemesScreen({
                     <Picker
                       selection={appearance}
                       onSelectionChange={onAppearance}
-                      modifiers={[pickerStyle("segmented")]}
+                      modifiers={[pickerStyle("segmented"), ...onPage(0)]}
                     >
                       {APPEARANCES.map(({ value, label }) => (
                         <Text key={value} modifiers={[tag(value)]}>
@@ -138,7 +154,11 @@ export default function ThemesScreen({
                     }
                   >
                     {appearance === "automatic" ? (
-                      <HStack spacing={16} alignment="top">
+                      <HStack
+                        spacing={CARD_GAP - 2 * RING_ROOM}
+                        alignment="top"
+                        modifiers={onPage(PREVIEW_INSET - RING_ROOM)}
+                      >
                         <ThemeCard
                           label={text.light}
                           theme={chosen.light}
@@ -153,9 +173,14 @@ export default function ThemesScreen({
                         />
                       </HStack>
                     ) : (
-                      <VStack alignment="leading" spacing={10}>
+                      <VStack alignment="leading" spacing={10} modifiers={onPage(PREVIEW_INSET)}>
                         <TerminalPreview colors={chosen[shown].colors} size="single" />
-                        <Text modifiers={[font({ textStyle: "subheadline", weight: "semibold" })]}>
+                        <Text
+                          modifiers={[
+                            font({ textStyle: "subheadline", weight: "semibold" }),
+                            padding({ horizontal: LABEL_INSET }),
+                          ]}
+                        >
                           {chosen[shown].name}
                         </Text>
                       </VStack>
@@ -230,19 +255,23 @@ function ThemeCard({
           modifiers={[
             padding({ all: RING.gap }),
             background(
-              colors.groupedRow,
+              colors.groupedBackground,
               shapes.roundedRectangle({ cornerRadius: RING.corner + RING.gap }),
             ),
             padding({ all: RING.width }),
             background(
-              selected ? colors.tint : colors.groupedRow,
+              selected ? colors.tint : colors.groupedBackground,
               shapes.roundedRectangle({ cornerRadius: RING.corner + RING.gap + RING.width }),
             ),
           ]}
         >
           <TerminalPreview colors={theme.colors} size="card" />
         </VStack>
-        <VStack alignment="leading" spacing={2} modifiers={[padding({ horizontal: 4 })]}>
+        <VStack
+          alignment="leading"
+          spacing={2}
+          modifiers={[padding({ horizontal: RING_ROOM + LABEL_INSET })]}
+        >
           <Text
             modifiers={[
               font({ textStyle: "subheadline", weight: "semibold" }),

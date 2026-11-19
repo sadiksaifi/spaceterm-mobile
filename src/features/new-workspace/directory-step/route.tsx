@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useNavigation, useRoute, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { useMachines } from "@/shared/machines/client";
 
@@ -9,7 +9,7 @@ import DirectoryStepScreen from "./screen";
 /** The directory of the new Workspace, on the Machine the route names. */
 export default function DirectoryStepRoute() {
   const { machineId } = useLocalSearchParams<{ machineId: string }>();
-  const { machines } = useMachines();
+  const { machines, starting } = useMachines();
   const router = useRouter();
   // This step is the first of the flow when the Machine step was skipped. The stack's index can
   // still point at the Machine step while a pushed step first renders, so compare routes instead.
@@ -24,13 +24,19 @@ export default function DirectoryStepRoute() {
     return true;
   });
   const machine = machines.find((candidate) => candidate.id === machineId);
-  const unknown = machine === undefined;
+  const connected = machine?.connection === "connected";
 
-  // A link can name a Machine this device does not know, or one unpaired since. The flow closes
-  // back to Home, which a redirect would push a second time.
+  // A link can name a Machine this device does not know, or one the Machine step would not offer
+  // because it is not connected; a Machine can also be unpaired while the step shows. The flow
+  // then closes back to Home, which a redirect would push a second time. A Machine that only
+  // disconnects while the step shows keeps the step.
+  const entered = useRef(false);
   useEffect(() => {
-    if (unknown) router.dismissTo("/");
-  }, [unknown, router]);
+    if (starting) return;
+    const entering = !entered.current;
+    entered.current = true;
+    if (machine === undefined || (entering && !connected)) router.dismissTo("/");
+  }, [starting, machine, connected, router]);
   if (machine === undefined) return null;
 
   return (

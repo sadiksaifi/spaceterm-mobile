@@ -17,6 +17,13 @@ describe("newWorkspaceHref", () => {
     });
   });
 
+  it("opens nowhere while no Machine is connected", () => {
+    expect(newWorkspaceHref({ machines: [], starting: false })).toBeNull();
+    expect(
+      newWorkspaceHref({ machines: [machine("mac-mini", "not-connected")], starting: false }),
+    ).toBeNull();
+  });
+
   it("starts with the Machine step when several Machines are paired, connected or not", () => {
     expect(
       newWorkspaceHref({

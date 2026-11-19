@@ -1,6 +1,8 @@
 import { gunzipSync } from "fflate";
 
 const BLOCK = 512;
+/** Theme extensions are kilobytes; an archive that unpacks to more is refused before it is. */
+const MAX_UNPACKED = 32 * 1024 * 1024;
 const decoder = new TextDecoder();
 
 /**
@@ -9,6 +11,10 @@ const decoder = new TextDecoder();
  * gzipped tar give null.
  */
 export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null {
+  // gzip ends with the unpacked size, modulo 4 GiB, which fflate allocates up front.
+  if (bytes.length < 18) return null;
+  const unpacked = new DataView(bytes.buffer, bytes.byteOffset + bytes.length - 4, 4);
+  if (unpacked.getUint32(0, true) > MAX_UNPACKED) return null;
   let tar: Uint8Array;
   try {
     tar = gunzipSync(bytes);
@@ -26,6 +32,10 @@ export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null 
     if (!checksumMatches(header)) return null;
 
     const size = octal(header.subarray(124, 136));
+    // A size that is not a whole count, or runs past the archive, means it is damaged.
+    if (!Number.isSafeInteger(size) || size < 0 || offset + BLOCK + size > tar.length) {
+      return null;
+    }
     const type = String.fromCharCode(header[156] ?? 0);
     const data = tar.subarray(offset + BLOCK, offset + BLOCK + size);
     offset += BLOCK + Math.ceil(size / BLOCK) * BLOCK;
@@ -70,7 +80,11 @@ function checksumMatches(header: Uint8Array): boolean {
   return sum === octal(header.subarray(148, 156));
 }
 
-const octal = (field: Uint8Array) => Number.parseInt(text(field).trim() || "0", 8);
+/** An octal field; anything but octal digits, such as a sign, reads as NaN. */
+function octal(field: Uint8Array): number {
+  const digits = text(field).trim();
+  return /^[0-7]*$/.test(digits) ? Number.parseInt(digits || "0", 8) : Number.NaN;
+}
 
 /** A NUL-terminated field as text. */
 function text(field: Uint8Array): string {

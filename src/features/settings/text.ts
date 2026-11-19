@@ -18,7 +18,33 @@ export const text = {
     "Allow programs to read clipboard",
   ),
   back: "Back",
+
+  status: "Status",
+  connection: "Connection",
+  /** This device reaches a paired Machine over the network, through its Saved Connection. */
+  network: "Network",
+  disconnect: "Disconnect",
+  connect: "Connect",
+  restartCore: "Restart SpaceTerm Core",
+  unpair: cased("Unpair This Device", "Unpair this device"),
+  /** What screen readers say for the spinner beside Reconnecting. */
+  loading: "Loading",
+  cancel: "Cancel",
+  restart: "Restart",
+  restartTitle: "Restart SpaceTerm Core?",
+  unpairTitle: cased("Unpair This Device?", "Unpair this device?"),
+  unpairBody: (machine: string) => `Connecting to ${machine} again needs a new Invitation Link.`,
+  unpairAction: "Unpair",
+  restartFailed: cased("Couldn’t Restart SpaceTerm Core", "Couldn’t restart SpaceTerm Core"),
+  tryAgain: cased("Try Again", "Try again"),
 };
+
+/** The sentence under Restart SpaceTerm Core's title: what is lost. `null` when nothing runs. */
+export function restartBody(terminalSessions: number, machine: string): string | null {
+  if (terminalSessions === 0) return null;
+  const noun = terminalSessions === 1 ? "Terminal Session" : "Terminal Sessions";
+  return `This ends ${terminalSessions} ${noun} on ${machine}.`;
+}
 
 /** What a Machine's row and page say about its connection. */
 export function machineStatus(connection: ConnectionState): string {

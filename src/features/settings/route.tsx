@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useColorScheme } from "react-native";
 
 import { useMachines } from "@/shared/machines/client";
@@ -7,8 +8,8 @@ import { usePreferences, usePreferencesStore } from "@/shared/preferences/provid
 import SettingsScreen from "./screen";
 
 /**
- * The pages these rows open do not exist yet: a Machine, Add Machine and Themes. Each row works
- * and stays on Settings until its page is built.
+ * The pages these rows open do not exist yet: Add Machine and Themes. Each row works and stays on
+ * Settings until its page is built.
  */
 const stayOnSettings = () => {};
 
@@ -18,6 +19,7 @@ export default function SettingsRoute() {
   const preferences = usePreferences();
   const store = usePreferencesStore();
   const system = useColorScheme();
+  const router = useRouter();
 
   return (
     <SettingsScreen
@@ -25,7 +27,10 @@ export default function SettingsRoute() {
       themeName={themeInUse(preferences, system).name}
       fontSize={preferences.fontSize}
       privacy={preferences.privacy}
-      onOpenMachine={stayOnSettings}
+      // Navigate, not push: a second tap before the page shows must not open it twice.
+      onOpenMachine={(machineId) =>
+        router.navigate({ pathname: "/settings/machines/[machineId]", params: { machineId } })
+      }
       onAddMachine={stayOnSettings}
       onOpenThemes={stayOnSettings}
       onFontSize={store.setFontSize}

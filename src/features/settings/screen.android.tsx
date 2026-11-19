@@ -1,17 +1,7 @@
 import addIcon from "@expo/material-symbols/add.xml";
-import backIcon from "@expo/material-symbols/arrow_back.xml";
 import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml";
 import machineIcon from "@expo/material-symbols/desktop_windows.xml";
-import {
-  Column,
-  Icon,
-  IconButton,
-  Row,
-  Slider,
-  Switch,
-  Text,
-  TopAppBar,
-} from "@expo/ui/jetpack-compose";
+import { Column, Icon, Row, Slider, Switch, Text } from "@expo/ui/jetpack-compose";
 import {
   background,
   fillMaxSize,
@@ -20,10 +10,9 @@ import {
   verticalScroll,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { heading } from "@/modules/compose-modifiers";
 import type { PrivacySetting } from "@/shared/preferences/model";
 import { FONT_SIZE } from "@/shared/preferences/store";
 import { useColors } from "@/shared/theme/colors";
@@ -31,12 +20,10 @@ import { GROUPED_GAP } from "@/shared/ui/android/grouped";
 import { GroupedRow, GroupHeader } from "@/shared/ui/android/grouped-row";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 
+import { Gap, GROUP_SPACE, PageTopBar } from "./components/android/page";
 import type ScreenContract from "./screen";
 import type { SettingsProps } from "./screen";
 import { machineStatus, text } from "./text";
-
-/** Space between groups, and below the last one above the gesture area. */
-const GROUP_SPACE = 16;
 
 const PRIVACY: readonly { setting: PrivacySetting; label: string }[] = [
   { setting: "notifications", label: text.notifications },
@@ -63,7 +50,7 @@ export default function SettingsScreen({
       <Stack.Screen options={{ headerShown: false }} />
       <ScreenHost>
         <Column modifiers={[fillMaxSize(), background(colors.groupedBackground)]}>
-          <SettingsTopBar title={text.title} />
+          <PageTopBar title={text.title} />
           <Column
             verticalArrangement={{ spacedBy: GROUPED_GAP }}
             modifiers={[
@@ -147,41 +134,6 @@ export default function SettingsScreen({
         </Column>
       </ScreenHost>
     </>
-  );
-}
-
-/** The space between two groups that have no header between them. */
-function Gap() {
-  return <Column modifiers={[padding(0, GROUP_SPACE / 2, 0, GROUP_SPACE / 2)]}>{null}</Column>;
-}
-
-/** The small top app bar of a settings page, with Back. */
-export function SettingsTopBar({ title }: { title: string }) {
-  return (
-    <TopAppBar>
-      <TopAppBar.NavigationIcon>
-        <BackButton />
-      </TopAppBar.NavigationIcon>
-      <TopAppBar.Title>
-        <Text
-          maxLines={1}
-          overflow="ellipsis"
-          style={{ typography: "titleLarge" }}
-          modifiers={[heading()]}
-        >
-          {title}
-        </Text>
-      </TopAppBar.Title>
-    </TopAppBar>
-  );
-}
-
-function BackButton() {
-  const router = useRouter();
-  return (
-    <IconButton onClick={() => router.back()}>
-      <Icon source={backIcon} contentDescription={text.back} />
-    </IconButton>
   );
 }
 

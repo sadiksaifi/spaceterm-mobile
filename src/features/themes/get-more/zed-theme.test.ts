@@ -176,6 +176,23 @@ describe("reading a Zed theme file", () => {
     expect(themes.map((theme) => theme.id)).toEqual([`file/long/${"y".repeat(200)}`]);
   });
 
+  it("gives two themes different ids, whatever slashes their names hold", () => {
+    const family = (name: string, theme: string) =>
+      JSON.stringify({ name, themes: [{ name: theme, appearance: "dark", style: {} }] });
+    const ids = [
+      family("Acme/Team", "Dusk"),
+      family("Acme", "Team/Dusk"),
+      family("Acme%2FTeam", "Dusk"),
+    ].map((file) => readZedThemes(file, { kind: "file", fileName: "acme.json" })[0]?.id);
+    const extension = { kind: "extension", id: "acme", name: "Acme" } as const;
+    const fromExtension = readZedThemes(family("Acme", "Team/Dusk"), extension)[0];
+
+    expect(new Set(ids).size).toBe(3);
+    expect(ids.every((id) => id?.startsWith("file/"))).toBe(true);
+    expect(fromExtension?.id.startsWith("acme/")).toBe(true);
+    expect(fromExtension?.name).toBe("Team/Dusk");
+  });
+
   it("stops one theme past the room it is given", () => {
     const file = JSON.stringify({
       name: "Many",

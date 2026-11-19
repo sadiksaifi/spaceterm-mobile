@@ -20,6 +20,9 @@ const toName = (value: unknown) => {
   return name === "" || name.length > MAX_NAME ? null : name;
 };
 
+/** A name as one part of a theme id, its slashes escaped so no two names give the same id. */
+const idPart = (name: string) => name.replaceAll("%", "%25").replaceAll("/", "%2F");
+
 const ANSI = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const;
 
 /**
@@ -42,7 +45,7 @@ export function readZedThemes(
     origin.kind === "extension"
       ? ({ kind: "extension", id: origin.id, name: origin.name } as const)
       : ({ kind: "file", name: familyName } as const);
-  const idPrefix = origin.kind === "extension" ? origin.id : `file/${familyName}`;
+  const idPrefix = origin.kind === "extension" ? idPart(origin.id) : `file/${idPart(familyName)}`;
 
   const themes: TerminalTheme[] = [];
   for (const theme of family.themes) {
@@ -54,7 +57,7 @@ export function readZedThemes(
     // A color theme has a style, though any color in it may be missing; an icon theme has none.
     if (!isRecord(theme.style)) continue;
     themes.push({
-      id: `${idPrefix}/${name}`,
+      id: `${idPrefix}/${idPart(name)}`,
       name,
       appearance: theme.appearance,
       source,

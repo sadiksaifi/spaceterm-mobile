@@ -80,6 +80,9 @@ export function createZedCatalog(fetch: typeof globalThis.fetch = globalThis.fet
   };
 }
 
+/** An email address, bare or in angle brackets, parentheses or square brackets. */
+const EMAIL = /<[^>]*>|\([^)]*@[^)]*\)|\[[^\]]*@[^\]]*\]|\S+@\S+/g;
+
 function toExtension(item: unknown): CatalogExtension[] {
   if (!isRecord(item) || typeof item.id !== "string" || typeof item.name !== "string") return [];
   const authors = Array.isArray(item.authors) ? item.authors : [];
@@ -90,7 +93,7 @@ function toExtension(item: unknown): CatalogExtension[] {
       author: authors
         .filter((author): author is string => typeof author === "string")
         // "Catppuccin <releases@catppuccin.com>" names Catppuccin.
-        .map((author) => author.replace(/<[^>]*>/g, "").trim())
+        .map((author) => author.replace(EMAIL, "").trim())
         .filter((author) => author !== "")
         .join(", "),
       downloads: typeof item.download_count === "number" ? item.download_count : 0,

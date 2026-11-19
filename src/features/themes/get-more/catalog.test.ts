@@ -60,6 +60,31 @@ describe("Zed's theme catalog", () => {
     expect(url.searchParams.get("filter")).toBe("git");
   });
 
+  it("leaves out authors' email addresses however they are written", async () => {
+    const { fetch } = fakeFetch({
+      [LIST]: () =>
+        Response.json({
+          data: [
+            {
+              id: "nord",
+              name: "Nord",
+              authors: [
+                "Evgenii Kislichenko (evgenii@example.com)",
+                "Ana [ana@example.org]",
+                "only@example.net",
+                "Kai Lee",
+              ],
+              download_count: 1,
+            },
+          ],
+        }),
+    });
+
+    const result = await createZedCatalog(fetch).search("");
+
+    expect(Array.isArray(result) && result[0]?.author).toBe("Evgenii Kislichenko, Ana, Kai Lee");
+  });
+
   it("asks for every theme extension when the search is empty", async () => {
     const { fetch, asked } = fakeFetch({ [LIST]: () => Response.json({ data: [] }) });
     await createZedCatalog(fetch).search("");

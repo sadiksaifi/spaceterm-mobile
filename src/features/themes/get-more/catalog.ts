@@ -76,8 +76,8 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       try {
         const response = await fetch(`${API}?${params}`, { signal: request.signal });
         if (!response.ok) return "unavailable";
-        // Read like a download, so an answer cut off by the deadline is not taken for a whole one.
-        const bytes = await readAtMost(response.body, MAX_LIST, request.signal);
+        // Read like a download, so an answer cut off is not taken for a whole one.
+        const bytes = await readBody(response, MAX_LIST, request.signal);
         if (typeof bytes === "string") return "unavailable";
         readWhole = true;
         const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
@@ -107,19 +107,7 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
           `${API}/${encodeURIComponent(extension.id)}/download?${params}`,
           { signal: request.signal },
         );
-        // The length of the bytes as they arrive; a body the network decoded has another length.
-        const declared =
-          response.headers.get("content-encoding") === null
-            ? Number(response.headers.get("content-length") ?? Number.NaN)
-            : Number.NaN;
-        bytes = !response.ok
-          ? "unavailable"
-          : declared > MAX_ARCHIVE
-            ? "too-large"
-            : await readAtMost(response.body, MAX_ARCHIVE, request.signal);
-        // Android's fetch ends a body cut off by the network as if it were whole.
-        if (typeof bytes !== "string" && Number.isFinite(declared) && bytes.length !== declared)
-          bytes = "unavailable";
+        bytes = response.ok ? await readBody(response, MAX_ARCHIVE, request.signal) : "unavailable";
       } catch {
         bytes = "unavailable";
       } finally {
@@ -142,6 +130,28 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
       return themes.length === 0 ? "no-themes" : themes;
     },
   };
+}
+
+/**
+ * The whole body of `response`, checked against the length it declares: "too-large" past `limit`,
+ * and "unavailable" when it ends short, because Android's fetch ends a body the network cut off as
+ * if it were whole.
+ */
+async function readBody(
+  response: Awaited<ReturnType<Fetch>>,
+  limit: number,
+  signal: AbortSignal,
+): Promise<Uint8Array | "too-large" | "unavailable"> {
+  // The length of the bytes as they arrive; a body the network decoded has another length.
+  const declared =
+    response.headers.get("content-encoding") === null
+      ? Number(response.headers.get("content-length") ?? Number.NaN)
+      : Number.NaN;
+  if (declared > limit) return "too-large";
+  const bytes = await readAtMost(response.body, limit, signal);
+  return typeof bytes !== "string" && Number.isFinite(declared) && bytes.length !== declared
+    ? "unavailable"
+    : bytes;
 }
 
 /**

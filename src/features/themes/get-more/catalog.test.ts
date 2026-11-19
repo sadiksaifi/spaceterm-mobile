@@ -151,6 +151,13 @@ describe("Zed's theme catalog", () => {
     ]);
   });
 
+  it("is unavailable when the store's answer ends short of the length it declares", async () => {
+    const { fetch } = fakeFetch({
+      [LIST]: () => new Response('{"data":[]}', { headers: { "content-length": "4096" } }),
+    });
+    expect(await createZedCatalog(fetch).search("")).toBe("unavailable");
+  });
+
   it("asks for every theme extension when the search is empty", async () => {
     const { fetch, asked } = fakeFetch({ [LIST]: () => Response.json({ data: [] }) });
     await createZedCatalog(fetch).search("");

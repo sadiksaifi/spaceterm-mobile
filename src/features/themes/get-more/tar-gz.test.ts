@@ -24,7 +24,7 @@ describe("extracting a .tar.gz", () => {
       long,
       "themes/paper.json",
     ]);
-    expect(text("themes/paper.json")).toBe('{"name": "Paper", "themes": []}\n');
+    expect(text("extension.toml")).toBe('id = "paper"\nname = "Paper"\n');
     expect(text(long)).toBe("deep\n");
   });
 

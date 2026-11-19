@@ -107,11 +107,19 @@ export function createZedCatalog(fetch: Fetch): ThemeCatalog {
           `${API}/${encodeURIComponent(extension.id)}/download?${params}`,
           { signal: request.signal },
         );
+        // The length of the bytes as they arrive; a body the network decoded has another length.
+        const declared =
+          response.headers.get("content-encoding") === null
+            ? Number(response.headers.get("content-length") ?? Number.NaN)
+            : Number.NaN;
         bytes = !response.ok
           ? "unavailable"
-          : Number(response.headers.get("content-length") ?? 0) > MAX_ARCHIVE
+          : declared > MAX_ARCHIVE
             ? "too-large"
             : await readAtMost(response.body, MAX_ARCHIVE, request.signal);
+        // Android's fetch ends a body cut off by the network as if it were whole.
+        if (typeof bytes !== "string" && Number.isFinite(declared) && bytes.length !== declared)
+          bytes = "unavailable";
       } catch {
         bytes = "unavailable";
       } finally {

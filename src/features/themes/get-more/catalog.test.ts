@@ -296,6 +296,26 @@ describe("Zed's theme catalog", () => {
     expect(signal?.aborted).toBe(true);
   });
 
+  it("is unavailable when a download ends short of the length it declares", async () => {
+    const short = fakeFetch({
+      [DOWNLOAD]: () =>
+        new Response(archive.subarray(0, 100), {
+          headers: { "content-length": String(archive.length) },
+        }),
+    });
+    expect(await createZedCatalog(short.fetch).themes({ id: "paper", name: "Paper" })).toBe(
+      "unavailable",
+    );
+
+    const whole = fakeFetch({
+      [DOWNLOAD]: () =>
+        new Response(archive, { headers: { "content-length": String(archive.length) } }),
+    });
+    expect(await createZedCatalog(whole.fetch).themes({ id: "paper", name: "Paper" })).not.toBe(
+      "unavailable",
+    );
+  });
+
   it("tells an archive with no theme from a download that failed", async () => {
     const empty = fakeFetch({ [DOWNLOAD]: () => new Response("not an archive") });
     expect(await createZedCatalog(empty.fetch).themes({ id: "paper", name: "Paper" })).toBe(

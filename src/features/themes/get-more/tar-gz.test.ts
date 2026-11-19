@@ -71,9 +71,21 @@ describe("extracting a .tar.gz", () => {
     expect(extractTarGz(gzipSync(tar.subarray(0, second)))).toBeNull();
   });
 
-  it("refuses an archive that says it unpacks to gigabytes, before unpacking it", () => {
-    const huge = archive.slice();
-    huge.fill(0xff, huge.length - 4);
-    expect(extractTarGz(huge)).toBeNull();
+  it("gives nothing for an archive whose unpacked size is not the one it records", () => {
+    const view = (bytes: Uint8Array) => new DataView(bytes.buffer, bytes.length - 4, 4);
+    const claimsMore = archive.slice();
+    view(claimsMore).setUint32(0, view(archive).getUint32(0, true) + 512, true);
+    expect(extractTarGz(claimsMore)).toBeNull();
+
+    // A longer archive under the original's size and CRC.
+    const tar = gunzipSync(archive);
+    const longer = gzipSync(new Uint8Array([...tar, ...new Uint8Array(1024)]));
+    longer.set(archive.subarray(archive.length - 8), longer.length - 8);
+    expect(extractTarGz(longer)).toBeNull();
+  });
+
+  it("refuses an archive that unpacks to more than any theme extension", () => {
+    // 33 MiB of zeros is an empty tar archive, so only the size refuses it.
+    expect(extractTarGz(gzipSync(new Uint8Array(33 * 1024 * 1024)))).toBeNull();
   });
 });

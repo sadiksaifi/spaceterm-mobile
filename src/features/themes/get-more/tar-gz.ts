@@ -1,8 +1,10 @@
-import { gunzipSync } from "fflate";
+import { Gunzip } from "fflate";
 
 const BLOCK = 512;
-/** Theme extensions are kilobytes; an archive that unpacks to more is refused before it is. */
+/** Theme extensions are kilobytes; an archive that unpacks to more is refused as it unpacks. */
 const MAX_UNPACKED = 32 * 1024 * 1024;
+/** The archive is unpacked this many bytes at a time, so a refused one stops soon after the limit. */
+const SLICE = 16 * 1024;
 const decoder = new TextDecoder();
 
 /**
@@ -11,18 +13,8 @@ const decoder = new TextDecoder();
  * gzipped tar give null.
  */
 export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null {
-  // gzip ends with the CRC-32 of what it packs, then the unpacked size modulo 4 GiB, which fflate
-  // allocates up front. fflate checks neither, so a damaged download is caught here.
-  if (bytes.length < 18) return null;
-  const trailer = new DataView(bytes.buffer, bytes.byteOffset + bytes.length - 8, 8);
-  if (trailer.getUint32(4, true) > MAX_UNPACKED) return null;
-  let tar: Uint8Array;
-  try {
-    tar = gunzipSync(bytes);
-  } catch {
-    return null;
-  }
-  if (crc32(tar) !== trailer.getUint32(0, true)) return null;
+  const tar = gunzip(bytes);
+  if (tar === null) return null;
 
   const files = new Map<string, Uint8Array>();
   // A long path comes in an entry of its own, just before the file it names.
@@ -58,6 +50,39 @@ export function extractTarGz(bytes: Uint8Array): Map<string, Uint8Array> | null 
     }
   }
   return ended ? files : null;
+}
+
+/**
+ * What gzip packs, or null when it is damaged or unpacks past the limit. gzip ends with the CRC-32
+ * of what it packs, then its size modulo 4 GiB. fflate checks neither, and its one-call gunzip
+ * trusts the size, so the archive is unpacked as a stream and both are checked here.
+ */
+function gunzip(bytes: Uint8Array): Uint8Array | null {
+  if (bytes.length < 18) return null;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const stream = new Gunzip((chunk) => {
+    size += chunk.length;
+    if (size > MAX_UNPACKED) throw new RangeError("unpacks past the limit");
+    chunks.push(chunk);
+  });
+  try {
+    for (let start = 0; start < bytes.length; start += SLICE) {
+      const end = Math.min(start + SLICE, bytes.length);
+      stream.push(bytes.subarray(start, end), end === bytes.length);
+    }
+  } catch {
+    return null;
+  }
+  const trailer = new DataView(bytes.buffer, bytes.byteOffset + bytes.length - 8, 8);
+  if (size !== trailer.getUint32(4, true)) return null;
+  const tar = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    tar.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return crc32(tar) === trailer.getUint32(0, true) ? tar : null;
 }
 
 const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {

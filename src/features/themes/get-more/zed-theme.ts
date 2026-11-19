@@ -46,47 +46,65 @@ export function readZedThemes(file: string, origin: ZedThemeOrigin): TerminalThe
 
 function terminalColors(style: Record<string, unknown>, appearance: ThemeAppearance) {
   const fallback = builtInThemes[appearance].colors;
-  const first = (...keys: string[]) => {
+  // The first of `keys` that holds a color that shows, laid over `under` if it is see-through.
+  const first = (under: string, ...keys: string[]) => {
     for (const key of keys) {
-      const color = toHex(style[key]);
-      if (color !== null) return color;
+      const color = toColor(style[key]);
+      if (color !== null) return over(color, under);
     }
     return null;
   };
+  const background =
+    first(fallback.background, "terminal.background", "editor.background", "background") ??
+    fallback.background;
   const foreground =
-    first("terminal.foreground", "text", "editor.foreground") ?? fallback.foreground;
+    first(background, "terminal.foreground", "text", "editor.foreground") ?? fallback.foreground;
   const players = Array.isArray(style.players) ? style.players : [];
   const player = isRecord(players[0]) ? players[0] : {};
+  const cursor = toColor(player.cursor);
   const ansi = (prefix: string, colors: AnsiColors) =>
     ANSI.map(
-      (name, index) => first(`terminal.ansi.${prefix}${name}`) ?? colors[index],
+      (name, index) => first(background, `terminal.ansi.${prefix}${name}`) ?? colors[index],
     ) as unknown as AnsiColors;
   return {
-    background:
-      first("terminal.background", "editor.background", "background") ?? fallback.background,
+    background,
     foreground,
-    cursor: toHex(player.cursor) ?? foreground,
+    cursor: cursor === null ? foreground : over(cursor, background),
     normal: ansi("", fallback.normal),
     bright: ansi("bright_", fallback.bright),
   };
 }
 
-/** A CSS hex color as `#rrggbb`: short forms grow, alpha is dropped. Anything else is null. */
-function toHex(value: unknown): string | null {
+type Color = { rgb: readonly [number, number, number]; alpha: number };
+
+/** A CSS hex color, short forms included. A fully clear color or anything else is null. */
+function toColor(value: unknown): Color | null {
   if (typeof value !== "string") return null;
   const match = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(value.trim());
   if (match === null) return null;
-  const digits = match[1].toLowerCase();
-  if (digits.length <= 4) {
-    return `#${Array.from(digits.slice(0, 3), (digit) => digit + digit).join("")}`;
-  }
-  return `#${digits.slice(0, 6)}`;
+  const digits =
+    match[1].length <= 4 ? Array.from(match[1], (digit) => digit + digit).join("") : match[1];
+  const channel = (at: number) => Number.parseInt(digits.slice(at, at + 2), 16);
+  const alpha = digits.length === 8 ? channel(6) / 255 : 1;
+  return alpha === 0 ? null : { rgb: [channel(0), channel(2), channel(4)], alpha };
+}
+
+/** `color` laid over the opaque `under`, as `#rrggbb`. */
+function over({ rgb, alpha }: Color, under: string): string {
+  const base = toColor(under)?.rgb ?? [0, 0, 0];
+  return `#${rgb
+    .map((value, index) => {
+      const mixed = Math.round((base[index] ?? 0) + (value - (base[index] ?? 0)) * alpha);
+      return mixed.toString(16).padStart(2, "0");
+    })
+    .join("")}`;
 }
 
 /** JSON as Zed reads it: comments and trailing commas allowed. Text that is not JSON is null. */
 function parseLenient(text: string): unknown {
   try {
-    return JSON.parse(withoutCommentsAndTrailingCommas(text));
+    // A file saved with a byte order mark keeps it when read as text on Android.
+    return JSON.parse(withoutCommentsAndTrailingCommas(text.replace(/^\uFEFF/, "")));
   } catch {
     return null;
   }

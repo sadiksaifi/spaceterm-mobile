@@ -104,12 +104,46 @@ describe("reading a Zed theme file", () => {
     expect(paper?.source).toEqual({ kind: "file", name: "Paper" });
     expect(paper?.appearance).toBe("light");
     expect(paper?.colors.background).toBe("#ffffff");
-    expect(paper?.colors.foreground).toBe("#1a1a1a");
+    // 80 % #1a1a1a over white: 0x1a + (0xff - 0x1a) * 51 / 255 = 0x48.
+    expect(paper?.colors.foreground).toBe("#484848");
     // With no player, the cursor takes the text color.
-    expect(paper?.colors.cursor).toBe("#1a1a1a");
+    expect(paper?.colors.cursor).toBe("#484848");
     // With no ANSI colors, SpaceTerm's own palette for the appearance stands in.
     expect(paper?.colors.normal).toEqual(builtInThemes.light.colors.normal);
     expect(paper?.colors.bright).toEqual(builtInThemes.light.colors.bright);
+  });
+
+  it("reads a file that starts with a byte order mark", () => {
+    const file = `\uFEFF${JSON.stringify({
+      name: "Paper",
+      themes: [{ name: "Paper Light", appearance: "light", style: {} }],
+    })}`;
+    expect(readZedThemes(file, { kind: "file", fileName: "paper.json" })).toHaveLength(1);
+  });
+
+  it("lays a see-through color over the background, and skips a fully clear one", () => {
+    const file = JSON.stringify({
+      themes: [
+        {
+          name: "Glass",
+          appearance: "dark",
+          style: {
+            "terminal.background": "#00000000",
+            "editor.background": "#202020",
+            "terminal.foreground": "#ffffff80",
+            "terminal.ansi.red": "#ff000040",
+          },
+        },
+      ],
+    });
+    const [glass] = readZedThemes(file, { kind: "file", fileName: "glass.json" });
+
+    // The clear terminal background gives way to the editor's.
+    expect(glass?.colors.background).toBe("#202020");
+    // Half white over #202020: 0x20 + (0xff - 0x20) * 128 / 255 = 0x90.
+    expect(glass?.colors.foreground).toBe("#909090");
+    // A quarter red over #202020: 0x20 + (0xff - 0x20) * 64 / 255 = 0x58 for red, 0x18 for the rest.
+    expect(glass?.colors.normal[1]).toBe("#581818");
   });
 
   it("finds no theme in a file that is not a Zed theme", () => {

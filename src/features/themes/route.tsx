@@ -22,7 +22,8 @@ export default function ThemesRoute() {
   );
   const [query, setQuery] = useState("");
   const [removing, setRemoving] = useState<TerminalTheme | null>(null);
-  const redraw = useRedrawWhenNotSaved();
+  // The redrawn screen opens with its search closed, so the search is cleared to match.
+  const redraw = useRedrawWhenNotSaved(() => setQuery(""));
   const shown = preferences.appearance === "automatic" ? selected : preferences.appearance;
 
   return (

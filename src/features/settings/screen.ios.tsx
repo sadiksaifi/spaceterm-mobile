@@ -78,9 +78,17 @@ export default function SettingsScreen({
           </Section>
           <Section>
             <NavigationRow onPress={onOpenThemes}>
-              <Text>{text.themes}</Text>
+              {/* Large text puts the theme's name under the label, whole, as iOS Settings does. */}
+              {largeText ? (
+                <VStack alignment="leading" spacing={2}>
+                  <Text>{text.themes}</Text>
+                  <Text modifiers={[secondary]}>{themeName}</Text>
+                </VStack>
+              ) : (
+                <Text>{text.themes}</Text>
+              )}
               <Spacer minLength={8} />
-              <Text modifiers={[secondary, lineLimit(1)]}>{themeName}</Text>
+              {!largeText && <Text modifiers={[secondary, lineLimit(1)]}>{themeName}</Text>}
             </NavigationRow>
             {/* The value sits beside the stepper, which draws no value of its own; the stepper reads it out. */}
             <HStack>

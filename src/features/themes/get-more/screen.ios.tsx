@@ -56,6 +56,8 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
         placeholder={text.search}
         onChangeText={(event) => page.setQuery(event.nativeEvent.text)}
         onCancelButtonPress={() => page.setQuery("")}
+        // The sheet keeps Close and its title while a search has text.
+        hideNavigationBar={false}
       />
       <Stack.Toolbar placement="bottom">
         <Stack.Toolbar.SearchBarSlot />
@@ -77,7 +79,13 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
                 <List modifiers={[listStyle("insetGrouped")]}>
                   {/* While a search has text, the page shows only what it finds. */}
                   {!filtering && (
-                    <Section header={<Text>{text.intro}</Text>}>
+                    <Section
+                      header={
+                        <Text modifiers={[font({ textStyle: "footnote" }), secondary]}>
+                          {text.intro}
+                        </Text>
+                      }
+                    >
                       <Button label={text.importFromFile} onPress={page.importFile} />
                     </Section>
                   )}
@@ -185,50 +193,62 @@ function ExtensionRow({ extension, page }: { extension: CatalogExtension; page: 
   const largeText = useLargeText();
   const state = page.state(extension);
   const capsule = [buttonStyle("bordered"), buttonBorderShape("capsule")];
-  return (
-    <HStack spacing={12}>
-      <VStack alignment="leading" spacing={2}>
-        <Text modifiers={largeText ? [] : [lineLimit(1)]}>{extension.name}</Text>
-        <Text modifiers={[font({ textStyle: "footnote" }), secondary]}>
-          {text.details(extension.author, extension.downloads)}
-        </Text>
+  // Get and Remove share one label style, at least as wide as the slot, so rows line up.
+  const label = (title: string) => (
+    <Text
+      modifiers={[
+        font({ textStyle: "subheadline", weight: "semibold" }),
+        frame({ minWidth: CONTROL.width - 24 }),
+      ]}
+    >
+      {title}
+    </Text>
+  );
+  const details = (
+    <VStack alignment="leading" spacing={2}>
+      <Text modifiers={largeText ? [] : [lineLimit(1)]}>{extension.name}</Text>
+      <Text modifiers={[font({ textStyle: "footnote" }), secondary]}>
+        {text.details(extension.author, extension.downloads)}
+      </Text>
+    </VStack>
+  );
+  const control =
+    state === "installing" ? (
+      <VStack
+        modifiers={[
+          frame({ width: CONTROL.width, height: CONTROL.height }),
+          accessibilityLabel(text.installing(extension.name)),
+        ]}
+      >
+        <ProgressView />
       </VStack>
+    ) : state === "installed" ? (
+      <Button
+        role="destructive"
+        onPress={() => page.askRemove(extension)}
+        modifiers={[...capsule, accessibilityLabel(text.removeLabel(extension.name))]}
+      >
+        {label(text.remove)}
+      </Button>
+    ) : (
+      <Button
+        onPress={() => page.get(extension)}
+        modifiers={[...capsule, accessibilityLabel(text.getLabel(extension.name))]}
+      >
+        {label(text.get)}
+      </Button>
+    );
+  // Large text gives the name the row's width and puts the control under it.
+  return largeText ? (
+    <VStack alignment="leading" spacing={8}>
+      {details}
+      {control}
+    </VStack>
+  ) : (
+    <HStack spacing={12}>
+      {details}
       <Spacer minLength={8} />
-      {state === "installing" ? (
-        <VStack
-          modifiers={[
-            frame({ width: CONTROL.width, height: CONTROL.height }),
-            accessibilityLabel(text.installing(extension.name)),
-          ]}
-        >
-          <ProgressView />
-        </VStack>
-      ) : state === "installed" ? (
-        <Button
-          label={text.remove}
-          role="destructive"
-          onPress={() => page.askRemove(extension)}
-          modifiers={[
-            ...capsule,
-            frame({ minWidth: CONTROL.width }),
-            accessibilityLabel(text.removeLabel(extension.name)),
-          ]}
-        />
-      ) : (
-        <Button
-          onPress={() => page.get(extension)}
-          modifiers={[...capsule, accessibilityLabel(text.getLabel(extension.name))]}
-        >
-          <Text
-            modifiers={[
-              font({ textStyle: "subheadline", weight: "semibold" }),
-              frame({ minWidth: CONTROL.width - 24 }),
-            ]}
-          >
-            {text.get}
-          </Text>
-        </Button>
-      )}
+      {control}
     </HStack>
   );
 }

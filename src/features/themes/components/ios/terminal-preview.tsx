@@ -3,10 +3,10 @@ import {
   accessibilityHidden,
   background,
   clipShape,
+  fixedSize,
   font,
   foregroundStyle,
   frame,
-  lineLimit,
   padding,
   shapes,
 } from "@expo/ui/swift-ui/modifiers";
@@ -44,7 +44,8 @@ export function TerminalPreview({
       spacing={0}
       modifiers={[
         padding({ all: metrics.padding }),
-        frame({ maxWidth: Number.POSITIVE_INFINITY, alignment: "leading" }),
+        // The preview fills its width and no more, so a long line runs on under the clipped edge.
+        frame({ minWidth: 0, maxWidth: Number.POSITIVE_INFINITY, alignment: "leading" }),
         background(colors.background, shapes.roundedRectangle({ cornerRadius: PREVIEW_CORNER })),
         clipShape("roundedRectangle", PREVIEW_CORNER),
         ...ring(PREVIEW_CORNER, 0.5),
@@ -57,7 +58,8 @@ export function TerminalPreview({
           modifiers={[
             font({ size: metrics.font, design: "monospaced" }),
             frame({ height: metrics.lineHeight }),
-            lineLimit(1),
+            // A terminal clips a long line; it does not end it with an ellipsis.
+            fixedSize({ horizontal: true, vertical: false }),
             accessibilityHidden(),
           ]}
         >

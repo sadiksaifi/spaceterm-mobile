@@ -8,9 +8,6 @@ import { useRedrawWhenNotSaved } from "@/shared/preferences/use-redraw";
 
 import SettingsScreen from "./screen";
 
-/** Add Machine does not exist yet. Its row works and stays on Settings until it is built. */
-const stayOnSettings = () => {};
-
 /** Settings: the paired Machines, the Terminal Theme, Font Size and Privacy. */
 export default function SettingsRoute() {
   const { machines } = useMachines();
@@ -31,7 +28,7 @@ export default function SettingsRoute() {
       onOpenMachine={(machineId) =>
         router.navigate({ pathname: "/settings/machines/[machineId]", params: { machineId } })
       }
-      onAddMachine={stayOnSettings}
+      onAddMachine={() => router.navigate("/add-machine")}
       onOpenThemes={() => router.navigate("/settings/themes")}
       onFontSize={(points) => redraw.check(store.setFontSize(points))}
       onPrivacy={(setting, on) => redraw.check(store.setPrivacy(setting, on))}

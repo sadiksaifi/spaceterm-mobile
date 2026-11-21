@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 
+import { linkStepHref, pastedInvitationLink } from "@/features/add-machine/flow";
 import { newWorkspaceHref } from "@/features/new-workspace/entry";
 import { useMachineClient, useMachines } from "@/shared/machines/client";
 
@@ -9,8 +10,8 @@ import HomeScreen from "./screen";
 const DESKTOP_PROJECT_URL = "https://github.com/sadiksaifi/spaceterm";
 
 /**
- * The screens these controls open do not exist yet: the Tabs of a Workspace and Add Machine.
- * Each control works and stays on Home until its screen is built.
+ * The screen these controls open does not exist yet: the Tabs of a Workspace. Each control works
+ * and stays on Home until its screen is built.
  */
 const stayOnHome = () => {};
 
@@ -32,9 +33,12 @@ export default function HomeRoute() {
       killWorkspace={client.killWorkspace}
       onOpenWorkspace={stayOnHome}
       onNewTab={stayOnHome}
-      onAddMachine={stayOnHome}
-      onScanQrCode={stayOnHome}
-      onPasteInvitationLink={stayOnHome}
+      onAddMachine={() => router.navigate("/add-machine")}
+      onScanQrCode={() => router.navigate("/add-machine")}
+      // The clipboard is read first, so the iOS paste prompt shows over Home.
+      onPasteInvitationLink={() =>
+        void pastedInvitationLink().then((link) => router.navigate(linkStepHref(link)))
+      }
       onOpenSettings={() => router.navigate("/settings")}
       onMachineSettings={(machineId) =>
         router.navigate({ pathname: "/settings/machines/[machineId]", params: { machineId } })

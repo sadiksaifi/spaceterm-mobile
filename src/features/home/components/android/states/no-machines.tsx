@@ -16,24 +16,39 @@ import { text } from "../../../text";
 
 /** The command in the sentence, as the mockup sets it: 13 sp monospace, medium, in the text color. */
 const COMMAND_SIZE = 13;
+/** The space between the sentence's two paragraphs. */
+const PARAGRAPH_GAP = 12;
 
 export function NoMachines({ actions, bottom }: { actions: HomeActions; bottom: number }) {
   const colors = useColors();
-  const [before, command, after] = text.noMachinesBody;
+  const [choose, invite, inDesktop, machines, settings] = text.noMachinesInvite;
+  const [orRun, command, onMachine] = text.noMachinesCommand;
+  const name = (value: string) => (
+    <Text style={{ fontWeight: "600" }} color={colors.text}>
+      {value}
+    </Text>
+  );
 
   return (
     <Centered bottom={bottom}>
       <StateTile icon={machineIcon} />
       <StateTitle>{text.noMachines}</StateTitle>
       <StateBody>
-        {before}
+        {choose}
+        {name(invite)}
+        {inDesktop}
+        {name(machines)}
+        {settings}
+      </StateBody>
+      <StateBody top={PARAGRAPH_GAP}>
+        {orRun}
         <Text
           style={{ fontFamily: "monospace", fontSize: COMMAND_SIZE, fontWeight: "500" }}
           color={colors.text}
         >
           {command}
         </Text>
-        {after}
+        {onMachine}
       </StateBody>
       <StateActions>
         <Button onClick={actions.onScanQrCode} enabled={!!actions.onScanQrCode}>

@@ -55,13 +55,14 @@ export function StateTitle({ children }: { children: string }) {
   );
 }
 
-export function StateBody({ children }: { children: ReactNode }) {
+/** A state's sentence. `top` is the space above it: more for a second paragraph. */
+export function StateBody({ children, top = 8 }: { children: ReactNode; top?: number }) {
   const colors = useColors();
   return (
     <Text
       style={{ typography: "bodyMedium", textAlign: "center" }}
       color={colors.secondaryText}
-      modifiers={[padding(0, 8, 0, 0)]}
+      modifiers={[padding(0, top, 0, 0)]}
     >
       {children}
     </Text>

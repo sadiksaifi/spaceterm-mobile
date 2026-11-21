@@ -58,14 +58,15 @@ export function StateTitle({ children }: { children: string }) {
   );
 }
 
-export function StateBody({ children }: { children: ReactNode }) {
+/** A state's sentence. `top` is the space above it: more for a second paragraph. */
+export function StateBody({ children, top = 6 }: { children: ReactNode; top?: number }) {
   return (
     <Text
       modifiers={[
         font({ textStyle: "callout" }),
         secondary,
         multilineTextAlignment("center"),
-        padding({ top: 6 }),
+        padding({ top }),
       ]}
     >
       {children}

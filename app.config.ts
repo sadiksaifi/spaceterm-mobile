@@ -8,7 +8,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   platforms: ["ios", "android"],
   orientation: "portrait",
   icon: "./assets/brand/ios/appearances/Default.png",
-  scheme: "spacetermmobile",
+  // `spaceterm` opens the Invitation Links that Invite Device and `spaceterm pair` make.
+  scheme: ["spacetermmobile", "spaceterm"],
   userInterfaceStyle: "automatic",
   ios: {
     bundleIdentifier: "com.peblon.spaceterm.mobile",
@@ -25,6 +26,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
+    [
+      "expo-camera",
+      {
+        cameraPermission: "SpaceTerm uses the camera to scan the pairing QR code.",
+        microphonePermission: false,
+        recordAudioAndroid: false,
+      },
+    ],
     ["expo-build-properties", { ios: { deploymentTarget: "26.0" } }],
     [
       "expo-splash-screen",

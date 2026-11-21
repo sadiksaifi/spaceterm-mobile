@@ -1,6 +1,7 @@
 import { Button, Text } from "@expo/ui/swift-ui";
 import { buttonStyle, font, frame, multilineTextAlignment } from "@expo/ui/swift-ui/modifiers";
 
+import { commandGuidance, inviteGuidance } from "@/shared/machines/text";
 import { useColors } from "@/shared/theme/colors";
 import {
   ACTION_HEIGHT,
@@ -21,8 +22,8 @@ const PARAGRAPH_GAP = 12;
 export function NoMachines({ actions }: { actions: HomeActions }) {
   const colors = useColors();
   const largeText = useLargeText();
-  const [choose, invite, inDesktop, machines, settings] = text.noMachinesInvite;
-  const [orRun, command, onMachine] = text.noMachinesCommand;
+  const [choose, invite, inDesktop, machines, settings] = inviteGuidance;
+  const [orRun, command, onMachine] = commandGuidance;
 
   return (
     <Centered>

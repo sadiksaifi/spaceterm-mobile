@@ -25,6 +25,14 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="add-machine"
+              options={{
+                // iOS shows Add Machine in a sheet; Android shows it as full-screen pages.
+                presentation: process.env.EXPO_OS === "ios" ? "modal" : "card",
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="settings/themes/get-more"
               options={{
                 // iOS shows Get More Themes in a sheet; Android shows it as a full-screen page.

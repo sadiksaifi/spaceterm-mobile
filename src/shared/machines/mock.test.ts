@@ -238,4 +238,96 @@ describe("the mock client", () => {
     expect(client.getSnapshot().machines).toEqual([]);
     expect(changes).toBe(2);
   });
+
+  describe("pairing", () => {
+    const link = "spaceterm://pair/eyJtYWNoaW5lX25hbWUiOiJNYWMgbWluaSJ9";
+    const mini: MockMachine = { ...mac, id: "mini", name: "Mac mini" };
+    const pairing = (answer: "approve" | "decline" | "unreachable" | "unusable") => ({
+      machine: mini,
+      address: "mac-mini.local",
+      code: "482 915",
+      answer,
+      wait: 3000,
+    });
+
+    /** Starts a pairing on a client whose timers are fake, and waits for the Machine's first answer. */
+    async function start(client: ReturnType<typeof createMockClient>) {
+      const started = client.pair(link, null);
+      await vi.advanceTimersByTimeAsync(0);
+      const pairing = await started;
+      if (pairing.kind !== "comparing") throw new Error("expected a pairing");
+      return pairing;
+    }
+
+    it("can use no Invitation Link and reach no Machine without a pairing to fake", async () => {
+      const client = createMockClient([mac]);
+      expect(client.readInvitation(link)).toEqual({ kind: "unusable" });
+      expect(await client.pair(link, null)).toEqual({ kind: "unreachable" });
+    });
+
+    it("reads an Invitation Link for the Machine it pairs, and nothing else", () => {
+      const client = createMockClient([mac], { pairing: pairing("approve") });
+      const invitation = { machineId: "mini", machineName: "Mac mini", address: "mac-mini.local" };
+      expect(client.readInvitation(link)).toEqual({ kind: "invitation", invitation });
+      expect(client.readInvitation("https://example.com")).toEqual({ kind: "unusable" });
+      expect(
+        createMockClient([mac], { pairing: pairing("unusable") }).readInvitation(link),
+      ).toEqual({ kind: "unusable" });
+    });
+
+    it("says when the link's Machine is paired already", () => {
+      const client = createMockClient([mac], { pairing: { ...pairing("approve"), machine: mac } });
+      expect(client.readInvitation(link)).toMatchObject({
+        kind: "already-paired",
+        invitation: { machineName: "MacBook Pro" },
+      });
+    });
+
+    it("shows the Comparison Code, then pairs the Machine once it approves", async () => {
+      vi.useFakeTimers();
+      try {
+        const client = createMockClient([mac], { pairing: pairing("approve") });
+        const started = await start(client);
+        expect(started.code).toBe("482 915");
+
+        await vi.advanceTimersByTimeAsync(2999);
+        expect(client.getSnapshot().machines).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(await started.outcome).toEqual({
+          kind: "paired",
+          machine: { id: "mini", name: "Mac mini" },
+        });
+        expect(client.getSnapshot().machines.map((machine) => machine.name)).toEqual([
+          "MacBook Pro",
+          "Mac mini",
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("pairs nothing when the Machine declines, or when this device cancels", async () => {
+      vi.useFakeTimers();
+      try {
+        const declining = createMockClient([mac], { pairing: pairing("decline") });
+        const declined = await start(declining);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(await declined.outcome).toEqual({ kind: "declined" });
+        expect(declining.getSnapshot().machines).toHaveLength(1);
+
+        const approving = createMockClient([mac], { pairing: pairing("approve") });
+        const cancelled = await start(approving);
+        cancelled.cancel();
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(approving.getSnapshot().machines).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("cannot reach a Machine that does not answer", async () => {
+      const client = createMockClient([mac], { pairing: pairing("unreachable") });
+      expect(await client.pair(link, "10.0.0.5")).toEqual({ kind: "unreachable" });
+    });
+  });
 });

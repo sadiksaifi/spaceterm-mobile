@@ -3,7 +3,7 @@ import type { MockMachine } from "./mock";
 const MAC_HOME = "/Users/you";
 const LINUX_HOME = "/home/you";
 
-const macbook: MockMachine = {
+export const macbook: MockMachine = {
   id: "macbook-pro",
   name: "MacBook Pro",
   connection: "connected",
@@ -88,7 +88,8 @@ const homeServer: MockMachine = {
   workspaces: [{ id: "w-homelab", name: "homelab", directory: "~/homelab", terminalSessions: 1 }],
 };
 
-const macMini: MockMachine = {
+/** The Machine Add Machine pairs in the mockups. */
+export const macMini: MockMachine = {
   ...macbook,
   id: "mac-mini",
   name: "Mac mini",

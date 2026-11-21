@@ -20,16 +20,6 @@ export const text = {
   underway: (command: RowCommand) => (command === "rename" ? "Renaming" : "Killing"),
 
   noMachines: "No Machines",
-  /** Where an Invitation comes from. The two names are emphasized, in the text color. */
-  noMachinesInvite: [
-    "Choose ",
-    "Invite Device",
-    " in SpaceTerm Desktop’s ",
-    "Machines",
-    " settings.",
-  ] as const,
-  /** The other way to an Invitation. The command is set in a monospaced font. */
-  noMachinesCommand: ["Or run ", "spaceterm pair", " on your Machine."] as const,
   scanQrCode: cased("Scan QR Code", "Scan QR code"),
   pasteInvitationLink: "Paste Invitation Link",
   getDesktop: "Get SpaceTerm Desktop",

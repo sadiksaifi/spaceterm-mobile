@@ -13,21 +13,32 @@ import { useLargeText } from "@/shared/ui/large-text";
 
 import type { HomeActions } from "../../../actions";
 import { text } from "../../../text";
-import { Centered, commandText, StateActions } from "./layout";
+import { Centered, commandText, nameText, StateActions } from "./layout";
+
+/** The space between the sentence's two paragraphs. */
+const PARAGRAPH_GAP = 12;
 
 export function NoMachines({ actions }: { actions: HomeActions }) {
   const colors = useColors();
   const largeText = useLargeText();
-  const [before, command, after] = text.noMachinesBody;
+  const [choose, invite, inDesktop, machines, settings] = text.noMachinesInvite;
+  const [orRun, command, onMachine] = text.noMachinesCommand;
 
   return (
     <Centered>
       <StateIcon systemName="desktopcomputer" />
       <StateTitle>{text.noMachines}</StateTitle>
       <StateBody>
-        {before}
+        {choose}
+        {nameText(invite, colors.text)}
+        {inDesktop}
+        {nameText(machines, colors.text)}
+        {settings}
+      </StateBody>
+      <StateBody top={PARAGRAPH_GAP}>
+        {orRun}
         {commandText(command, colors.text)}
-        {after}
+        {onMachine}
       </StateBody>
       <StateActions>
         <ActionButton label={text.scanQrCode} onPress={actions.onScanQrCode} prominent />

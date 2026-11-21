@@ -71,6 +71,20 @@ export function commandText(command: string, color: ColorValue) {
   );
 }
 
+/** A name inside a sentence, such as a button's label, in semibold and the text color. */
+export function nameText(name: string, color: ColorValue) {
+  return (
+    <Text
+      modifiers={[
+        font({ textStyle: "callout", weight: "semibold" }),
+        foregroundStyle({ type: "color", color }),
+      ]}
+    >
+      {name}
+    </Text>
+  );
+}
+
 /** The column of buttons under a state's text. */
 export function StateActions({ children, top = 20 }: { children: ReactNode; top?: number }) {
   return (

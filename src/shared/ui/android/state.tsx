@@ -6,19 +6,34 @@ import {
   padding,
   Shapes,
   size,
+  verticalScroll,
 } from "@expo/ui/jetpack-compose/modifiers";
 import type { ReactNode } from "react";
 
 import { heading } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 
-/** Fills the space it has and centers its content, keeping `bottom` free below it. */
+import { useLargeText } from "../large-text";
+
+/** Space above a state that scrolls, below the top app bar. */
+const LARGE_TEXT_TOP = 24;
+
+/**
+ * Fills the space it has and centers its content, keeping `bottom` free below it. Content taller
+ * than the space, as at large text sizes, scrolls; the scroll keeps the full height, so content
+ * that fits stays centered.
+ */
 export function Centered({ children, bottom }: { children: ReactNode; bottom: number }) {
+  const largeText = useLargeText();
   return (
     <Column
       horizontalAlignment="center"
       verticalArrangement="center"
-      modifiers={[fillMaxSize(), padding(40, 0, 40, bottom)]}
+      modifiers={[
+        fillMaxSize(),
+        verticalScroll(),
+        padding(40, largeText ? LARGE_TEXT_TOP : 0, 40, bottom),
+      ]}
     >
       {children}
     </Column>
@@ -55,13 +70,14 @@ export function StateTitle({ children }: { children: string }) {
   );
 }
 
-export function StateBody({ children }: { children: ReactNode }) {
+/** A state's sentence. `top` is the space above it: more for a second paragraph. */
+export function StateBody({ children, top = 8 }: { children: ReactNode; top?: number }) {
   const colors = useColors();
   return (
     <Text
       style={{ typography: "bodyMedium", textAlign: "center" }}
       color={colors.secondaryText}
-      modifiers={[padding(0, 8, 0, 0)]}
+      modifiers={[padding(0, top, 0, 0)]}
     >
       {children}
     </Text>

@@ -61,6 +61,35 @@ export type CreateWorkspaceResult =
   | { kind: "missing-directory"; directory: string }
   | { kind: "failed" };
 
+/** What an Invitation Link says about the Machine it pairs with. */
+export type Invitation = { machineId: string; machineName: string; address: string };
+
+/** What this device makes of an Invitation Link before it pairs. */
+export type InvitationReading =
+  | { kind: "invitation"; invitation: Invitation }
+  /** The link is not an Invitation Link, or it was used or expired. */
+  | { kind: "unusable" }
+  /** The link is for a Machine this device has paired already. */
+  | { kind: "already-paired"; invitation: Invitation };
+
+/** How a pairing ends. A Machine that stops answering while it waits is `unreachable`. */
+export type PairingOutcome =
+  | { kind: "paired"; machine: MachineRef }
+  /** The Machine declined, or the Comparison Code expired. */
+  | { kind: "declined" }
+  | { kind: "unreachable" };
+
+/**
+ * A pairing the Machine has started. The person compares `code` with the one the Machine shows and
+ * approves it there. `cancel` ends the pairing; `outcome` then never settles.
+ */
+export type Pairing = {
+  kind: "comparing";
+  code: string;
+  outcome: Promise<PairingOutcome>;
+  cancel: () => void;
+};
+
 /** What a command that changes a Workspace comes to. `failed` covers a Machine that did not answer. */
 export type CommandResult = { kind: "done" } | { kind: "failed" };
 
@@ -94,4 +123,11 @@ export type MachineClient = {
    * Invitation Link.
    */
   unpair: (machineId: string) => void;
+  /** Reads an Invitation Link on this device, without asking the Machine. */
+  readInvitation: (link: string) => InvitationReading;
+  /**
+   * Asks the Machine of an Invitation Link to pair with this device, at `networkAddress` when it is
+   * given and at the link's address otherwise.
+   */
+  pair: (link: string, networkAddress: string | null) => Promise<Pairing | { kind: "unreachable" }>;
 };

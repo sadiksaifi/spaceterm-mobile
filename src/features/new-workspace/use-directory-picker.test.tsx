@@ -32,6 +32,8 @@ function machine(answers: CreateWorkspaceResult[]) {
     connect: async () => {},
     restartCore: async () => ({ kind: "done" }),
     unpair: () => {},
+    readInvitation: () => ({ kind: "unusable" }),
+    pair: async () => ({ kind: "unreachable" }),
   };
   return { client, createWorkspace };
 }

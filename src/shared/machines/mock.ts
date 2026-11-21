@@ -3,10 +3,15 @@ import type {
   ConnectionState,
   CreateWorkspaceResult,
   DirectoryListing,
+  Invitation,
+  InvitationReading,
   MachineClient,
   MachinesSnapshot,
+  Pairing,
+  PairingOutcome,
   Workspace,
 } from "./model";
+import { invitationLinkIn } from "./invitation";
 
 /**
  * A Machine as the mock client knows it: its directories by absolute path, the branch of each
@@ -24,14 +29,32 @@ export type MockMachine = {
 };
 
 /**
+ * The pairing the mock client fakes. Every Invitation Link is for `machine`, at `address`. The
+ * Machine shows `code`, and `wait` milliseconds later it gives its `answer`; with `unreachable` it
+ * never answers, and with `unusable` no link can be used.
+ */
+export type MockPairing = {
+  machine: MockMachine;
+  address: string;
+  code: string;
+  answer: "approve" | "decline" | "unreachable" | "unusable";
+  wait: number;
+};
+
+/**
  * A client that answers from memory, for building screens before any Machine can be reached.
  * Changes last until the app restarts. `latency` is how long each answer takes, in milliseconds.
  * With `refuse`, the Machine refuses the first attempt of each command and every other one after,
- * so the failure and its Try Again can both be seen.
+ * so the failure and its Try Again can both be seen. Without `pairing`, no Invitation Link can be
+ * used.
  */
 export function createMockClient(
   seed: readonly MockMachine[],
-  { latency = 0, refuse = false }: { latency?: number; refuse?: boolean } = {},
+  {
+    latency = 0,
+    refuse = false,
+    pairing,
+  }: { latency?: number; refuse?: boolean; pairing?: MockPairing } = {},
 ): MachineClient {
   const machines = seed.map((machine) => ({
     ...machine,
@@ -81,7 +104,7 @@ export function createMockClient(
   const done = (apply: () => void) => answer<CommandResult>({ kind: "done" }, apply);
   const failed = () => answer<CommandResult>({ kind: "failed" });
 
-  return {
+  const client: MachineClient = {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
       listeners.add(listener);
@@ -218,7 +241,60 @@ export function createMockClient(
       machines.splice(index, 1);
       changed();
     },
+
+    readInvitation: (link) => {
+      if (
+        pairing === undefined ||
+        pairing.answer === "unusable" ||
+        invitationLinkIn(link) === null
+      ) {
+        return { kind: "unusable" };
+      }
+      const invitation: Invitation = {
+        machineId: pairing.machine.id,
+        machineName: pairing.machine.name,
+        address: pairing.address,
+      };
+      return machine(invitation.machineId) === undefined
+        ? { kind: "invitation", invitation }
+        : { kind: "already-paired", invitation };
+    },
+
+    pair: (link) => {
+      const reading: InvitationReading = client.readInvitation(link);
+      if (
+        pairing === undefined ||
+        pairing.answer === "unreachable" ||
+        reading.kind !== "invitation"
+      ) {
+        return answer({ kind: "unreachable" as const });
+      }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const outcome = new Promise<PairingOutcome>((resolve) => {
+        timer = setTimeout(() => {
+          if (pairing.answer === "decline") return resolve({ kind: "declined" });
+          const { id, name } = pairing.machine;
+          if (machine(id) === undefined) {
+            machines.push({
+              ...pairing.machine,
+              directories: withChildEntries(pairing.machine.directories),
+              workspaces: pairing.machine.workspaces && [...pairing.machine.workspaces],
+              connectTry: 0,
+            });
+            changed();
+          }
+          resolve({ kind: "paired", machine: { id, name } });
+        }, pairing.wait);
+      });
+      return answer<Pairing>({
+        kind: "comparing",
+        code: pairing.code,
+        outcome,
+        cancel: () => clearTimeout(timer),
+      });
+    },
   };
+  return client;
 
   /** Makes `absolute` and its missing ancestors, from the top down, so each parent lists them. */
   function makeDirectories(target: State, absolute: string) {

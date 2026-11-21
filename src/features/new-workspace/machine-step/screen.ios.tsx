@@ -15,7 +15,7 @@ import { connectionStateText } from "@/shared/machines/text";
 import { useColors } from "@/shared/theme/colors";
 import { useLargeText } from "@/shared/ui/large-text";
 
-import { SectionHeader } from "../components/ios/section-header";
+import { SectionHeader } from "@/shared/ui/ios/section-header";
 import { text } from "../text";
 import type ScreenContract from "./screen";
 import type { MachineStepProps } from "./screen";

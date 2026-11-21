@@ -2,6 +2,7 @@ import machineIcon from "@expo/material-symbols/desktop_windows.xml";
 import { Button, FilledTonalButton, Text, TextButton } from "@expo/ui/jetpack-compose";
 import { padding } from "@expo/ui/jetpack-compose/modifiers";
 
+import { commandGuidance, inviteGuidance } from "@/shared/machines/text";
 import { useColors } from "@/shared/theme/colors";
 import {
   Centered,
@@ -21,8 +22,8 @@ const PARAGRAPH_GAP = 12;
 
 export function NoMachines({ actions, bottom }: { actions: HomeActions; bottom: number }) {
   const colors = useColors();
-  const [choose, invite, inDesktop, machines, settings] = text.noMachinesInvite;
-  const [orRun, command, onMachine] = text.noMachinesCommand;
+  const [choose, invite, inDesktop, machines, settings] = inviteGuidance;
+  const [orRun, command, onMachine] = commandGuidance;
   const name = (value: string) => (
     <Text style={{ fontWeight: "600" }} color={colors.text}>
       {value}

@@ -12,3 +12,18 @@ export function connectionStateText(state: UnreachableState): string {
       return cased("Not Connected", "Not connected");
   }
 }
+
+/**
+ * Where an Invitation Link comes from, in the words No Machines and Add Machine share. The two
+ * names are emphasized where the platform allows.
+ */
+export const inviteGuidance = [
+  "Choose ",
+  "Invite Device",
+  " in SpaceTerm Desktop’s ",
+  "Machines",
+  " settings.",
+] as const;
+
+/** The other way to an Invitation Link. The command is set in a monospaced font where allowed. */
+export const commandGuidance = ["Or run ", "spaceterm pair", " on your Machine."] as const;

@@ -40,7 +40,7 @@ import { secondary } from "@/shared/ui/ios/modifiers";
 import { ActionButton, StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
 import { useLargeText } from "@/shared/ui/large-text";
 
-import { SectionHeader } from "../components/ios/section-header";
+import { SectionHeader } from "@/shared/ui/ios/section-header";
 import type { PickerView } from "../picker";
 import { text } from "../text";
 import type ScreenContract from "./screen";

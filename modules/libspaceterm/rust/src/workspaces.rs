@@ -151,6 +151,7 @@ mod tests {
             repository_directory: None,
             presentation: None,
             observers: PaneObservers::default(),
+            activity: None,
             confirmed_directory: None,
             creator: None,
         }

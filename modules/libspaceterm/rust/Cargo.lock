@@ -1188,7 +1188,7 @@ checksum = "ea06cc588e43c632923a55450401b8f25e628131571d4e1baea1bdfdb2b5ed06"
 [[package]]
 name = "spaceterm-client"
 version = "0.0.0"
-source = "git+https://github.com/sadiksaifi/SpaceTerm?tag=libspaceterm%40v0.1.2#61b28e0f9f0eae79bab1269848d4c15b7c319b4a"
+source = "git+https://github.com/sadiksaifi/SpaceTerm?tag=libspaceterm%40v0.1.4#48b654e60b795a700bc217143b6936bb0b85d961"
 dependencies = [
  "async-channel",
  "base64",
@@ -1227,7 +1227,7 @@ dependencies = [
 [[package]]
 name = "spaceterm-protocol"
 version = "0.0.0"
-source = "git+https://github.com/sadiksaifi/SpaceTerm?tag=libspaceterm%40v0.1.2#61b28e0f9f0eae79bab1269848d4c15b7c319b4a"
+source = "git+https://github.com/sadiksaifi/SpaceTerm?tag=libspaceterm%40v0.1.4#48b654e60b795a700bc217143b6936bb0b85d961"
 dependencies = [
  "base64",
  "postcard",

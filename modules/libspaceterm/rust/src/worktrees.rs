@@ -62,6 +62,7 @@ pub(crate) fn context(
     template: String,
     home: &Path,
     branches: Branches,
+    default_branch: Option<String>,
 ) -> WorktreeContext {
     let checked_out: Vec<String> = inventory
         .and_then(|inventory| inventory.repositories.as_ref())
@@ -79,7 +80,7 @@ pub(crate) fn context(
         .unwrap_or_default();
     WorktreeContext {
         root: root.display().to_string(),
-        start_from: start_from(&branches.local),
+        start_from: start_from(&branches.local, default_branch),
         local: branches.local,
         remote: branches.remote,
         checked_out,
@@ -88,14 +89,16 @@ pub(crate) fn context(
     }
 }
 
-/// The Machine names no default branch yet (sadiksaifi/SpaceTerm#950), so the usual names stand
+/// The Machine's default branch. A Machine that does not name one leaves the usual names to stand
 /// in for it, then the newest local branch.
-fn start_from(local: &[String]) -> Option<String> {
-    ["main", "master"]
-        .iter()
-        .find(|name| local.iter().any(|branch| branch == *name))
-        .map(|name| (*name).to_owned())
-        .or_else(|| local.first().cloned())
+fn start_from(local: &[String], default_branch: Option<String>) -> Option<String> {
+    default_branch.or_else(|| {
+        ["main", "master"]
+            .iter()
+            .find(|name| local.iter().any(|branch| branch == *name))
+            .map(|name| (*name).to_owned())
+            .or_else(|| local.first().cloned())
+    })
 }
 
 /// Where `template` places a Worktree of `root` for `branch`, starting with `~` inside `home`.
@@ -179,20 +182,27 @@ mod tests {
     }
 
     #[test]
-    fn start_from_is_main_or_master_then_the_newest_local_branch() {
+    fn start_from_is_the_default_branch_else_main_or_master_then_the_newest_local_branch() {
         assert_eq!(
-            start_from(&names(&["feat/a", "main"])),
+            start_from(
+                &names(&["feat/a", "main", "trunk"]),
+                Some("trunk".to_owned())
+            ),
+            Some("trunk".to_owned())
+        );
+        assert_eq!(
+            start_from(&names(&["feat/a", "main"]), None),
             Some("main".to_owned())
         );
         assert_eq!(
-            start_from(&names(&["feat/a", "master"])),
+            start_from(&names(&["feat/a", "master"]), None),
             Some("master".to_owned())
         );
         assert_eq!(
-            start_from(&names(&["feat/a", "dev"])),
+            start_from(&names(&["feat/a", "dev"]), None),
             Some("feat/a".to_owned())
         );
-        assert_eq!(start_from(&[]), None);
+        assert_eq!(start_from(&[], None), None);
     }
 
     #[test]

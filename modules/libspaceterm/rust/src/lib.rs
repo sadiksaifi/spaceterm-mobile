@@ -16,6 +16,7 @@ use record_file::{PrivateRecordFile, hex};
 use spaceterm_client::direct::{DirectError, Endpoint, Invitation, default_port};
 use spaceterm_client::hierarchy::{Axis, CloseTarget, CreateControl, Mutation, Outcome};
 use spaceterm_client::pane::control::ClientName;
+use spaceterm_client::protocol::capability::Capability;
 use spaceterm_client::protocol::{InventoryRevision, Operation, ReplyBody};
 use spaceterm_client::records::PrivateRecords;
 use spaceterm_client::{
@@ -524,15 +525,28 @@ impl Machines {
     /// `None` when the Machine did not answer.
     pub fn worktree_context(&self, machine_id: String, root: String) -> Option<WorktreeContext> {
         let root = PathBuf::from(root);
-        let reply = self.read_worktree(&machine_id, Read::Context { root: root.clone() })?;
-        let Ok(ReadReply::Context {
-            settings,
-            home,
-            branches,
-        }) = reply
-        else {
-            return None;
-        };
+        let (settings, home, branches, default_branch) =
+            if self.supports(&machine_id, Capability::WorktreeDefaultBranch) {
+                let read = Read::ContextWithDefault { root: root.clone() };
+                match self.read_worktree(&machine_id, read)? {
+                    Ok(ReadReply::ContextWithDefault {
+                        settings,
+                        home,
+                        branches,
+                        default_branch,
+                    }) => (settings, home, branches, default_branch),
+                    _ => return None,
+                }
+            } else {
+                match self.read_worktree(&machine_id, Read::Context { root: root.clone() })? {
+                    Ok(ReadReply::Context {
+                        settings,
+                        home,
+                        branches,
+                    }) => (settings, home, branches, None),
+                    _ => return None,
+                }
+            };
         let inventory = self
             .known(&machine_id)
             .ok()
@@ -543,6 +557,7 @@ impl Machines {
             settings.template,
             &home,
             branches,
+            default_branch,
         ))
     }
 
@@ -701,6 +716,14 @@ impl Machines {
         let route = self.known(machine_id).ok()?;
         let machine = self.connections.core(&route)?;
         self.edits.resume(route, &machine, matches)
+    }
+
+    /// The connected Machine's work protocol has `capability`.
+    fn supports(&self, machine_id: &str, capability: Capability) -> bool {
+        self.known(machine_id)
+            .ok()
+            .and_then(|route| self.connections.core(&route))
+            .is_some_and(|machine| machine.work().capabilities().check(capability).is_ok())
     }
 
     /// Asks a connected Machine for Worktree facts and waits for the answer, `None` without one.

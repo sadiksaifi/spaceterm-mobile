@@ -39,7 +39,7 @@ export type NativeMachines = Pick<
 /** How many times a pairing tries again when the Machine does not answer, and how long it waits. */
 const PAIRING_RETRIES = 3;
 const PAIRING_RETRY_WAIT = 2000;
-/** How long Connect waits for a reached Machine to send its Workspaces before it gives up. */
+/** How long a connected Machine has to send its Workspaces before it shows as not connected. */
 const LIST_WAIT = 30_000;
 
 /**
@@ -56,6 +56,10 @@ export function createNativeClient(
   const changeWatchers = new Set<() => void>();
   /** Machines whose last Connect ended without a connection. */
   const stillNotConnected = new Set<string>();
+  /** Each connected Machine's wait for its first Workspace list, however it connected. */
+  const listWaits = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Connected Machines whose list did not arrive in time; Try Again starts them over. */
+  const unlisted = new Set<string>();
   /** Each Machine's last Workspace list, kept while it is not connected. */
   const kept = new Map<string, readonly Workspace[]>();
   let starting = true;
@@ -82,17 +86,38 @@ export function createNativeClient(
   function toMachine({ id, name, connection, workspaces }: NativePairedMachine): Machine {
     if (answered({ connection, workspaces })) {
       stillNotConnected.delete(id);
+      forgetList(id);
       const listed = (workspaces ?? []).map(toWorkspace);
       kept.set(id, listed);
       return { id, name, connection: "connected", workspaces: listed };
     }
     const known = kept.get(id) ?? null;
-    // A link that Connect gave up on for never listing shows as not connected, so Try Again shows.
-    const gaveUp = connection === "connected" && stillNotConnected.has(id);
-    if (!gaveUp && (connection === "connected" || connection === "connecting"))
+    const waiting = connection === "connected";
+    if (waiting) awaitList(id);
+    else forgetList(id);
+    // A link that never listed shows as not connected, so Try Again shows.
+    if (waiting && unlisted.has(id))
+      return { id, name, connection: "still-not-connected", workspaces: known };
+    if (connection === "connected" || connection === "connecting")
       return { id, name, connection: "reconnecting", workspaces: known };
     const state = stillNotConnected.has(id) ? "still-not-connected" : "not-connected";
     return { id, name, connection: state, workspaces: known };
+  }
+
+  function awaitList(id: string) {
+    if (listWaits.has(id) || unlisted.has(id)) return;
+    const wait = setTimeout(() => {
+      listWaits.delete(id);
+      unlisted.add(id);
+      refresh();
+    }, LIST_WAIT);
+    listWaits.set(id, wait);
+  }
+
+  function forgetList(id: string) {
+    clearTimeout(listWaits.get(id));
+    listWaits.delete(id);
+    unlisted.delete(id);
   }
 
   function toWorkspace({ branch, seen, ...listed }: NativeWorkspace): Workspace {
@@ -145,6 +170,8 @@ export function createNativeClient(
     },
     connect: async (machineId) => {
       stillNotConnected.delete(machineId);
+      forgetList(machineId);
+      refresh();
       // A Machine at a public address needs no local network access, so a refusal still tries.
       await native.allowLocalNetwork();
       // A Machine reached meanwhile, by a retry or another Connect, keeps its connection: a second
@@ -177,6 +204,7 @@ export function createNativeClient(
     },
     unpair: (machineId) => {
       stillNotConnected.delete(machineId);
+      forgetList(machineId);
       kept.delete(machineId);
       void native.unpair(machineId).then(refresh);
     },

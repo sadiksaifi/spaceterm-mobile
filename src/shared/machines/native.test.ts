@@ -287,6 +287,26 @@ describe("the paired Machines", () => {
     });
   });
 
+  it("gives up on a Machine that connects by itself but never lists, until the list arrives", () => {
+    vi.useFakeTimers();
+    const { native, state, change } = fakeNative();
+    state.machines = [{ ...mini, connection: "connected" }];
+    const client = createNativeClient(native);
+
+    vi.advanceTimersByTime(29_999);
+    expect(client.getSnapshot().machines[0]?.connection).toBe("reconnecting");
+    vi.advanceTimersByTime(1);
+    expect(client.getSnapshot()).toEqual({
+      machines: [
+        { id: "m1", name: "Mac mini", connection: "still-not-connected", workspaces: null },
+      ],
+      starting: false,
+    });
+
+    change({ machines: [{ ...mini, connection: "connected", workspaces: [] }] });
+    expect(client.getSnapshot().machines[0]?.connection).toBe("connected");
+  });
+
   it("keeps a Machine's last list after it disconnects", () => {
     const { native, change } = fakeNative();
     const client = createNativeClient(native);

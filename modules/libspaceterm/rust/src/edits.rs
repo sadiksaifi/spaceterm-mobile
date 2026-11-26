@@ -69,11 +69,13 @@ impl Edits {
         let Some(editor) = self.editor(&mut slot, route, machine) else {
             return false;
         };
+        // The wait takes at most half of what is left, so the edit keeps time to be sent.
         if let Some(last) = editor.journal().last() {
+            let left = deadline.saturating_duration_since(Instant::now());
             await_other_sequence(
                 machine,
                 last.sequence,
-                deadline.min(Instant::now() + FRESH_WAIT),
+                Instant::now() + FRESH_WAIT.min(left / 2),
             );
         }
         match editor.submit(mutation, deadline) {
@@ -172,7 +174,11 @@ fn await_other_sequence(machine: &PairedMachine, settled: u64, until: Instant) {
         return;
     };
     let mut seen = 0;
-    while let Ok(Some((revision, inventory))) = link.next_inventory_by(seen, until) {
+    // A list can arrive on every turn, so the clock ends the wait, not the lists.
+    while Instant::now() < until {
+        let Ok(Some((revision, inventory))) = link.next_inventory_by(seen, until) else {
+            return;
+        };
         if inventory.next_sequence != settled {
             return;
         }

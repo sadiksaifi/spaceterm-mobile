@@ -27,15 +27,31 @@ export type NativeJoinState =
   | { kind: "declined" }
   | { kind: "unreachable" };
 
+/** A Workspace as its Machine lists it. Paths start with `~` where they are in the home directory. */
+export type NativeWorkspace = {
+  id: string;
+  name: string;
+  directory: string;
+  /** `null` when the directory is in no repository, or its `HEAD` is detached. */
+  branch: string | null;
+  /** The Terminal Sessions that Kill Workspace ends. */
+  terminalSessions: number;
+};
+
 export type NativePairedMachine = {
   id: string;
   name: string;
   address: string;
   connection: "connected" | "connecting" | "disconnected" | "unavailable";
+  /** The Machine's Workspaces while it is connected and has sent them, `null` otherwise. */
+  workspaces: NativeWorkspace[] | null;
 };
 
 type LibspacetermEvents = {
-  /** Something about the paired Machines or a join changed. Read them again to see what. */
+  /**
+   * Something about the paired Machines, their Workspaces, or a join changed. Read them again to
+   * see what.
+   */
   onChange: () => void;
 };
 
@@ -63,6 +79,10 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   connect(machineId: string): Promise<boolean>;
   disconnect(machineId: string): Promise<boolean>;
   unpair(machineId: string): Promise<boolean>;
+  /** Each resolves `true` once the Machine has made the change, and `false` when it did not. */
+  renameWorkspace(machineId: string, workspaceId: string, name: string): Promise<boolean>;
+  /** Ends the Workspace and every Terminal Session in it. */
+  killWorkspace(machineId: string, workspaceId: string): Promise<boolean>;
 }
 
 export default requireNativeModule<LibspacetermModule>("Libspaceterm");

@@ -2,9 +2,11 @@ import type {
   LibspacetermModule,
   NativeJoinState,
   NativePairedMachine,
+  NativeWorkspace,
 } from "@/modules/libspaceterm";
 
 import type {
+  CommandResult,
   Invitation,
   Machine,
   MachineClient,
@@ -12,6 +14,7 @@ import type {
   MachinesSnapshot,
   Pairing,
   PairingOutcome,
+  Workspace,
 } from "./model";
 
 /** What the client asks of libspaceterm. */
@@ -27,6 +30,8 @@ export type NativeMachines = Pick<
   | "connect"
   | "disconnect"
   | "unpair"
+  | "renameWorkspace"
+  | "killWorkspace"
 > & {
   addListener: (event: "onChange", listener: () => void) => { remove: () => void };
 };
@@ -37,8 +42,9 @@ const PAIRING_RETRY_WAIT = 2000;
 
 /**
  * The client for the Machines this device has paired through libspaceterm. Pairing, Saved
- * Connections, and connecting are real. Workspaces are not read yet: a connected Machine lists
- * none, and every Workspace command fails.
+ * Connections, connecting, the Workspace list, Rename and Kill Workspace are real. Creating a
+ * Workspace, listing directories, and restarting SpaceTerm Core fail until libspaceterm is wired
+ * for them.
  */
 export function createNativeClient(
   native: NativeMachines,
@@ -48,6 +54,8 @@ export function createNativeClient(
   const changeWatchers = new Set<() => void>();
   /** Machines whose last Connect ended without a connection. */
   const stillNotConnected = new Set<string>();
+  /** Each Machine's last Workspace list, kept while it is not connected. */
+  const kept = new Map<string, readonly Workspace[]>();
   let starting = true;
   let snapshot = read();
 
@@ -62,20 +70,24 @@ export function createNativeClient(
     const paired = native.paired();
     const machines = paired.map(toMachine);
     starting &&=
-      paired.some((machine) => machine.connection === "connecting") &&
-      !paired.some((machine) => machine.connection === "connected");
+      machines.some((machine) => machine.connection === "reconnecting") &&
+      !machines.some((machine) => machine.connection === "connected");
     return { machines, starting };
   }
 
-  function toMachine({ id, name, connection }: NativePairedMachine): Machine {
-    if (connection === "connected") {
+  /** A Machine counts as connected once it has sent its Workspaces, as Home needs them. */
+  function toMachine({ id, name, connection, workspaces }: NativePairedMachine): Machine {
+    if (connection === "connected" && workspaces !== null) {
       stillNotConnected.delete(id);
-      return { id, name, connection, workspaces: [] };
+      const listed = workspaces.map(toWorkspace);
+      kept.set(id, listed);
+      return { id, name, connection, workspaces: listed };
     }
-    if (connection === "connecting")
-      return { id, name, connection: "reconnecting", workspaces: null };
+    const known = kept.get(id) ?? null;
+    if (connection === "connected" || connection === "connecting")
+      return { id, name, connection: "reconnecting", workspaces: known };
     const state = stillNotConnected.has(id) ? "still-not-connected" : "not-connected";
-    return { id, name, connection: state, workspaces: null };
+    return { id, name, connection: state, workspaces: known };
   }
 
   function refresh() {
@@ -107,8 +119,10 @@ export function createNativeClient(
     },
     listDirectory: async (_machineId, path) => ({ kind: "unavailable", path, parent: null }),
     createWorkspace: async () => ({ kind: "failed" }),
-    renameWorkspace: async () => ({ kind: "failed" }),
-    killWorkspace: async () => ({ kind: "failed" }),
+    renameWorkspace: async (machineId, workspaceId, name) =>
+      done(await native.renameWorkspace(machineId, workspaceId, name)),
+    killWorkspace: async (machineId, workspaceId) =>
+      done(await native.killWorkspace(machineId, workspaceId)),
     restartCore: async () => ({ kind: "failed" }),
     disconnect: (machineId) => {
       stillNotConnected.delete(machineId);
@@ -138,6 +152,7 @@ export function createNativeClient(
     },
     unpair: (machineId) => {
       stillNotConnected.delete(machineId);
+      kept.delete(machineId);
       void native.unpair(machineId).then(refresh);
     },
     readInvitation: (link) => {
@@ -235,6 +250,14 @@ export function createNativeClient(
     },
   };
   return client;
+}
+
+function toWorkspace({ branch, ...workspace }: NativeWorkspace): Workspace {
+  return branch === null ? workspace : { ...workspace, branch };
+}
+
+function done(changed: boolean): CommandResult {
+  return changed ? { kind: "done" } : { kind: "failed" };
 }
 
 /** The six digits as the Machine shows them, in two groups of three. */

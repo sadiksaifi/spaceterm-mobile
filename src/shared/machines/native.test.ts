@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { NativeJoinState, NativePairedMachine } from "@/modules/libspaceterm";
+import type { NativeJoinState, NativePairedMachine, NativeWorkspace } from "@/modules/libspaceterm";
 
 import { createNativeClient, type NativeMachines } from "./native";
 
@@ -41,6 +41,8 @@ function fakeNative() {
     connect: async () => state.connectAccepted,
     disconnect: async () => true,
     unpair: async () => true,
+    renameWorkspace: async () => true,
+    killWorkspace: async () => true,
     addListener: (_event, listener) => {
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
@@ -76,7 +78,13 @@ describe("pairing through libspaceterm", () => {
 
     change({
       machines: [
-        { id: "m1", name: "Mac mini", address: "mac-mini.local", connection: "connected" },
+        {
+          id: "m1",
+          name: "Mac mini",
+          address: "mac-mini.local",
+          connection: "connected",
+          workspaces: [],
+        },
       ],
       join: { kind: "paired", machineId: "m1" },
     });
@@ -179,7 +187,13 @@ describe("pairing that ends early", () => {
   it("pairs when the approval is the first state it reads", async () => {
     const { native, state } = fakeNative();
     state.machines = [
-      { id: "m1", name: "Mac mini", address: "mac-mini.local", connection: "connected" },
+      {
+        id: "m1",
+        name: "Mac mini",
+        address: "mac-mini.local",
+        connection: "connected",
+        workspaces: [],
+      },
     ];
     state.join = { kind: "paired", machineId: "m1" };
 
@@ -197,9 +211,24 @@ describe("the paired Machines", () => {
     name: "Mac mini",
     address: "mac-mini.local",
     connection: "disconnected",
+    workspaces: null,
+  };
+  const api: NativeWorkspace = {
+    id: "w1",
+    name: "api",
+    directory: "~/srv/api",
+    branch: "main",
+    terminalSessions: 2,
+  };
+  const logs: NativeWorkspace = {
+    id: "w2",
+    name: "logs",
+    directory: "/var/log",
+    branch: null,
+    terminalSessions: 1,
   };
 
-  it("lists a connected Machine with no Workspaces and others without a list", () => {
+  it("lists a connected Machine's Workspaces and others without a list", () => {
     const { native, change } = fakeNative();
     const client = createNativeClient(native);
     const heard = vi.fn();
@@ -207,15 +236,56 @@ describe("the paired Machines", () => {
 
     change({
       machines: [
-        { ...mini, connection: "connected" },
+        { ...mini, connection: "connected", workspaces: [api, logs] },
         { ...mini, id: "m2", name: "MacBook Pro", connection: "connecting" },
       ],
     });
 
     expect(heard).toHaveBeenCalledOnce();
     expect(client.getSnapshot().machines).toEqual([
-      { id: "m1", name: "Mac mini", connection: "connected", workspaces: [] },
+      {
+        id: "m1",
+        name: "Mac mini",
+        connection: "connected",
+        workspaces: [
+          { id: "w1", name: "api", directory: "~/srv/api", branch: "main", terminalSessions: 2 },
+          { id: "w2", name: "logs", directory: "/var/log", terminalSessions: 1 },
+        ],
+      },
       { id: "m2", name: "MacBook Pro", connection: "reconnecting", workspaces: null },
+    ]);
+  });
+
+  it("reconnects until a connected Machine's list arrives", () => {
+    const { native, state, change } = fakeNative();
+    state.machines = [{ ...mini, connection: "connected" }];
+    const client = createNativeClient(native);
+    expect(client.getSnapshot()).toEqual({
+      machines: [{ id: "m1", name: "Mac mini", connection: "reconnecting", workspaces: null }],
+      starting: true,
+    });
+
+    change({ machines: [{ ...mini, connection: "connected", workspaces: [] }] });
+    expect(client.getSnapshot()).toEqual({
+      machines: [{ id: "m1", name: "Mac mini", connection: "connected", workspaces: [] }],
+      starting: false,
+    });
+  });
+
+  it("keeps a Machine's last list after it disconnects", () => {
+    const { native, change } = fakeNative();
+    const client = createNativeClient(native);
+
+    change({ machines: [{ ...mini, connection: "connected", workspaces: [logs] }] });
+    change({ machines: [{ ...mini, connection: "connecting" }] });
+
+    expect(client.getSnapshot().machines).toEqual([
+      {
+        id: "m1",
+        name: "Mac mini",
+        connection: "reconnecting",
+        workspaces: [{ id: "w2", name: "logs", directory: "/var/log", terminalSessions: 1 }],
+      },
     ]);
   });
 
@@ -225,7 +295,7 @@ describe("the paired Machines", () => {
     const client = createNativeClient(native);
     expect(client.getSnapshot().starting).toBe(true);
 
-    change({ machines: [{ ...mini, connection: "connected" }] });
+    change({ machines: [{ ...mini, connection: "connected", workspaces: [] }] });
     change({ machines: [{ ...mini, connection: "connecting" }] });
     expect(client.getSnapshot().starting).toBe(false);
   });

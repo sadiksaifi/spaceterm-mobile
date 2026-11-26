@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useEffect, useRef } from "react";
 
 import { useMachineClient, useMachines } from "@/shared/machines/client";
 import type { Workspace } from "@/shared/machines/model";
@@ -15,6 +15,15 @@ export default function NewWorktreeRoute() {
   const snapshot = useMachines();
   const client = useMachineClient();
   const router = useRouter();
+  const navigation = useNavigation();
+  // Closing goes back once, and only from the form: Close and a Create that answers as the form
+  // closes would otherwise each go back, and take the Workspace with it.
+  const closed = useRef(false);
+  const close = () => {
+    if (closed.current || !navigation.isFocused()) return;
+    closed.current = true;
+    router.back();
+  };
   const machine = snapshot.machines.find((each) => each.id === machineId);
   const workspace = machine?.workspaces?.find((each) => each.id === workspaceId);
   const usable = machine?.connection === "connected" && workspace?.repository != null;
@@ -22,13 +31,15 @@ export default function NewWorktreeRoute() {
     client,
     machineId,
     workspace: workspace ?? NONE,
-    onCreated: () => router.back(),
+    onCreated: close,
   });
 
   // The form closes when its Workspace goes, or its Machine stops answering.
   useEffect(() => {
-    if (!usable) router.back();
-  }, [usable, router]);
+    if (!usable) close();
+    // `close` is new each render; the form closes once `usable` turns false.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usable]);
 
   return (
     <NewWorktreeScreen
@@ -36,9 +47,9 @@ export default function NewWorktreeRoute() {
         ...worktree,
         // Without the branch lists the form cannot be filled, so Cancel closes it.
         dismissFailure: () =>
-          worktree.failure === "branches" ? router.back() : worktree.dismissFailure(),
+          worktree.failure === "branches" ? close() : worktree.dismissFailure(),
       }}
-      onClose={() => router.back()}
+      onClose={close}
     />
   );
 }

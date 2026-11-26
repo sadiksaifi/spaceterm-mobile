@@ -33,7 +33,6 @@ import {
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { useState, type ReactNode } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { rowCommands, type Control } from "@/features/home/actions";
 import type { WorkspaceRow } from "@/features/home/model";
@@ -44,11 +43,14 @@ import { useColors } from "@/shared/theme/colors";
 
 import { text } from "../../text";
 
+/** Below the content; the sheet keeps clear of the navigation bar itself. */
+const SHEET_BOTTOM = 16;
 const FIELD_HEIGHT = 56;
 /** Material gives a not connected row the disabled look. */
 const DIMMED = 0.5;
 const UNAVAILABLE = 0.38;
-const ROW_CORNER = 28;
+const ROW_CORNER = 16;
+const ROW_HEIGHT = 64;
 const MENU_CORNER = 16;
 const MENU_ELEVATION = 3;
 const MENU_WIDTH = 196;
@@ -77,7 +79,6 @@ export function WorkspacesSheet({
 }) {
   const material = useMaterialColors();
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const field = useNativeState("");
   const needle = query.trim().toLocaleLowerCase();
@@ -87,13 +88,17 @@ export function WorkspacesSheet({
       : rows.filter((row) => row.workspace.name.toLocaleLowerCase().includes(needle));
 
   return (
-    <ModalBottomSheet onDismissRequest={onClose} containerColor={material.surfaceContainerLow}>
+    <ModalBottomSheet
+      onDismissRequest={onClose}
+      containerColor={material.surfaceContainerLow}
+      skipPartiallyExpanded
+    >
       <Box modifiers={[fillMaxWidth()]}>
-        <Column modifiers={[fillMaxWidth(), padding(16, 0, 16, insets.bottom + 16)]}>
+        <Column modifiers={[fillMaxWidth(), padding(16, 0, 16, SHEET_BOTTOM)]}>
           <Row
             verticalAlignment="center"
-            horizontalArrangement={{ spacedBy: 16 }}
-            modifiers={[fillMaxWidth(), padding(0, 8, 0, 12)]}
+            horizontalArrangement={{ spacedBy: 8 }}
+            modifiers={[fillMaxWidth(), padding(0, 0, 0, 12)]}
           >
             <Surface
               color={material.surfaceContainerHigh}
@@ -151,7 +156,10 @@ export function WorkspacesSheet({
               </FloatingActionButton.Icon>
             </FloatingActionButton>
           </Row>
-          <Column modifiers={[fillMaxWidth(), verticalScroll()]}>
+          <Column
+            verticalArrangement={{ spacedBy: 2 }}
+            modifiers={[fillMaxWidth(), verticalScroll()]}
+          >
             {shown.map((row) => (
               <SheetRow
                 key={row.key}
@@ -260,7 +268,14 @@ function SheetRow({
                 ...(connection === "connected" ? [] : [alpha(DIMMED)]),
               ]}
             >
-              <Row verticalAlignment="center" modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}>
+              <Row
+                verticalAlignment="center"
+                modifiers={[
+                  fillMaxWidth(),
+                  defaultMinSize({ minHeight: ROW_HEIGHT }),
+                  padding(16, 8, 16, 8),
+                ]}
+              >
                 <Column modifiers={[weight(1)]}>
                   <Text maxLines={1} overflow="ellipsis" style={{ typography: "bodyLarge" }}>
                     {row.workspace.name}

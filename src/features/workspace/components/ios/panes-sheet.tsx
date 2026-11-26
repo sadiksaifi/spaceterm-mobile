@@ -7,13 +7,22 @@ import {
   presentationDragIndicator,
 } from "@expo/ui/swift-ui/modifiers";
 import type { ReactNode } from "react";
+import { useWindowDimensions } from "react-native";
 
 import type { Tab } from "@/shared/machines/model";
 
 import { text } from "../../text";
 import type { TabCommands } from "../../use-tab-commands";
-import { CardGrid } from "./card-grid";
+import { CardGrid, cardGridHeight } from "./card-grid";
 import { menuItem } from "./workspace-bar";
+
+const PADDING_TOP = 28;
+const PADDING_BOTTOM = 24;
+const SPACING = 24;
+/** The headline's line height. */
+const HEADER = 22;
+/** A sheet short of the full height floats this far inside the screen's edges. */
+const SHEET_INSET = 8;
 
 /**
  * The Panes of one Tab, in the grid the Tabs use, with New Pane last. It stays open as Panes
@@ -29,18 +38,29 @@ export function PanesSheet({
   /** Wraps the sheet's content in the alerts, which show over the topmost view. */
   alertsView: (children: ReactNode) => ReactNode;
 }) {
+  const width = useWindowDimensions().width - 2 * SHEET_INSET;
+  // As tall as its Panes, up to the full height.
+  const fit =
+    tab &&
+    PADDING_TOP + HEADER + SPACING + cardGridHeight(tab.panes.length, width) + PADDING_BOTTOM;
   return (
     <BottomSheet
       isPresented={tab !== null}
       onIsPresentedChange={(presented) => !presented && commands.closePanes()}
     >
       <Group
-        modifiers={[presentationDetents(["medium", "large"]), presentationDragIndicator("visible")]}
+        modifiers={[
+          presentationDetents(fit ? [{ height: fit }, "large"] : ["large"]),
+          presentationDragIndicator("visible"),
+        ]}
       >
         {tab &&
           alertsView(
             <ScrollView>
-              <VStack spacing={24} modifiers={[padding({ top: 28, bottom: 24 })]}>
+              <VStack
+                spacing={SPACING}
+                modifiers={[padding({ top: PADDING_TOP, bottom: PADDING_BOTTOM })]}
+              >
                 <Text
                   modifiers={[
                     font({ textStyle: "headline" }),
@@ -50,6 +70,7 @@ export function PanesSheet({
                   {text.panes}
                 </Text>
                 <CardGrid
+                  width={width}
                   cards={tab.panes.map((pane) => {
                     const close = { onPress: () => commands.closePane(tab, pane) };
                     return {

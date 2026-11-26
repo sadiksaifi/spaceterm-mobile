@@ -37,14 +37,17 @@ import { useTerminalBackground } from "../../terminal";
 
 /** The grid's metrics from the mockups. */
 const SIDE = 16;
-const GAP = 12;
-const ROW_GAP = 20;
-const CORNER = 28;
+const GAP = 14;
+const ROW_GAP = 18;
+const CORNER = 20;
 /** A card is a little taller than wide, as the mockups draw it. */
 const ASPECT = 1.1;
 const CLOSE_SIZE = 24;
 const CLOSE_INSET = 10;
-const DASH = [6, 5];
+const DASH = [4, 4];
+const CAPTION_HEIGHT = 20;
+const CAPTION_GAP = 8;
+const caption = font({ textStyle: "subheadline", weight: "medium" });
 
 export type Card = {
   key: string;
@@ -56,6 +59,17 @@ export type Card = {
   /** The touch and hold menu's items. */
   menu: ReactNode;
 };
+
+/** The height of a grid of `count` cards and the add tile, `width` wide. */
+export function cardGridHeight(count: number, width: number): number {
+  const rows = Math.ceil((count + 1) / 2);
+  const cardHeight = cardWidthIn(width) * ASPECT;
+  return rows * (cardHeight + CAPTION_GAP + CAPTION_HEIGHT) + (rows - 1) * ROW_GAP;
+}
+
+function cardWidthIn(width: number): number {
+  return (width - 2 * SIDE - GAP) / 2;
+}
 
 /**
  * Cards two to a row, each a snapshot over its name, then the tile that adds one more. The grid
@@ -74,7 +88,7 @@ export function CardGrid({
   width?: number;
 }) {
   const window = useWindowDimensions();
-  const cardWidth = ((width ?? window.width) - 2 * SIDE - GAP) / 2;
+  const cardWidth = cardWidthIn(width ?? window.width);
   const cardHeight = cardWidth * ASPECT;
   const tiles: ReactNode[] = [
     ...cards.map((card) => (
@@ -108,6 +122,12 @@ function CardView({ card, width, height }: { card: Card; width: number; height: 
           frame({ width, height }),
           background(terminal),
           clipShape("roundedRectangle", CORNER),
+          strokeBorder({
+            content: colors.separator,
+            style: { lineWidth: 1 },
+            shape: "roundedRectangle",
+            cornerRadius: CORNER,
+          }),
           contentShape(shapes.roundedRectangle({ cornerRadius: CORNER })),
           onTapGesture(card.onPress),
           accessibilityLabel(card.name),
@@ -138,14 +158,12 @@ function CardView({ card, width, height }: { card: Card; width: number; height: 
   );
 
   return (
-    <VStack alignment="leading" spacing={10} modifiers={[frame({ width })]}>
+    <VStack alignment="leading" spacing={CAPTION_GAP} modifiers={[frame({ width })]}>
       <ContextMenu>
         <ContextMenu.Items>{card.menu}</ContextMenu.Items>
         <ContextMenu.Trigger>{snapshot}</ContextMenu.Trigger>
       </ContextMenu>
-      <Text modifiers={[font({ textStyle: "body" }), lineLimit(1), padding({ leading: 10 })]}>
-        {card.name}
-      </Text>
+      <Text modifiers={[caption, lineLimit(1), padding({ horizontal: 4 })]}>{card.name}</Text>
     </VStack>
   );
 }
@@ -165,13 +183,13 @@ function AddTile({
   const colors = useColors();
   return (
     <Button onPress={onAdd} modifiers={[buttonStyle("plain"), accessibilityLabel(label)]}>
-      <VStack alignment="leading" spacing={10} modifiers={[frame({ width })]}>
+      <VStack alignment="leading" spacing={CAPTION_GAP} modifiers={[frame({ width })]}>
         <ZStack
           modifiers={[
             frame({ width, height }),
             strokeBorder({
               content: colors.separator,
-              style: { lineWidth: 1, dash: DASH },
+              style: { lineWidth: 1.5, dash: DASH },
               shape: "roundedRectangle",
               cornerRadius: CORNER,
             }),
@@ -179,14 +197,7 @@ function AddTile({
         >
           <Image systemName="plus" modifiers={[font({ size: 28, weight: "light" }), secondary]} />
         </ZStack>
-        <Text
-          modifiers={[
-            font({ textStyle: "body" }),
-            secondary,
-            lineLimit(1),
-            padding({ leading: 10 }),
-          ]}
-        >
+        <Text modifiers={[caption, secondary, lineLimit(1), padding({ horizontal: 4 })]}>
           {label}
         </Text>
       </VStack>

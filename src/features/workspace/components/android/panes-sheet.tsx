@@ -1,7 +1,6 @@
 import { Box, Column, ModalBottomSheet, Text, useMaterialColors } from "@expo/ui/jetpack-compose";
 import { fillMaxWidth, padding, verticalScroll } from "@expo/ui/jetpack-compose/modifiers";
 import type { ReactNode } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { heading } from "@/modules/compose-modifiers";
 import type { Tab } from "@/shared/machines/model";
@@ -9,6 +8,9 @@ import type { Tab } from "@/shared/machines/model";
 import { text } from "../../text";
 import type { TabCommands } from "../../use-tab-commands";
 import { CardGrid } from "./card-grid";
+
+/** Below the content; the sheet keeps clear of the navigation bar itself. */
+const SHEET_BOTTOM = 16;
 
 /**
  * The Panes of one Tab, in the grid the Tabs use, with New Pane last. It stays open as Panes
@@ -25,19 +27,18 @@ export function PanesSheet({
   snackbar: ReactNode;
 }) {
   const material = useMaterialColors();
-  const insets = useSafeAreaInsets();
   return (
     <ModalBottomSheet
       onDismissRequest={commands.closePanes}
       containerColor={material.surfaceContainerLow}
+      skipPartiallyExpanded
     >
       <Box modifiers={[fillMaxWidth()]}>
         <Column
-          horizontalAlignment="center"
           verticalArrangement={{ spacedBy: 16 }}
-          modifiers={[fillMaxWidth(), verticalScroll(), padding(0, 0, 0, insets.bottom + 16)]}
+          modifiers={[fillMaxWidth(), verticalScroll(), padding(0, 0, 0, SHEET_BOTTOM)]}
         >
-          <Text style={{ typography: "titleLarge" }} modifiers={[heading()]}>
+          <Text style={{ typography: "titleLarge" }} modifiers={[padding(24, 0, 24, 0), heading()]}>
             {text.panes}
           </Text>
           <CardGrid

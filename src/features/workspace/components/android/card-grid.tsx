@@ -21,6 +21,7 @@ import {
   fillMaxHeight,
   fillMaxSize,
   fillMaxWidth,
+  height as fixedHeight,
   padding,
   semantics,
   Shapes,
@@ -40,8 +41,10 @@ import { useTerminalBackground } from "../../terminal";
 /** The grid's metrics from the mockups. */
 const SIDE = 16;
 const GAP = 12;
-const CORNER = 28;
-const SNAPSHOT_CORNER = 22;
+const CORNER = 20;
+const SNAPSHOT_CORNER = 16;
+const TITLE_HEIGHT = 44;
+const CLOSE_SIZE = 18;
 const SNAPSHOT_INSET = 4;
 /** A card is taller than wide, as the mockups draw it. */
 const ASPECT = 1.26;
@@ -124,17 +127,24 @@ function CardView({ card, width, height }: { card: Card; width: number; height: 
           ]}
         >
           <Column modifiers={[fillMaxSize()]}>
-            <Row verticalAlignment="center" modifiers={[fillMaxWidth(), padding(16, 4, 4, 0)]}>
+            <Row
+              verticalAlignment="center"
+              modifiers={[fillMaxWidth(), fixedHeight(TITLE_HEIGHT), padding(16, 0, 0, 0)]}
+            >
               <Text
                 maxLines={1}
                 overflow="ellipsis"
-                style={{ typography: "titleMedium" }}
+                style={{ typography: "titleSmall" }}
                 modifiers={[weight(1)]}
               >
                 {card.name}
               </Text>
               <IconButton onClick={card.onClose}>
-                <Icon source={closeIcon} contentDescription={card.closeLabel} />
+                <Icon
+                  source={closeIcon}
+                  contentDescription={card.closeLabel}
+                  modifiers={[size(CLOSE_SIZE, CLOSE_SIZE)]}
+                />
               </IconButton>
             </Row>
             <Box
@@ -201,8 +211,8 @@ function AddTile({
       modifiers={[size(width, height), semantics({ contentDescription: label })]}
     >
       <Column horizontalAlignment="center" verticalArrangement="center" modifiers={[fillMaxSize()]}>
-        <Icon source={addIcon} tint={material.primary} size={32} />
-        <Text style={{ typography: "titleMedium" }} color={material.primary}>
+        <Icon source={addIcon} tint={material.primary} size={24} />
+        <Text style={{ typography: "titleSmall" }} color={material.primary}>
           {label}
         </Text>
       </Column>

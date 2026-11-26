@@ -207,3 +207,15 @@ it("tries once when Try Again is tapped twice before the refusal goes", async ()
   });
   expect(killWorkspace).toHaveBeenCalledTimes(1);
 });
+
+it("kills the Workspace as the alert showed it, even after the list changes", async () => {
+  const killWorkspace = jest.fn<NonNullable<HomeActions["killWorkspace"]>>(done);
+  const { result, rerender } = await render({ killWorkspace });
+  await act(async () => result.current.handlers.onKillWorkspace?.(app));
+
+  const busier = { ...app, workspace: { ...app.workspace, terminalSessions: 3 } };
+  await rerender({ snapshot: listing(busier, web) });
+  await act(async () => result.current.kill());
+
+  expect(killWorkspace).toHaveBeenCalledWith("mac", app.workspace);
+});

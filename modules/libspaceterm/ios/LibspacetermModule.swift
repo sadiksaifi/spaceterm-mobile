@@ -13,6 +13,10 @@ private let shared: Machines = {
   )
 }()
 
+/// Workspace edits run concurrently; libspaceterm runs one per Machine at a time.
+private let edits = DispatchQueue(
+  label: "libspaceterm.edits", qos: .userInitiated, attributes: .concurrent)
+
 private let connections = FileManager.default
   .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
   .appendingPathComponent("connections", isDirectory: true)
@@ -143,14 +147,16 @@ public class LibspacetermModule: Module {
       (try? shared.unpair(machineId: machineId)) != nil
     }
 
-    // Each waits for the Machine's answer, off the main thread.
-    AsyncFunction("renameWorkspace") { (machineId: String, workspaceId: String, name: String) -> Bool in
-      shared.renameWorkspace(machineId: machineId, workspaceId: workspaceId, name: name)
-    }
+    // Each waits up to ten seconds for the Machine's answer, on a queue of its own: Expo's shared
+    // queue would hold every other call of this module behind it.
+    AsyncFunction("renameWorkspace") {
+      (machineId: String, workspaceId: String, seen: String, name: String) -> Bool in
+      shared.renameWorkspace(machineId: machineId, workspaceId: workspaceId, seen: seen, name: name)
+    }.runOnQueue(edits)
 
-    AsyncFunction("killWorkspace") { (machineId: String, workspaceId: String) -> Bool in
-      shared.killWorkspace(machineId: machineId, workspaceId: workspaceId)
-    }
+    AsyncFunction("killWorkspace") { (machineId: String, workspaceId: String, seen: String) -> Bool in
+      shared.killWorkspace(machineId: machineId, workspaceId: workspaceId, seen: seen)
+    }.runOnQueue(edits)
   }
 
   private func startListening() {
@@ -207,6 +213,7 @@ private func workspace(_ workspace: WorkspaceSummary) -> [String: Any] {
     "directory": workspace.directory,
     "branch": workspace.branch as Any? ?? NSNull(),
     "terminalSessions": Int(workspace.terminalSessions),
+    "seen": workspace.seen,
   ]
 }
 

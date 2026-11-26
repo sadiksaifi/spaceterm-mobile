@@ -167,7 +167,7 @@ export function createMockClient(
       });
     },
 
-    renameWorkspace: (machineId, workspaceId, name) => {
+    renameWorkspace: (machineId, { id: workspaceId }, name) => {
       const target = machine(machineId);
       const workspaces = target?.workspaces;
       if (!target || !workspaces?.some((workspace) => workspace.id === workspaceId)) {
@@ -182,7 +182,7 @@ export function createMockClient(
       });
     },
 
-    killWorkspace: (machineId, workspaceId) => {
+    killWorkspace: (machineId, { id: workspaceId }) => {
       const target = machine(machineId);
       const workspaces = target?.workspaces;
       if (!target || !workspaces?.some((workspace) => workspace.id === workspaceId)) {

@@ -36,6 +36,8 @@ export type NativeWorkspace = {
   branch: string | null;
   /** The Terminal Sessions that Kill Workspace ends. */
   terminalSessions: number;
+  /** The Workspace as listed, which Rename and Kill send back. Opaque. */
+  seen: string;
 };
 
 export type NativePairedMachine = {
@@ -79,10 +81,18 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   connect(machineId: string): Promise<boolean>;
   disconnect(machineId: string): Promise<boolean>;
   unpair(machineId: string): Promise<boolean>;
-  /** Each resolves `true` once the Machine has made the change, and `false` when it did not. */
-  renameWorkspace(machineId: string, workspaceId: string, name: string): Promise<boolean>;
+  /**
+   * Each resolves `true` once the Machine has made the change, and `false` when it did not. `seen`
+   * is from the listing the person saw: a Machine whose Workspace changed since refuses.
+   */
+  renameWorkspace(
+    machineId: string,
+    workspaceId: string,
+    seen: string,
+    name: string,
+  ): Promise<boolean>;
   /** Ends the Workspace and every Terminal Session in it. */
-  killWorkspace(machineId: string, workspaceId: string): Promise<boolean>;
+  killWorkspace(machineId: string, workspaceId: string, seen: string): Promise<boolean>;
 }
 
 export default requireNativeModule<LibspacetermModule>("Libspaceterm");

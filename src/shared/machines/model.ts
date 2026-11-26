@@ -107,8 +107,17 @@ export type MachineClient = {
     directory: string,
     options?: { createDirectory?: boolean },
   ) => Promise<CreateWorkspaceResult>;
-  renameWorkspace: (machineId: string, workspaceId: string, name: string) => Promise<CommandResult>;
-  killWorkspace: (machineId: string, workspaceId: string) => Promise<CommandResult>;
+  /**
+   * `workspace` is as the person saw it, from a snapshot. The Machine refuses a Rename when the
+   * Workspace was renamed since, and a Kill when it gained or lost a Terminal Session since, so
+   * nothing changes that the person did not see.
+   */
+  renameWorkspace: (
+    machineId: string,
+    workspace: Workspace,
+    name: string,
+  ) => Promise<CommandResult>;
+  killWorkspace: (machineId: string, workspace: Workspace) => Promise<CommandResult>;
   /** Closes this device's connection to a Machine. Nothing on the Machine changes. */
   disconnect: (machineId: string) => void;
   /**

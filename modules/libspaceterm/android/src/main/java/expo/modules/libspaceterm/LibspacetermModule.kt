@@ -9,10 +9,13 @@ import androidx.annotation.RequiresApi
 import expo.modules.interfaces.permissions.PermissionsStatus
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.Exceptions
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 import kotlin.concurrent.thread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import uniffi.spaceterm_mobile.Changes
 import uniffi.spaceterm_mobile.Connection
 import uniffi.spaceterm_mobile.InvitationReading
@@ -106,13 +109,15 @@ class LibspacetermModule : Module() {
       changeMachine { unpair(machineId) }
     }
 
-    // Each waits for the Machine's answer, off the main thread.
-    AsyncFunction("renameWorkspace") { machineId: String, workspaceId: String, name: String ->
-      machines().renameWorkspace(machineId, workspaceId, name)
+    // Each waits up to ten seconds for the Machine's answer, on the IO dispatcher: Expo's shared
+    // queue would hold every other call of this module behind it. libspaceterm runs one edit per
+    // Machine at a time.
+    AsyncFunction("renameWorkspace") Coroutine { machineId: String, workspaceId: String, seen: String, name: String ->
+      withContext(Dispatchers.IO) { machines().renameWorkspace(machineId, workspaceId, seen, name) }
     }
 
-    AsyncFunction("killWorkspace") { machineId: String, workspaceId: String ->
-      machines().killWorkspace(machineId, workspaceId)
+    AsyncFunction("killWorkspace") Coroutine { machineId: String, workspaceId: String, seen: String ->
+      withContext(Dispatchers.IO) { machines().killWorkspace(machineId, workspaceId, seen) }
     }
 
     OnStartObserving("onChange") { startObserving() }
@@ -245,5 +250,6 @@ private fun WorkspaceSummary.toMap() = mapOf(
   "name" to name,
   "directory" to directory,
   "branch" to branch,
-  "terminalSessions" to terminalSessions.toInt()
+  "terminalSessions" to terminalSessions.toInt(),
+  "seen" to seen
 )

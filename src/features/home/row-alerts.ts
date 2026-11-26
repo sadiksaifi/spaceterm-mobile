@@ -116,13 +116,14 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
   const runRename = (row: WorkspaceRow, name: string) => {
     if (renameWorkspace === undefined) return;
     run({ command: "rename", row, name }, () =>
-      renameWorkspace(row.machineId, row.workspace.id, name),
+      renameWorkspace(row.machineId, row.workspace, name),
     );
   };
 
   const runKill = (row: WorkspaceRow) => {
     if (killWorkspace === undefined) return;
-    run({ command: "kill", row }, () => killWorkspace(row.machineId, row.workspace.id));
+    // The Workspace as the alert showed it, so the Machine ends only what the person approved.
+    run({ command: "kill", row }, () => killWorkspace(row.machineId, row.workspace));
   };
 
   /** True the first time one of `shown`'s buttons runs. */

@@ -56,8 +56,12 @@ export function createNativeClient(
   const stillNotConnected = new Set<string>();
   /** Each Machine's last Workspace list, kept while it is not connected. */
   const kept = new Map<string, readonly Workspace[]>();
+  /** What each listed Workspace sends back with Rename and Kill, by the object Home was given. */
+  const seen = new WeakMap<Workspace, string>();
   let starting = true;
   let snapshot = read();
+  /** The snapshot with every `seen`, so a change to either lists the Workspaces anew. */
+  let published = signature(snapshot);
 
   native.addListener("onChange", () => {
     for (const watcher of changeWatchers) watcher();
@@ -77,11 +81,11 @@ export function createNativeClient(
 
   /** A Machine counts as connected once it has sent its Workspaces, as Home needs them. */
   function toMachine({ id, name, connection, workspaces }: NativePairedMachine): Machine {
-    if (connection === "connected" && workspaces !== null) {
+    if (answered({ connection, workspaces })) {
       stillNotConnected.delete(id);
-      const listed = workspaces.map(toWorkspace);
+      const listed = (workspaces ?? []).map(toWorkspace);
       kept.set(id, listed);
-      return { id, name, connection, workspaces: listed };
+      return { id, name, connection: "connected", workspaces: listed };
     }
     const known = kept.get(id) ?? null;
     if (connection === "connected" || connection === "connecting")
@@ -90,10 +94,25 @@ export function createNativeClient(
     return { id, name, connection: state, workspaces: known };
   }
 
+  function toWorkspace({ branch, seen: sent, ...listed }: NativeWorkspace): Workspace {
+    const workspace = branch === null ? listed : { ...listed, branch };
+    seen.set(workspace, sent);
+    return workspace;
+  }
+
+  function signature(of: MachinesSnapshot): string {
+    const sent = of.machines.flatMap((machine) =>
+      (machine.workspaces ?? []).map((workspace) => seen.get(workspace)),
+    );
+    return JSON.stringify([of, sent]);
+  }
+
   function refresh() {
     const next = read();
-    if (JSON.stringify(next) === JSON.stringify(snapshot)) return;
+    const nextSignature = signature(next);
+    if (nextSignature === published) return;
     snapshot = next;
+    published = nextSignature;
     for (const listener of listeners) listener();
   }
 
@@ -119,10 +138,16 @@ export function createNativeClient(
     },
     listDirectory: async (_machineId, path) => ({ kind: "unavailable", path, parent: null }),
     createWorkspace: async () => ({ kind: "failed" }),
-    renameWorkspace: async (machineId, workspaceId, name) =>
-      done(await native.renameWorkspace(machineId, workspaceId, name)),
-    killWorkspace: async (machineId, workspaceId) =>
-      done(await native.killWorkspace(machineId, workspaceId)),
+    renameWorkspace: async (machineId, workspace, name) => {
+      const sent = seen.get(workspace);
+      if (sent === undefined) return { kind: "failed" };
+      return done(await native.renameWorkspace(machineId, workspace.id, sent, name));
+    },
+    killWorkspace: async (machineId, workspace) => {
+      const sent = seen.get(workspace);
+      if (sent === undefined) return { kind: "failed" };
+      return done(await native.killWorkspace(machineId, workspace.id, sent));
+    },
     restartCore: async () => ({ kind: "failed" }),
     disconnect: (machineId) => {
       stillNotConnected.delete(machineId);
@@ -141,9 +166,9 @@ export function createNativeClient(
         watch(() => {
           const machine = native.paired().find(({ id }) => id === machineId);
           if (machine?.connection === "connecting") return false;
-          if (machine !== undefined && machine.connection !== "connected") {
-            stillNotConnected.add(machineId);
-          }
+          // Connected counts once the Workspaces arrive, as the snapshot shows it.
+          if (machine?.connection === "connected" && machine.workspaces === null) return false;
+          if (machine !== undefined && !answered(machine)) stillNotConnected.add(machineId);
           settle();
           return true;
         });
@@ -252,8 +277,12 @@ export function createNativeClient(
   return client;
 }
 
-function toWorkspace({ branch, ...workspace }: NativeWorkspace): Workspace {
-  return branch === null ? workspace : { ...workspace, branch };
+/** Whether a Machine is connected and has sent its Workspaces. */
+function answered({
+  connection,
+  workspaces,
+}: Pick<NativePairedMachine, "connection" | "workspaces">): boolean {
+  return connection === "connected" && workspaces !== null;
 }
 
 function done(changed: boolean): CommandResult {

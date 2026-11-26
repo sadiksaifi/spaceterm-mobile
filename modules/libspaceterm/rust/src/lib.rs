@@ -12,7 +12,7 @@ use edits::Edits;
 use inventories::Inventories;
 use record_file::{PrivateRecordFile, hex};
 use spaceterm_client::direct::{DirectError, Endpoint, Invitation, default_port};
-use spaceterm_client::hierarchy::{CloseTarget, Inventory, Mutation};
+use spaceterm_client::hierarchy::{CloseTarget, Mutation};
 use spaceterm_client::pane::control::ClientName;
 use spaceterm_client::protocol::InventoryRevision;
 use spaceterm_client::records::PrivateRecords;
@@ -23,7 +23,7 @@ use spaceterm_client::{
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use workspaces::{WorkspaceSummary, summaries};
+use workspaces::{Seen, WorkspaceSummary, summaries};
 use zeroize::Zeroizing;
 
 /// The build identity of released SpaceTerm. An Invitation Link names the identity of the Core
@@ -183,7 +183,14 @@ impl Machines {
         );
         let edits = Arc::new(Edits::new(directory));
         let forgotten = Arc::clone(&edits);
-        connections.on_route_removed(Arc::new(move |route| forgotten.forget(route)));
+        let saved = Arc::clone(&records);
+        // libspaceterm reports a removal even when saving it failed. A pairing still saved keeps
+        // its journal, as it comes back on the next start.
+        connections.on_route_removed(Arc::new(move |route| {
+            if !saved.order().contains(route) {
+                forgotten.forget(route);
+            }
+        }));
         connections.resume_retained();
         Arc::new(Self {
             connections,
@@ -325,31 +332,45 @@ impl Machines {
             .map_err(|_| MachinesError::Unavailable)
     }
 
-    /// Renames a Workspace. Returns whether the Machine renamed it.
-    pub fn rename_workspace(&self, machine_id: String, workspace_id: String, name: String) -> bool {
-        self.edit(&machine_id, |inventory| {
-            let id = decode(&workspace_id)?;
-            let workspace = inventory.workspaces.iter().find(|w| w.id == id)?;
-            Some(Mutation::RenameWorkspace {
-                workspace: id,
-                version: workspace.name_version,
+    /// Renames a Workspace, as listed with `seen`. Returns whether the Machine renamed it. A
+    /// Machine whose Workspace was renamed since refuses.
+    pub fn rename_workspace(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        seen: String,
+        name: String,
+    ) -> bool {
+        let (Some(workspace), Some(seen)) = (decode(&workspace_id), Seen::read(&seen)) else {
+            return false;
+        };
+        self.edit(
+            &machine_id,
+            Mutation::RenameWorkspace {
+                workspace,
+                version: seen.version,
                 name,
-            })
-        })
+            },
+        )
     }
 
-    /// Ends a Workspace and every Terminal Session in it. Returns whether the Machine ended it.
-    pub fn kill_workspace(&self, machine_id: String, workspace_id: String) -> bool {
-        self.edit(&machine_id, |inventory| {
-            let target = CloseTarget::KillWorkspace {
-                workspace: decode(&workspace_id)?,
-            };
-            let confirmation = inventory.close_confirmation(target)?;
-            Some(Mutation::Close {
-                target,
+    /// Ends a Workspace, as listed with `seen`, and every Terminal Session in it. Returns whether
+    /// the Machine ended it. A Machine whose Workspace gained or lost a Terminal Session since
+    /// refuses, so no session ends that the person was not told about.
+    pub fn kill_workspace(&self, machine_id: String, workspace_id: String, seen: String) -> bool {
+        let Some(workspace) = decode(&workspace_id) else {
+            return false;
+        };
+        let Some(confirmation) = Seen::read(&seen).and_then(|seen| seen.confirmation) else {
+            return false;
+        };
+        self.edit(
+            &machine_id,
+            Mutation::Close {
+                target: CloseTarget::KillWorkspace { workspace },
                 confirmation,
-            })
-        })
+            },
+        )
     }
 
     /// A new listener for changes, such as one per JavaScript runtime.
@@ -386,23 +407,12 @@ impl Machines {
         Some(link.inventory()?.1)
     }
 
-    /// Sends the edit `mutation` makes of the Machine's current Inventory, `None` when the edit
-    /// no longer applies, and waits for its answer.
-    fn edit(
-        &self,
-        machine_id: &str,
-        mutation: impl FnOnce(&Inventory) -> Option<Mutation>,
-    ) -> bool {
+    /// Sends `mutation` to a connected Machine and waits for its answer.
+    fn edit(&self, machine_id: &str, mutation: Mutation) -> bool {
         let Ok(route) = self.known(machine_id) else {
             return false;
         };
         let Some(machine) = self.connections.core(&route) else {
-            return false;
-        };
-        let Some(mutation) = self
-            .inventory(&route)
-            .and_then(|revision| mutation(&revision.inventory))
-        else {
             return false;
         };
         self.edits.submit(route, &machine, mutation)

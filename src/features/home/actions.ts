@@ -1,4 +1,4 @@
-import type { CommandResult, MachinesSnapshot } from "@/shared/machines/model";
+import type { CommandResult, MachinesSnapshot, Workspace } from "@/shared/machines/model";
 
 import { isSearchable, type HomeView, type WorkspaceRow } from "./model";
 
@@ -11,10 +11,10 @@ export type HomeActions = {
   onNewTab?: (machineId: string, workspaceId: string) => void;
   renameWorkspace?: (
     machineId: string,
-    workspaceId: string,
+    workspace: Workspace,
     name: string,
   ) => Promise<CommandResult>;
-  killWorkspace?: (machineId: string, workspaceId: string) => Promise<CommandResult>;
+  killWorkspace?: (machineId: string, workspace: Workspace) => Promise<CommandResult>;
   onNewWorkspace?: () => void;
   onAddMachine?: () => void;
   onScanQrCode?: () => void;

@@ -1,6 +1,6 @@
 //! A Machine's Workspaces as Home lists them, read from the Inventory its Core publishes.
 use crate::record_file::hex;
-use spaceterm_client::hierarchy::{CloseTarget, Inventory, Workspace};
+use spaceterm_client::hierarchy::{CloseConfirmation, CloseTarget, Inventory, Workspace};
 use spaceterm_protocol::repository::RepositoryHead;
 use std::path::Path;
 
@@ -16,6 +16,31 @@ pub struct WorkspaceSummary {
     pub branch: Option<String>,
     /// The Terminal Sessions that Kill Workspace ends, across every Worktree.
     pub terminal_sessions: u32,
+    /// The Workspace as listed, which Rename and Kill send back, so the Machine refuses a change
+    /// the person did not see. Opaque outside this crate.
+    pub seen: String,
+}
+
+/// What a listed Workspace's `seen` holds: the name version Rename expects, and the Panes and
+/// Terminal Sessions Kill Workspace ends.
+pub(crate) struct Seen {
+    pub(crate) version: u64,
+    pub(crate) confirmation: Option<CloseConfirmation>,
+}
+
+impl Seen {
+    fn write(&self) -> String {
+        serde_json::json!({ "version": self.version, "confirmation": self.confirmation })
+            .to_string()
+    }
+
+    pub(crate) fn read(text: &str) -> Option<Self> {
+        let value: serde_json::Value = serde_json::from_str(text).ok()?;
+        Some(Self {
+            version: value.get("version")?.as_u64()?,
+            confirmation: serde_json::from_value(value.get("confirmation")?.clone()).ok()?,
+        })
+    }
 }
 
 /// The Workspaces of `inventory`, in the order the Machine keeps them.
@@ -26,12 +51,20 @@ pub(crate) fn summaries(inventory: &Inventory) -> Vec<WorkspaceSummary> {
         .iter()
         .map(|workspace| {
             let directory = directory(workspace);
+            let confirmation = inventory.close_confirmation(CloseTarget::KillWorkspace {
+                workspace: workspace.id,
+            });
+            let seen = Seen {
+                version: workspace.name_version,
+                confirmation,
+            };
             WorkspaceSummary {
                 id: hex(&workspace.id),
                 name: workspace.name.clone(),
                 directory: directory.map(|path| shown(path, home)).unwrap_or_default(),
                 branch: directory.and_then(|path| branch(inventory, path)),
-                terminal_sessions: sessions(inventory, workspace),
+                terminal_sessions: sessions(seen.confirmation.as_ref()),
+                seen: seen.write(),
             }
         })
         .collect()
@@ -69,19 +102,14 @@ fn branch(inventory: &Inventory, directory: &Path) -> Option<String> {
 }
 
 /// Counted as SpaceTerm Desktop counts them for its Kill Workspace confirmation.
-fn sessions(inventory: &Inventory, workspace: &Workspace) -> u32 {
-    let target = CloseTarget::KillWorkspace {
-        workspace: workspace.id,
-    };
-    inventory
-        .close_confirmation(target)
-        .map_or(0, |confirmation| {
-            let live = confirmation
-                .panes
-                .iter()
-                .filter(|pane| pane.session.is_some());
-            u32::try_from(live.count()).unwrap_or(u32::MAX)
-        })
+fn sessions(confirmation: Option<&CloseConfirmation>) -> u32 {
+    confirmation.map_or(0, |confirmation| {
+        let live = confirmation
+            .panes
+            .iter()
+            .filter(|pane| pane.session.is_some());
+        u32::try_from(live.count()).unwrap_or(u32::MAX)
+    })
 }
 
 /// `path`, starting with `~` where it is in `home`.
@@ -165,16 +193,39 @@ mod tests {
     #[test]
     fn a_workspace_shows_where_its_first_shell_is_and_the_sessions_kill_would_end() {
         let api = workspace(1, "api", vec![pane(10, "/srv/api"), pane(11, "/tmp")]);
-        let summaries = summaries(&inventory(vec![api], &[10, 11]));
+        let listed = inventory(vec![api], &[10, 11]);
+        let summaries = summaries(&listed);
+        assert_eq!(summaries.len(), 1);
+        let WorkspaceSummary {
+            id: listed_id,
+            name,
+            directory,
+            branch,
+            terminal_sessions,
+            seen: _,
+        } = summaries[0].clone();
         assert_eq!(
-            summaries,
-            vec![WorkspaceSummary {
-                id: hex(&id(1)),
-                name: "api".to_owned(),
-                directory: "/srv/api".to_owned(),
-                branch: None,
-                terminal_sessions: 2,
-            }]
+            (listed_id, name, directory, branch, terminal_sessions),
+            (
+                hex(&id(1)),
+                "api".to_owned(),
+                "/srv/api".to_owned(),
+                None,
+                2
+            )
+        );
+    }
+
+    #[test]
+    fn a_listed_workspace_carries_what_rename_and_kill_send_back() {
+        let mut api = workspace(1, "api", vec![pane(10, "/srv/api")]);
+        api.name_version = 7;
+        let listed = inventory(vec![api], &[10]);
+        let seen = Seen::read(&summaries(&listed)[0].seen).unwrap();
+        assert_eq!(seen.version, 7);
+        assert_eq!(
+            seen.confirmation,
+            listed.close_confirmation(CloseTarget::KillWorkspace { workspace: id(1) })
         );
     }
 

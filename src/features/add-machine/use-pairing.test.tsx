@@ -51,12 +51,12 @@ async function render(client: MachineClient) {
 it("shows the Comparison Code, then Paired once the Machine approves", async () => {
   const { client, reach, answer } = machine();
   const { result } = await render(client);
-  expect(result.current).toEqual({ kind: "reaching" });
+  expect(result.current.view).toEqual({ kind: "reaching" });
   await act(async () => reach());
-  expect(result.current).toEqual({ kind: "comparing", code: "482 915" });
+  expect(result.current.view).toEqual({ kind: "comparing", code: "482 915" });
 
   await act(async () => answer({ kind: "paired", machine: { id: "mini", name: "Mac mini" } }));
-  expect(result.current).toEqual({ kind: "paired" });
+  expect(result.current.view).toEqual({ kind: "paired" });
 });
 
 it("ends the pairing when the person leaves before the Machine approves", async () => {
@@ -65,6 +65,17 @@ it("ends the pairing when the person leaves before the Machine approves", async 
   await act(async () => reach());
   await act(async () => unmount());
   expect(cancel).toHaveBeenCalledTimes(1);
+});
+
+it("ends the pairing as soon as the person cancels, before the step closes", async () => {
+  const { client, cancel, reach, answer } = machine();
+  const { result } = await render(client);
+  await act(async () => reach());
+
+  await act(async () => result.current.end());
+  await act(async () => answer({ kind: "paired", machine: { id: "mini", name: "Mac mini" } }));
+  expect(cancel).toHaveBeenCalledTimes(1);
+  expect(result.current.view).toEqual({ kind: "comparing", code: "482 915" });
 });
 
 it("ends a pairing that the Machine starts after the person left", async () => {
@@ -83,7 +94,7 @@ it("ends the pairing when another step covers this one, and starts anew when it 
   expect(cancel).toHaveBeenCalledTimes(1);
 
   await act(async () => rerender({ showing: true }));
-  expect(result.current).toEqual({ kind: "reaching" });
+  expect(result.current.view).toEqual({ kind: "reaching" });
   await act(async () => reach());
-  expect(result.current).toEqual({ kind: "comparing", code: "482 915" });
+  expect(result.current.view).toEqual({ kind: "comparing", code: "482 915" });
 });

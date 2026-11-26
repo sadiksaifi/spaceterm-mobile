@@ -22,7 +22,7 @@ function Pairing({ request }: { request: PairingRequest }) {
   const flow = useAddMachineFlow();
   const router = useRouter();
   // A link from another app can open the Invitation Link step over this one.
-  const pairing = usePairing(request, useIsFocused());
+  const { view: pairing, end } = usePairing(request, useIsFocused());
   const { kind } = pairing;
   const { cameraBeneath, close } = flow;
 
@@ -48,9 +48,15 @@ function Pairing({ request }: { request: PairingRequest }) {
     <CodeStepScreen
       machineName={request.machineName}
       pairing={pairing}
-      onBack={() => router.back()}
+      onBack={() => {
+        end();
+        router.back();
+      }}
       onTryAgain={flow.restart}
-      onClose={flow.close}
+      onClose={() => {
+        end();
+        close();
+      }}
     />
   );
 }

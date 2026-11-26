@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useMachineClient } from "@/shared/machines/client";
 
@@ -16,9 +16,13 @@ export type PairingView =
 /**
  * Pairs with the Machine of `request` while `showing`. Leaving the step, or covering it with
  * another, before the Machine answers ends the pairing, so a later approval pairs nothing. Shown
- * again, the step starts a new pairing.
+ * again, the step starts a new pairing. `end` ends it at once, for Cancel: the step may close only
+ * after an approval arrives.
  */
-export function usePairing(request: PairingRequest, showing: boolean): PairingView {
+export function usePairing(
+  request: PairingRequest,
+  showing: boolean,
+): { view: PairingView; end: () => void } {
   const client = useMachineClient();
   // Each time the step shows is a round with a pairing of its own; a view is kept with its round.
   const [shown, setShown] = useState({ showing, round: 0 });
@@ -27,6 +31,7 @@ export function usePairing(request: PairingRequest, showing: boolean): PairingVi
   }
   const { round } = shown;
   const [answer, setAnswer] = useState<{ round: number; view: PairingView } | null>(null);
+  const ending = useRef(() => {});
 
   useEffect(() => {
     if (!showing) return;
@@ -55,14 +60,18 @@ export function usePairing(request: PairingRequest, showing: boolean): PairingVi
           if (!left) setView(outcome.kind === "paired" ? { kind: "paired" } : outcome);
         });
       });
-    return () => {
+    const end = () => {
       left = true;
       leaving.abort();
       cancel?.();
+      cancel = undefined;
     };
+    ending.current = end;
+    return end;
   }, [client, request, showing, round]);
 
+  const end = useCallback(() => ending.current(), []);
   // Covered, the step keeps what it showed, as when it closes. Shown again, it waits for the new
   // pairing's code.
-  return answer?.round === round ? answer.view : { kind: "reaching" };
+  return { view: answer?.round === round ? answer.view : { kind: "reaching" }, end };
 }

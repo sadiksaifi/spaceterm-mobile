@@ -25,6 +25,10 @@ pnpm ios       # iPhone 18 Pro simulator
 pnpm android   # running Android emulator
 ```
 
+SpaceTerm runs on arm64 only, so use an Apple silicon Mac and an arm64 Android emulator or phone.
+
+`pnpm ios` and `pnpm android` generate the `ios/` and `android/` projects only when they are missing. After `app.config.ts` changes, including when you switch branches, regenerate them with `pnpm expo prebuild --clean`.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

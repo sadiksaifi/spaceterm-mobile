@@ -107,6 +107,21 @@ it("stops the unfinished pairings, then pairs again with the same link", async (
   expect(pair).toHaveBeenLastCalledWith(request.link, request.networkAddress, expect.anything());
 });
 
+it("stops once per pairing, even for a tap that arrives after the stop finished", async () => {
+  const { client, stopUnfinishedPairings, stopped } = full();
+  const { result } = await render(client);
+  await act(async () => {});
+  const stop = result.current.stopUnfinished;
+
+  await act(async () => {
+    stop();
+    stopped();
+    await Promise.resolve();
+    stop();
+  });
+  expect(stopUnfinishedPairings).toHaveBeenCalledTimes(1);
+});
+
 it("pairs nothing after the unfinished pairings stop once the person has left", async () => {
   const { client, pair, stopped } = full();
   const { result, rerender } = await render(client);

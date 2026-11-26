@@ -202,7 +202,8 @@ function SheetRow({
     ? material.primaryContainer
     : held
       ? material.surfaceContainerHighest
-      : "#00000000";
+      : // The sheet's own color, opaque, so the swipe's background shows only as the row moves.
+        material.surfaceContainerLow;
   const content = checked ? material.onPrimaryContainer : colors.text;
 
   return (
@@ -213,6 +214,8 @@ function SheetRow({
             contentAlignment="centerEnd"
             modifiers={[
               fillMaxSize(),
+              // A point inside the row's edge, so its smoothed corners don't show the color.
+              padding(1, 1, 1, 1),
               clip(Shapes.RoundedCorner(ROW_CORNER)),
               background(material.errorContainer),
               padding(0, 0, 32, 0),

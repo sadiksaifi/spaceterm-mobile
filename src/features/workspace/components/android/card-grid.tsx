@@ -8,13 +8,13 @@ import {
   Icon,
   IconButton,
   Row,
+  Shape,
   Surface,
   Text,
   useMaterialColors,
 } from "@expo/ui/jetpack-compose";
 import {
   background,
-  border,
   clip,
   combinedClickable,
   defaultMinSize,
@@ -193,12 +193,12 @@ function AddTile({
       contentColor={material.primary}
       enabled={!!onAdd}
       onClick={onAdd}
-      modifiers={[
-        size(width, height),
-        clip(Shapes.RoundedCorner(CORNER)),
-        border(1, material.outlineVariant),
-        semantics({ contentDescription: label }),
-      ]}
+      // The Surface's own shape and border, so the outline follows the rounded corners.
+      shape={Shape.RoundedCorner({
+        cornerRadii: { topStart: CORNER, topEnd: CORNER, bottomStart: CORNER, bottomEnd: CORNER },
+      })}
+      border={{ width: 1, color: material.outlineVariant }}
+      modifiers={[size(width, height), semantics({ contentDescription: label })]}
     >
       <Column horizontalAlignment="center" verticalArrangement="center" modifiers={[fillMaxSize()]}>
         <Icon source={addIcon} tint={material.primary} size={32} />

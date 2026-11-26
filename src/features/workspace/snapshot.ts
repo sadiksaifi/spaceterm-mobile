@@ -6,7 +6,7 @@ export const SNAPSHOT_TEXT = { size: 5.5, lineHeight: 7.5, vertical: 12, horizon
 
 /**
  * How `run` is colored on the Terminal Theme's `colors`. A platform that draws no `backgrounds`
- * keeps an inverse run's own foreground, so its text stays readable.
+ * colors a filled run's text with its fill, so a highlight stays visible on the card.
  */
 export function runColors(
   run: ScreenRun,
@@ -14,10 +14,10 @@ export function runColors(
   backgrounds: boolean,
 ): { foreground: string; background: string | null } {
   const foreground = run.foreground ?? colors.foreground;
-  const [text, fill] =
-    run.inverse && backgrounds
-      ? [run.background ?? colors.background, foreground]
-      : [foreground, backgrounds ? run.background : null];
+  const [text, fill] = run.inverse
+    ? [run.background ?? colors.background, foreground]
+    : [foreground, run.background];
+  const shown = backgrounds ? text : (fill ?? text);
   // Faint text is drawn at half strength.
-  return { foreground: run.faint ? `${text}80` : text, background: fill };
+  return { foreground: run.faint ? `${shown}80` : shown, background: backgrounds ? fill : null };
 }

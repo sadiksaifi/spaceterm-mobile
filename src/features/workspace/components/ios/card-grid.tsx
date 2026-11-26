@@ -282,7 +282,7 @@ const SNAPSHOT_LINE_SPACING = SNAPSHOT_TEXT.lineHeight - SNAPSHOT_TEXT.size * 1.
 
 /**
  * A Pane's screen from the top-left, cropped where the part ends. SwiftUI draws no background
- * behind part of a text, so runs keep their text color only.
+ * behind part of a text, so a filled run takes its fill as its text color.
  */
 function PaneSnapshot({
   screen,

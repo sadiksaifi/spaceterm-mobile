@@ -27,10 +27,18 @@ describe("a run's colors", () => {
     });
   });
 
-  it("trades foreground and background for an inverse run where backgrounds draw", () => {
+  it("trades foreground and background for an inverse run", () => {
     expect(runColors(run({ inverse: true }), theme, true)).toEqual({
       foreground: "#1c1c1e",
       background: "#d8d8dc",
+    });
+  });
+
+  it("colors a filled run's text with its fill where backgrounds do not draw", () => {
+    const blackOnWhite = run({ foreground: "#000000", background: "#ffffff" });
+    expect(runColors(blackOnWhite, theme, false)).toEqual({
+      foreground: "#ffffff",
+      background: null,
     });
     expect(runColors(run({ inverse: true, foreground: "#7bc47f" }), theme, false)).toEqual({
       foreground: "#7bc47f",

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#MISE description="Build libspaceterm for Android, with its Kotlin bindings"
+set -euo pipefail
+
+crate=modules/libspaceterm/rust
+manifest=$crate/Cargo.toml
+out=modules/libspaceterm/android/generated
+root=$PWD
+
+# The NDK React Native builds with, so both share one C runtime.
+ndk=$(sed -n 's/^ndkVersion = "\(.*\)"/\1/p' node_modules/react-native/gradle/libs.versions.toml)
+export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_HOME/ndk/$ndk}"
+[[ -d $ANDROID_NDK_HOME ]] || { echo "Install NDK $ndk with the Android SDK Manager" >&2; exit 1; }
+# The app's minSdk.
+platform=$(sed -n 's/^minSdk = "\(.*\)"/\1/p' node_modules/react-native/gradle/libs.versions.toml)
+
+rm -rf "$out"
+# cargo-ndk reads the crate from the working directory.
+(cd "$crate" && cargo ndk -t arm64-v8a --platform "$platform" -o "$root/$out/jniLibs" \
+  build --release --lib)
+
+# UniFFI reads the interface from a host build of the same crate.
+cargo build --manifest-path "$manifest" --release --lib
+# Run from the crate: UniFFI reads its Cargo metadata and uniffi.toml from the working directory.
+(cd "$crate" && cargo run --release --features bindgen --bin uniffi-bindgen -- \
+  generate --library target/release/libspaceterm_mobile.dylib \
+  --language kotlin --no-format --out-dir "$root/$out/kotlin")
+echo "Built $out"

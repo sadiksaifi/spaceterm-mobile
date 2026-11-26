@@ -5,6 +5,9 @@ node = "26.13.1"
 "npm:eas-cli" = "27.10.0"
 pnpm = "12.21.0"
 ruby = "4.0.9"
+# libspaceterm's own toolchain, with the device and simulator targets the app ships.
+rust = { version = "1.98.1", profile = "minimal", targets = "aarch64-apple-ios,aarch64-apple-ios-sim,aarch64-linux-android" }
+"cargo:cargo-ndk" = "4.1.2"
 
 [env]
 ANDROID_HOME = "{{env.HOME}}/Library/Android/sdk"

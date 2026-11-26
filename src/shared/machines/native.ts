@@ -38,6 +38,7 @@ export type NativeMachines = Pick<
   | "killWorkspace"
   | "newTab"
   | "newPane"
+  | "moveTab"
   | "close"
   | "worktreeContext"
   | "worktreeLocation"
@@ -130,8 +131,15 @@ export function createNativeClient(
     unlisted.delete(id);
   }
 
-  function toWorkspace({ branch, seen, tabs, ...listed }: NativeWorkspace): Workspace {
-    const workspace = { ...listed, revision: seen, tabs: tabs.map(toTab) };
+  function toWorkspace({
+    branch,
+    seen,
+    tabs,
+    fixedTabOrder,
+    ...listed
+  }: NativeWorkspace): Workspace {
+    const workspace: Workspace = { ...listed, revision: seen, tabs: tabs.map(toTab) };
+    if (fixedTabOrder) workspace.fixedTabOrder = true;
     return branch === null ? workspace : { ...workspace, branch };
   }
 
@@ -200,6 +208,8 @@ export function createNativeClient(
       if (source === undefined) return { kind: "failed" };
       return done(await native.newPane(machineId, id, tab.id, source.id));
     },
+    moveTab: async (machineId, { id }, tab, beside, side) =>
+      done(await native.moveTab(machineId, id, tab.id, beside.id, side === "after")),
     closeTab: async (machineId, { id }, tab, asked) => {
       if (tab.revision === undefined) return { kind: "failed" };
       return done(await native.close(machineId, id, tab.id, null, tab.revision, asked));

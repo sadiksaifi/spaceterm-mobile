@@ -6,7 +6,7 @@ import {
   closePaneStep,
   closeTabStep,
   gridView,
-  movedOrder,
+  movePast,
   moves,
   NO_GRID_STATE,
   used,
@@ -89,23 +89,27 @@ describe("the grid of Tabs", () => {
     expect(view.tabs).toEqual([]);
   });
 
-  it("moves a Tab past its neighbor in the grid, across Tabs of other Worktrees", () => {
-    const order = movedOrder(listed, NO_GRID_STATE, listed.tabs[2], -1);
-    expect(order).toEqual(["c", "b", "a", "gone"]);
-    const moved = state({ order: order ?? [] });
-    expect(ids(gridView(listed, moved).tabs)).toEqual(["c", "a", "gone"]);
-    expect(movedOrder(listed, moved, listed.tabs[2], -1)).toBeNull();
+  it("moves a Tab past its neighbor in the grid while both are in one Worktree", () => {
+    const view = gridView(listed, NO_GRID_STATE);
+    const [a, , c, gone] = listed.tabs;
+    expect(movePast(view, c, -1)).toBe(a);
+    expect(movePast(view, a, 1)).toBe(c);
+    expect(movePast(view, a, -1)).toBeNull();
+    // Its Worktree Git no longer lists, so the Machine keeps it apart from the main one's.
+    expect(movePast(view, c, 1)).toBeNull();
+    expect(movePast(view, gone, -1)).toBeNull();
   });
 
-  it("puts a Tab this device has not ordered last", () => {
-    const view = gridView(listed, state({ order: ["c", "a"] }));
-    expect(ids(view.tabs)).toEqual(["c", "a", "gone"]);
-  });
-
-  it("offers Move Tab Left except on the first Tab and Move Tab Right except on the last", () => {
+  it("offers Move Tab Left and Move Tab Right where the Tab can move", () => {
     const view = gridView(listed, NO_GRID_STATE);
     expect(moves(view, listed.tabs[0])).toEqual({ left: false, right: true });
-    expect(moves(view, listed.tabs[3])).toEqual({ left: true, right: false });
+    expect(moves(view, listed.tabs[2])).toEqual({ left: true, right: false });
+  });
+
+  it("moves no Tab on a Machine that keeps the Tabs in a fixed order", () => {
+    const view = gridView({ ...listed, fixedTabOrder: true }, NO_GRID_STATE);
+    expect(moves(view, listed.tabs[0])).toEqual({ left: false, right: false });
+    expect(moves(view, listed.tabs[2])).toEqual({ left: false, right: false });
   });
 
   it("remembers the Tab used last first", () => {

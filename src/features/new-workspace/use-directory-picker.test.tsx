@@ -39,6 +39,7 @@ function machine(answers: CreateWorkspaceResult[]) {
     newPane: async () => ({ kind: "failed" }),
     closeTab: async () => ({ kind: "failed" }),
     closePane: async () => ({ kind: "failed" }),
+    moveTab: async () => ({ kind: "failed" }),
     worktreeContext: async () => null,
     worktreeLocation: () => null,
     createWorktree: async () => ({ kind: "failed" }),

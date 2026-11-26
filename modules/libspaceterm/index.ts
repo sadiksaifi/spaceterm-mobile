@@ -46,6 +46,8 @@ export type NativeWorkspace = {
   tabs: NativeTab[];
   /** `null` outside a repository. */
   repository: NativeRepository | null;
+  /** The Machine keeps the Tabs in a fixed order: it is before work 1.6. */
+  fixedTabOrder: boolean;
 };
 
 export type NativeTab = {
@@ -163,6 +165,14 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   ): Promise<string | null>;
   /** Adds a Pane beside `source`, one of the Tab's Panes. */
   newPane(machineId: string, workspaceId: string, tabId: string, source: string): Promise<boolean>;
+  /** Moves the Tab just after `beside`, another Tab of its Worktree, or else just before it. */
+  moveTab(
+    machineId: string,
+    workspaceId: string,
+    tabId: string,
+    beside: string,
+    after: boolean,
+  ): Promise<boolean>;
   /** Closes the Tab, or its Pane `paneId`, as listed with `seen`. `asked`: the person agreed. */
   close(
     machineId: string,

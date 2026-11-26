@@ -14,7 +14,9 @@ use edits::Edits;
 use inventories::Inventories;
 use record_file::{PrivateRecordFile, hex};
 use spaceterm_client::direct::{DirectError, Endpoint, Invitation, default_port};
-use spaceterm_client::hierarchy::{Axis, CloseTarget, CreateControl, Mutation, Outcome};
+use spaceterm_client::hierarchy::{
+    Axis, CloseTarget, CreateControl, Mutation, Outcome, TabPosition,
+};
 use spaceterm_client::pane::control::ClientName;
 use spaceterm_client::protocol::capability::Capability;
 use spaceterm_client::protocol::{InventoryRevision, Operation, ReplyBody};
@@ -345,8 +347,15 @@ impl Machines {
                 let connection = connection_of(status);
                 let workspaces = match connection {
                     Connection::Connected => self.inventory(id).map(|revision| {
-                        let client = self.connections.core(id).map(|core| core.paired().client);
-                        summaries(&revision.inventory, client)
+                        let core = self.connections.core(id);
+                        let client = core.as_ref().map(|core| core.paired().client);
+                        let reorders = core.as_ref().is_some_and(|core| {
+                            core.work()
+                                .capabilities()
+                                .check(Capability::ReorderTab)
+                                .is_ok()
+                        });
+                        summaries(&revision.inventory, client, reorders)
                     }),
                     _ => None,
                 };
@@ -475,6 +484,37 @@ impl Machines {
                 source,
                 axis: Axis::Right,
                 control: CreateControl::Unclaimed,
+            },
+        )
+    }
+
+    /// Moves a Tab beside `beside`, another Tab of its Worktree, in the order the Machine keeps
+    /// for every device: after it when `after`, else before it. Returns whether the Machine
+    /// moved it.
+    pub fn move_tab(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        tab_id: String,
+        beside: String,
+        after: bool,
+    ) -> bool {
+        let (Some(workspace), Some(tab), Some(beside)) =
+            (decode(&workspace_id), decode(&tab_id), decode(&beside))
+        else {
+            return false;
+        };
+        let position = if after {
+            TabPosition::After(beside)
+        } else {
+            TabPosition::Before(beside)
+        };
+        self.edit(
+            &machine_id,
+            Mutation::ReorderTab {
+                workspace,
+                tab,
+                position,
             },
         )
     }

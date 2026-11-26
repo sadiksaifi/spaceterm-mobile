@@ -24,6 +24,8 @@ pub struct WorkspaceSummary {
     pub tabs: Vec<TabSummary>,
     /// `None` outside a repository.
     pub repository: Option<RepositorySummary>,
+    /// The Machine keeps the Tabs in a fixed order: it is before work 1.6.
+    pub fixed_tab_order: bool,
 }
 
 /// What a listed Workspace's `seen` holds: the name version Rename expects, and the Panes and
@@ -49,8 +51,12 @@ impl Seen {
 }
 
 /// The Workspaces of `inventory`, in the order the Machine keeps them. `client` is this device's
-/// identity on the Machine.
-pub(crate) fn summaries(inventory: &Inventory, client: Option<Id>) -> Vec<WorkspaceSummary> {
+/// identity on the Machine. `reorders` is whether the Machine can move a Tab.
+pub(crate) fn summaries(
+    inventory: &Inventory,
+    client: Option<Id>,
+    reorders: bool,
+) -> Vec<WorkspaceSummary> {
     let home = home(inventory);
     inventory
         .workspaces
@@ -73,6 +79,7 @@ pub(crate) fn summaries(inventory: &Inventory, client: Option<Id>) -> Vec<Worksp
                 seen: seen.write(),
                 tabs: tabs(inventory, workspace, client),
                 repository: repository(inventory, workspace),
+                fixed_tab_order: !reorders,
             }
         })
         .collect()
@@ -203,7 +210,7 @@ mod tests {
     fn a_workspace_shows_where_its_first_shell_is_and_the_sessions_kill_would_end() {
         let api = workspace(1, "api", vec![pane(10, "/srv/api"), pane(11, "/tmp")]);
         let listed = inventory(vec![api], &[10, 11]);
-        let summaries = summaries(&listed, None);
+        let summaries = summaries(&listed, None, true);
         assert_eq!(summaries.len(), 1);
         let WorkspaceSummary {
             id: listed_id,
@@ -230,7 +237,7 @@ mod tests {
         let mut api = workspace(1, "api", vec![pane(10, "/srv/api")]);
         api.name_version = 7;
         let listed = inventory(vec![api], &[10]);
-        let seen = Seen::read(&summaries(&listed, None)[0].seen).unwrap();
+        let seen = Seen::read(&summaries(&listed, None, true)[0].seen).unwrap();
         assert_eq!(seen.version, 7);
         assert_eq!(
             seen.confirmation,
@@ -242,7 +249,7 @@ mod tests {
     fn a_pinned_directory_comes_before_the_first_shell() {
         let mut logs = workspace(2, "logs", vec![pane(20, "/tmp")]);
         logs.pinned_directory = Some(PathBuf::from("/var/log"));
-        let summaries = summaries(&inventory(vec![logs], &[]), None);
+        let summaries = summaries(&inventory(vec![logs], &[]), None, true);
         assert_eq!(summaries[0].directory, "/var/log");
         assert_eq!(summaries[0].terminal_sessions, 0);
     }

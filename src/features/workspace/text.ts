@@ -59,6 +59,8 @@ export function failureText(failure: TabFailure): string {
       return cased("Couldn’t Open a New Tab", "Couldn’t open a new Tab");
     case "new-pane":
       return cased("Couldn’t Open a New Pane", "Couldn’t open a new Pane");
+    case "move-tab":
+      return cased("Couldn’t Move This Tab", "Couldn’t move this Tab");
     case "switch":
       return cased(
         `Couldn’t Switch to “${failure.worktree.name}”`,

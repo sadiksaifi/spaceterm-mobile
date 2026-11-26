@@ -23,6 +23,8 @@ export type Workspace = {
   tabs: readonly Tab[];
   /** The repository the Workspace is in, `null` outside one. */
   repository: Repository | null;
+  /** The Machine keeps the Tabs in a fixed order, so no Tab moves. */
+  fixedTabOrder?: boolean;
 };
 
 /** The side of the Pane it was placed beside that a Pane takes. */
@@ -217,6 +219,17 @@ export type MachineClient = {
   newTab: (machineId: string, workspace: Workspace, worktree?: Worktree) => Promise<NewTabResult>;
   /** Adds a Pane with a shell to `tab`, as its last Pane. */
   newPane: (machineId: string, workspace: Workspace, tab: Tab) => Promise<CommandResult>;
+  /**
+   * Moves `tab` just before or after `beside`, another Tab of its Worktree, in the order the
+   * Machine keeps for every device.
+   */
+  moveTab: (
+    machineId: string,
+    workspace: Workspace,
+    tab: Tab,
+    beside: Tab,
+    side: "before" | "after",
+  ) => Promise<CommandResult>;
   /**
    * `tab` and `pane` are as the person saw them. The Machine refuses when what the close ends has
    * changed since, so no Terminal Session ends that the person was not shown. `asked` is whether

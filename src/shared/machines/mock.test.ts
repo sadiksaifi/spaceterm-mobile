@@ -399,4 +399,15 @@ describe("the mock client's Tabs", () => {
     expect(tabs[0].panes.at(-1)?.source).toBe("p2");
     expect(listedNow(client)?.terminalSessions).toBe(5);
   });
+
+  it("moves a Tab before or after another, for every device", async () => {
+    const client = createMockClient([{ ...mac, workspaces: [split] }]);
+    const [first, second] = split.tabs;
+    const order = () => listedNow(client)?.tabs.map((tab) => tab.id);
+
+    await client.moveTab("mac", split, first, second, "after");
+    expect(order()).toEqual(["t2", "t1"]);
+    await client.moveTab("mac", split, first, second, "before");
+    expect(order()).toEqual(["t1", "t2"]);
+  });
 });

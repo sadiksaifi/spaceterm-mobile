@@ -14,13 +14,16 @@ import {
   closePaneStep,
   closeTabStep,
   gridView,
-  movedOrder,
+  movePast,
   type GridState,
   type GridView,
 } from "./grid";
 import { useGridState } from "./grid-store";
 
-export type TabClient = Pick<MachineClient, "newTab" | "newPane" | "closeTab" | "closePane">;
+export type TabClient = Pick<
+  MachineClient,
+  "newTab" | "newPane" | "closeTab" | "closePane" | "moveTab"
+>;
 
 /** The alert a close opened: the Tab or Pane runs a command, or another device controls it. */
 export type TabAlert =
@@ -35,6 +38,8 @@ export type TabFailure =
   /** `worktree`: the active Worktree then, where Try Again opens the Tab while it is listed. */
   | { command: "new-tab"; worktree: Worktree | null }
   | { command: "new-pane"; tab: Tab }
+  /** `direction`: left is -1. Try Again moves past the Tab beside it then. */
+  | { command: "move-tab"; tab: Tab; direction: -1 | 1 }
   /** Picking a Worktree with no Tab opens one there; this is that Tab not opening. */
   | { command: "switch"; worktree: Worktree };
 
@@ -185,6 +190,14 @@ export function useTabCommands({
   const newPane = (tab: Tab) =>
     run({ command: "new-pane", tab }, () => client.newPane(machineId, workspace, tab));
 
+  const moveTab = (tab: Tab, direction: -1 | 1) => {
+    const beside = movePast(grid, tab, direction);
+    if (beside === null) return;
+    run({ command: "move-tab", tab, direction }, () =>
+      client.moveTab(machineId, workspace, tab, beside, direction === -1 ? "before" : "after"),
+    );
+  };
+
   const pickWorktree = (worktree: Worktree) => {
     const picked = { ...state, picked: worktree.path, expecting: null };
     const hasTabs = gridView(workspace, picked).active?.path === worktree.path;
@@ -216,10 +229,7 @@ export function useTabCommands({
     newPane,
     closeTab,
     closePane,
-    moveTab(tab, direction) {
-      const order = movedOrder(workspace, state, tab, direction);
-      if (order !== null) updateGrid((grid) => ({ ...grid, order }));
-    },
+    moveTab,
     pickWorktree,
     confirm() {
       const { alert } = local;
@@ -259,6 +269,10 @@ export function useTabCommands({
           const tab = listedTab(shown.tab.id);
           return tab && newPane(tab);
         }
+        case "move-tab": {
+          const tab = listedTab(shown.tab.id);
+          return tab && moveTab(tab, shown.direction);
+        }
         case "switch":
           return pickWorktree(shown.worktree);
       }
@@ -283,6 +297,8 @@ function flightId(failure: TabFailure): string {
       return `close-pane/${failure.pane.id}`;
     case "new-pane":
       return `new-pane/${failure.tab.id}`;
+    case "move-tab":
+      return `move-tab/${failure.tab.id}`;
     case "new-tab":
     case "switch":
       return "new-tab";

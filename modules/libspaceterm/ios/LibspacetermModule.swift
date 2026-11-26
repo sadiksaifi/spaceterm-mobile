@@ -175,6 +175,13 @@ public class LibspacetermModule: Module {
       shared.newPane(machineId: machineId, workspaceId: workspaceId, tabId: tabId, source: source)
     }.runOnQueue(edits)
 
+    AsyncFunction("moveTab") {
+      (machineId: String, workspaceId: String, tabId: String, beside: String, after: Bool) -> Bool
+      in
+      shared.moveTab(
+        machineId: machineId, workspaceId: workspaceId, tabId: tabId, beside: beside, after: after)
+    }.runOnQueue(edits)
+
     AsyncFunction("close") {
       (
         machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String,
@@ -285,6 +292,7 @@ private func workspace(_ workspace: WorkspaceSummary) -> [String: Any] {
     "seen": workspace.seen,
     "tabs": workspace.tabs.map(tab),
     "repository": workspace.repository.map(repository) as Any? ?? NSNull(),
+    "fixedTabOrder": workspace.fixedTabOrder,
   ]
 }
 

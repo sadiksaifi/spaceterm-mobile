@@ -8,23 +8,20 @@ export type GridState = {
   expecting: string | null;
   /** Tab ids, the one used last first. */
   used: readonly string[];
-  /**
-   * This device's order of the Tabs, by id. The Machine keeps no order of its own yet
-   * (sadiksaifi/SpaceTerm#951), so a move shows on this device only.
-   */
-  order: readonly string[];
 };
 
-export const NO_GRID_STATE: GridState = { picked: null, expecting: null, used: [], order: [] };
+export const NO_GRID_STATE: GridState = { picked: null, expecting: null, used: [] };
 
 export type WorktreeChoice = { worktree: Worktree; active: boolean };
 
 export type GridView = {
-  /** The Tabs of the active Worktree, in this device's order. */
+  /** The Tabs of the active Worktree, in the order the Machine keeps them. */
   tabs: readonly Tab[];
   /** The Worktrees of the Workspace's repository, empty outside one. */
   worktrees: readonly WorktreeChoice[];
   active: Worktree | null;
+  /** The Machine keeps the Tabs in a fixed order, so no Tab moves. */
+  fixedOrder: boolean;
 };
 
 /**
@@ -33,10 +30,10 @@ export type GridView = {
  * first Tab's. A Tab whose Worktree Git no longer lists counts as the Main Worktree's.
  */
 export function gridView(workspace: Workspace, state: GridState): GridView {
-  const tabs = ordered(workspace.tabs, state.order);
-  const { repository } = workspace;
+  const { tabs, repository } = workspace;
+  const fixedOrder = workspace.fixedTabOrder === true;
   if (repository === null || repository.worktrees.length === 0) {
-    return { tabs, worktrees: [], active: null };
+    return { tabs, worktrees: [], active: null, fixedOrder };
   }
   const listed = repository.worktrees;
   const worktreeOf = (tab: Tab) =>
@@ -56,42 +53,25 @@ export function gridView(workspace: Workspace, state: GridState): GridView {
     tabs: tabs.filter((tab) => worktreeOf(tab) === active),
     worktrees: listed.map((worktree) => ({ worktree, active: worktree === active })),
     active,
+    fixedOrder,
   };
 }
 
-/** The Tabs in this device's order. Tabs it has not ordered follow, in the Machine's order. */
-function ordered(tabs: readonly Tab[], order: readonly string[]): readonly Tab[] {
-  const known = order
-    .map((id) => tabs.find((tab) => tab.id === id))
-    .filter((tab) => tab !== undefined);
-  return [...known, ...tabs.filter((tab) => !order.includes(tab.id))];
-}
-
 /**
- * The order after moving `tab` one place left or right among the Tabs the grid shows. `null`
- * when it is already at that end.
+ * The Tab that `tab` moves past to go one place left or right in the grid, `null` where it
+ * cannot. The Machine moves a Tab only past another of the same Worktree, which a Tab whose
+ * Worktree Git no longer lists is not, though the grid shows it with the main one's.
  */
-export function movedOrder(
-  workspace: Workspace,
-  state: GridState,
-  tab: Tab,
-  direction: -1 | 1,
-): readonly string[] | null {
-  const shown = gridView(workspace, state).tabs;
-  const at = shown.findIndex((each) => each.id === tab.id);
-  const neighbor = shown[at + direction];
-  if (at === -1 || neighbor === undefined) return null;
-  const all = ordered(workspace.tabs, state.order).map((each) => each.id);
-  const from = all.indexOf(tab.id);
-  const to = all.indexOf(neighbor.id);
-  [all[from], all[to]] = [all[to], all[from]];
-  return all;
+export function movePast(view: GridView, tab: Tab, direction: -1 | 1): Tab | null {
+  if (view.fixedOrder) return null;
+  const at = view.tabs.findIndex((each) => each.id === tab.id);
+  const neighbor = at === -1 ? undefined : view.tabs[at + direction];
+  return neighbor !== undefined && neighbor.worktree === view.tabs[at].worktree ? neighbor : null;
 }
 
 /** Whether Move Tab Left and Move Tab Right can move `tab`. */
 export function moves(view: GridView, tab: Tab): { left: boolean; right: boolean } {
-  const at = view.tabs.findIndex((each) => each.id === tab.id);
-  return { left: at > 0, right: at !== -1 && at < view.tabs.length - 1 };
+  return { left: movePast(view, tab, -1) !== null, right: movePast(view, tab, 1) !== null };
 }
 
 /** `state` after the person used `tab`. */

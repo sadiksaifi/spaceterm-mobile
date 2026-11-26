@@ -4,7 +4,7 @@ import { NO_GRID_STATE, type GridState } from "./grid";
 
 /**
  * Each Workspace's grid state, by `machineId/workspaceId`, while the app runs. It outlives the
- * screen, so a Workspace shows the same Worktree and order when the person comes back to it.
+ * screen, so a Workspace shows the same Worktree when the person comes back to it.
  */
 const states = new Map<string, GridState>();
 const listeners = new Set<() => void>();

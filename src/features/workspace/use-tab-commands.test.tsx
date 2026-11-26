@@ -58,6 +58,7 @@ async function render(client: Partial<TabClient>, tabs: Tab[] = [idle, busy]) {
     newPane: done,
     closeTab: done,
     closePane: done,
+    moveTab: done,
     ...client,
   };
   const hook = await renderHook(
@@ -228,5 +229,49 @@ describe("New Tab", () => {
     await act(async () => result.current.newTab());
 
     expect(newTab).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("moving a Tab", () => {
+  it("moves a Tab before its left neighbor or after its right one, as the Machine keeps them", async () => {
+    const moveTab = jest.fn<TabClient["moveTab"]>(done);
+    const { result } = await render({ moveTab });
+
+    await act(async () => result.current.moveTab(busy, -1));
+    expect(moveTab).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.anything(),
+      busy,
+      idle,
+      "before",
+    );
+    await act(async () => result.current.moveTab(idle, 1));
+    expect(moveTab).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.anything(),
+      idle,
+      busy,
+      "after",
+    );
+  });
+
+  it("offers Try Again when the Machine refuses, which moves past the Tab beside it then", async () => {
+    const moveTab = jest.fn<TabClient["moveTab"]>(refused);
+    const other = tab("other");
+    const { result, rerender } = await render({ moveTab }, [idle, busy]);
+    await act(async () => result.current.moveTab(busy, -1));
+    expect(result.current.failure).toEqual({ command: "move-tab", tab: busy, direction: -1 });
+
+    await rerender({ listed: workspace([idle, other, busy]) });
+    moveTab.mockImplementationOnce(done);
+    await act(async () => result.current.retry(result.current.failure!));
+    expect(moveTab).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.anything(),
+      busy,
+      other,
+      "before",
+    );
+    expect(result.current.failure).toBeNull();
   });
 });

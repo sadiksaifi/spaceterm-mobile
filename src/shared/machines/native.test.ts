@@ -46,6 +46,7 @@ function fakeNative() {
     killWorkspace: vi.fn(async () => true),
     newTab: vi.fn(async () => "t-new"),
     newPane: vi.fn(async () => true),
+    moveTab: vi.fn(async () => true),
     close: vi.fn(async () => true),
     worktreeContext: vi.fn(async () => null),
     worktreeLocation: vi.fn(() => null),
@@ -249,6 +250,7 @@ describe("the paired Machines", () => {
     seen: "api seen",
     tabs: [],
     repository: null,
+    fixedTabOrder: false,
   };
   const logs: NativeWorkspace = {
     id: "w2",
@@ -259,6 +261,7 @@ describe("the paired Machines", () => {
     seen: "logs seen",
     tabs: [],
     repository: null,
+    fixedTabOrder: false,
   };
 
   it("lists a connected Machine's Workspaces and others without a list", () => {
@@ -528,6 +531,7 @@ describe("a Workspace's Tabs through libspaceterm", () => {
     seen: "api seen",
     tabs: [{ id: "t1", name: "zsh", worktree: root, panes: [pane], seen: "tab seen" }],
     repository: { root, worktrees: [{ path: `${root}-fix`, name: "fix" }] },
+    fixedTabOrder: false,
   };
   const machine: NativePairedMachine = {
     id: "m1",

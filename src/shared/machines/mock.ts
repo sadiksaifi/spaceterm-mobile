@@ -114,6 +114,7 @@ export function createMockClient(
     restart: 0,
     newTab: 0,
     newPane: 0,
+    moveTab: 0,
     close: 0,
     branches: 0,
     worktree: 0,
@@ -293,6 +294,33 @@ export function createMockClient(
               : each,
           ),
         })),
+      );
+    },
+
+    moveTab: (machineId, { id: workspaceId }, { id: tabId }, { id: besideId }, side) => {
+      const listed = workspaceOf(machineId, workspaceId);
+      const tabs = listed?.workspace.tabs ?? [];
+      const moving = tabs.find((each) => each.id === tabId);
+      const beside = tabs.find((each) => each.id === besideId);
+      if (
+        !listed ||
+        !moving ||
+        !beside ||
+        moving === beside ||
+        moving.worktree !== beside.worktree ||
+        refuses("moveTab")
+      ) {
+        return failed();
+      }
+      return done(() =>
+        update(listed, (workspace) => {
+          const moved = workspace.tabs.find((each) => each.id === tabId);
+          const rest = workspace.tabs.filter((each) => each.id !== tabId);
+          const at = rest.findIndex((each) => each.id === besideId);
+          if (moved === undefined || at === -1) return workspace;
+          const to = at + (side === "after" ? 1 : 0);
+          return { ...workspace, tabs: [...rest.slice(0, to), moved, ...rest.slice(to)] };
+        }),
       );
     },
 

@@ -139,6 +139,10 @@ class LibspacetermModule : Module() {
       withContext(Dispatchers.IO) { machines().newPane(machineId, workspaceId, tabId, source) }
     }
 
+    AsyncFunction("moveTab") Coroutine { machineId: String, workspaceId: String, tabId: String, beside: String, after: Boolean ->
+      withContext(Dispatchers.IO) { machines().moveTab(machineId, workspaceId, tabId, beside, after) }
+    }
+
     AsyncFunction("close") Coroutine { machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String, asked: Boolean ->
       withContext(Dispatchers.IO) { machines().close(machineId, workspaceId, tabId, paneId, seen, asked) }
     }
@@ -314,7 +318,8 @@ private fun WorkspaceSummary.toMap() = mapOf(
   "terminalSessions" to terminalSessions.toInt(),
   "seen" to seen,
   "tabs" to tabs.map { it.toMap() },
-  "repository" to repository?.toMap()
+  "repository" to repository?.toMap(),
+  "fixedTabOrder" to fixedTabOrder
 )
 
 private fun TabSummary.toMap() = mapOf(

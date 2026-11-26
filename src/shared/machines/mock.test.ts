@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createMockClient, type MockMachine } from "./mock";
+import { createMockClient, type MockMachine, type MockPairing } from "./mock";
 
 const mac: MockMachine = {
   id: "mac",
@@ -244,7 +244,7 @@ describe("the mock client", () => {
   describe("pairing", () => {
     const link = "spaceterm://pair/eyJtYWNoaW5lX25hbWUiOiJNYWMgbWluaSJ9";
     const mini: MockMachine = { ...mac, id: "mini", name: "Mac mini" };
-    const pairing = (answer: "approve" | "decline" | "unreachable" | "unusable") => ({
+    const pairing = (answer: MockPairing["answer"]) => ({
       machine: mini,
       address: "mac-mini.local",
       code: "482 915",
@@ -260,6 +260,28 @@ describe("the mock client", () => {
       if (pairing.kind !== "comparing") throw new Error("expected a pairing");
       return pairing;
     }
+
+    it("has no room until its unfinished pairings stop, then pairs", async () => {
+      vi.useFakeTimers();
+      try {
+        const client = createMockClient([mac], { pairing: pairing("full") });
+        const full = client.pair(link, null);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(await full).toEqual({ kind: "full", unfinished: 2 });
+
+        const stopped = client.stopUnfinishedPairings();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(await stopped).toBe(true);
+        const started = await start(client);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(await started.outcome).toEqual({
+          kind: "paired",
+          machine: { id: "mini", name: "Mac mini" },
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
     it("can use no Invitation Link and reach no Machine without a pairing to fake", async () => {
       const client = createMockClient([mac]);

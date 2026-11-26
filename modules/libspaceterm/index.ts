@@ -25,7 +25,12 @@ export type NativeJoinState =
   | { kind: "paired"; machineId: string }
   /** The Machine declined, or the Comparison Code expired. */
   | { kind: "declined" }
-  | { kind: "unreachable" };
+  | { kind: "unreachable" }
+  /**
+   * This device has no room for another pairing. `unfinished` of those it holds are cancelled
+   * pairings still waiting for their Machine to answer; `stopUnfinishedPairings` frees them.
+   */
+  | { kind: "full"; unfinished: number };
 
 /** A Workspace as its Machine lists it. Paths start with `~` where they are in the home directory. */
 export type NativeWorkspace = {
@@ -75,6 +80,11 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   retryJoin(join: string): boolean;
   /** Ends a join. A join the Machine approved meanwhile is unpaired again. */
   cancelJoin(join: string): Promise<void>;
+  /**
+   * Stops waiting for the Machines of cancelled pairings to answer, which frees their room.
+   * Resolves whether every one stopped. A Machine that approved this device may still list it.
+   */
+  stopUnfinishedPairings(): Promise<boolean>;
   /** The paired Machines, in the order they were paired. */
   paired(): NativePairedMachine[];
   /** Each resolves `false` when no paired Machine has the id, or the change failed. */

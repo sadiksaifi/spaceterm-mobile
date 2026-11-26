@@ -59,6 +59,16 @@ it("shows the Comparison Code, then Paired once the Machine approves", async () 
   expect(result.current.view).toEqual({ kind: "paired" });
 });
 
+it("shows that this device has no room, and how many unfinished pairings hold it", async () => {
+  const client: MachineClient = {
+    ...createMockClient([]),
+    pair: async () => ({ kind: "full", unfinished: 3 }),
+  };
+  const { result } = await render(client);
+  await act(async () => {});
+  expect(result.current.view).toEqual({ kind: "full", unfinished: 3 });
+});
+
 it("ends the pairing when the person leaves before the Machine approves", async () => {
   const { client, cancel, reach } = machine();
   const { unmount } = await render(client);

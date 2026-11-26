@@ -37,6 +37,7 @@ function fakeNative() {
     cancelJoin: async () => {
       state.cancelled += 1;
     },
+    stopUnfinishedPairings: vi.fn(async () => true),
     paired: () => state.machines,
     connect: async () => state.connectAccepted,
     disconnect: async () => true,
@@ -159,6 +160,26 @@ describe("pairing through libspaceterm", () => {
     expect(await createNativeClient(native).pair(LINK, "not an address")).toEqual({
       kind: "unreachable",
     });
+  });
+
+  it("reports a device with no room, and how many unfinished pairings hold it", async () => {
+    const { native, state, change } = fakeNative();
+    const started = createNativeClient(native).pair(LINK, null);
+    await flush();
+    change({ join: { kind: "full", unfinished: 2 } });
+
+    expect(await started).toEqual({ kind: "full", unfinished: 2 });
+    expect(state.cancelled).toBe(0);
+  });
+
+  it("stops the unfinished pairings only when asked, and says whether all stopped", async () => {
+    const { native } = fakeNative();
+    const client = createNativeClient(native);
+    expect(native.stopUnfinishedPairings).not.toHaveBeenCalled();
+
+    vi.mocked(native.stopUnfinishedPairings).mockResolvedValueOnce(false);
+    expect(await client.stopUnfinishedPairings()).toBe(false);
+    expect(await client.stopUnfinishedPairings()).toBe(true);
   });
 
   it("ends the join when the person cancels", async () => {

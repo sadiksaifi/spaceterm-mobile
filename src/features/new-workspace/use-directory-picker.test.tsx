@@ -33,6 +33,7 @@ function machine(answers: CreateWorkspaceResult[]) {
     restartCore: async () => ({ kind: "done" }),
     unpair: () => {},
     readInvitation: () => ({ kind: "unusable" }),
+    stopUnfinishedPairings: async () => true,
     pair: async () => ({ kind: "unreachable" }),
   };
   return { client, createWorkspace };

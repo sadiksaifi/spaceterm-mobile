@@ -95,6 +95,13 @@ export type Pairing = {
   cancel: () => void;
 };
 
+/**
+ * How a pairing starts: the Machine shows a code, cannot be reached, or this device has no room
+ * for another pairing. `unfinished` of the pairings it holds are cancelled ones still waiting for
+ * their Machine to answer.
+ */
+export type PairingStart = Pairing | { kind: "unreachable" } | { kind: "full"; unfinished: number };
+
 /** What a command that changes a Workspace comes to. `failed` covers a Machine that did not answer. */
 export type CommandResult = { kind: "done" } | { kind: "failed" };
 
@@ -148,5 +155,11 @@ export type MachineClient = {
     link: string,
     networkAddress: string | null,
     options?: { signal?: AbortSignal },
-  ) => Promise<Pairing | { kind: "unreachable" }>;
+  ) => Promise<PairingStart>;
+  /**
+   * Stops waiting for the Machines of cancelled pairings to answer, which frees the room they hold.
+   * Resolves whether every one stopped. A Machine that approved this device may still list it, so
+   * call it only once the person confirms.
+   */
+  stopUnfinishedPairings: () => Promise<boolean>;
 };

@@ -107,6 +107,8 @@ public class LibspacetermModule: Module {
         return ["kind": "declined"]
       case .unreachable:
         return ["kind": "unreachable"]
+      case .full(let unfinished):
+        return ["kind": "full", "unfinished": Int(unfinished)]
       }
     }
 
@@ -121,6 +123,10 @@ public class LibspacetermModule: Module {
 
     AsyncFunction("cancelJoin") { (join: String) in
       shared.cancelJoin(join: join)
+    }
+
+    AsyncFunction("stopUnfinishedPairings") { () -> Bool in
+      shared.stopUnfinishedPairings()
     }
 
     Function("paired") { () -> [[String: Any]] in
@@ -185,7 +191,7 @@ public class LibspacetermModule: Module {
       switch shared.joinState(join: join) {
       case .reaching, .comparing, .paused:
         shared.cancelJoin(join: join)
-      case .paired, .declined, .unreachable:
+      case .paired, .declined, .unreachable, .full:
         break
       }
     }

@@ -31,13 +31,14 @@ export type MockMachine = {
 /**
  * The pairing the mock client fakes. Every Invitation Link is for `machine`, at `address`. The
  * Machine shows `code`, and `wait` milliseconds later it gives its `answer`; with `unreachable` it
- * never answers, and with `unusable` no link can be used.
+ * never answers, and with `unusable` no link can be used. With `full`, this device has no room
+ * until its two unfinished pairings stop; the Machine then approves.
  */
 export type MockPairing = {
   machine: MockMachine;
   address: string;
   code: string;
-  answer: "approve" | "decline" | "unreachable" | "unusable";
+  answer: "approve" | "decline" | "unreachable" | "unusable" | "full";
   wait: number;
 };
 
@@ -68,6 +69,8 @@ export function createMockClient(
   let snapshot = toSnapshot();
   const listeners = new Set<() => void>();
   let nextId = 1;
+  /** The cancelled pairings whose Machine has not answered, as `full` fakes them. */
+  let unfinished = pairing?.answer === "full" ? 2 : 0;
 
   function toSnapshot(): MachinesSnapshot {
     return {
@@ -260,6 +263,7 @@ export function createMockClient(
         : { kind: "already-paired", invitation };
     },
 
+    stopUnfinishedPairings: () => answer(true, () => (unfinished = 0)),
     pair: (link, _networkAddress, { signal } = {}) => {
       const reading: InvitationReading = client.readInvitation(link);
       if (
@@ -268,6 +272,9 @@ export function createMockClient(
         reading.kind !== "invitation"
       ) {
         return answer({ kind: "unreachable" as const });
+      }
+      if (pairing.answer === "full" && unfinished > 0) {
+        return answer({ kind: "full" as const, unfinished });
       }
       let timer: ReturnType<typeof setTimeout> | undefined;
       const outcome = new Promise<PairingOutcome>((resolve) => {

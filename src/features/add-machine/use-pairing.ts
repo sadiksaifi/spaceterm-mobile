@@ -11,7 +11,9 @@ export type PairingView =
   | { kind: "comparing"; code: string }
   | { kind: "paired" }
   | { kind: "declined" }
-  | { kind: "unreachable" };
+  | { kind: "unreachable" }
+  /** This device has no room for another pairing; `unfinished` cancelled pairings hold some. */
+  | { kind: "full"; unfinished: number };
 
 /**
  * Pairs with the Machine of `request` while `showing`. Leaving the step, or covering it with
@@ -45,7 +47,7 @@ export function usePairing(
         signal: leaving.signal,
       })
       .then((started) => {
-        if (started.kind === "unreachable") {
+        if (started.kind !== "comparing") {
           if (!left) setView(started);
           return;
         }

@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 
-import { useMachines } from "@/shared/machines/client";
+import { useMachineClient, useMachines } from "@/shared/machines/client";
+import { reachUnconnected } from "@/shared/machines/reach";
 
 import { newWorkspaceHref } from "../entry";
 import MachineStepScreen from "./screen";
@@ -10,6 +11,7 @@ import MachineStepScreen from "./screen";
 export default function MachineStepRoute() {
   const snapshot = useMachines();
   const { machines } = snapshot;
+  const client = useMachineClient();
   const router = useRouter();
   // A link can open the flow here whatever is paired. Once the Machines are known, the flow goes
   // where Home would open it: to the one Machine's directories, or back to Home while none is
@@ -32,6 +34,7 @@ export default function MachineStepRoute() {
       }
       // Cancel returns to the screen the flow was opened from.
       onCancel={() => router.back()}
+      onRefresh={() => reachUnconnected(client, machines)}
     />
   );
 }

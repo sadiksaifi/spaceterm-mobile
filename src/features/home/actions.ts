@@ -22,6 +22,8 @@ export type HomeActions = {
   onOpenSettings?: () => void;
   onMachineSettings?: (machineId: string) => void;
   onTryAgain?: () => void;
+  /** Pull to refresh. Settles once each Machine it tries to reach answers or fails. */
+  onRefresh?: () => Promise<void>;
   onGetDesktop: () => void;
 };
 

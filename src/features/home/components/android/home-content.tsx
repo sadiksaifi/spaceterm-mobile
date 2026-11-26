@@ -27,6 +27,7 @@ export function HomeContent({
         onOpen={actions.onOpenWorkspace}
         alerts={alerts}
         bottomPadding={bottomPadding}
+        onRefresh={actions.onRefresh}
       />
     );
   }

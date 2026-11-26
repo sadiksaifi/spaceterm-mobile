@@ -30,6 +30,7 @@ import type { Machine } from "@/shared/machines/model";
 import { connectionStateText } from "@/shared/machines/text";
 import { useColors } from "@/shared/theme/colors";
 import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
+import { Refreshable } from "@/shared/ui/android/refreshable";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 
 import { text } from "../text";
@@ -43,7 +44,12 @@ const LIST_MARGIN = 16;
 /** A Machine that says why it cannot be picked takes two lines, at Material's two-line height. */
 const TWO_LINE_HEIGHT = 72;
 
-export default function MachineStepScreen({ machines, onPick, onCancel }: MachineStepProps) {
+export default function MachineStepScreen({
+  machines,
+  onPick,
+  onCancel,
+  onRefresh,
+}: MachineStepProps) {
   const colors = useColors();
   const material = useMaterialColors();
   const insets = useSafeAreaInsets();
@@ -73,24 +79,26 @@ export default function MachineStepScreen({ machines, onPick, onCancel }: Machin
           </Text>
           {/* The heading stays; the Machines scroll when they outgrow the window, and the last ends
               clear of the gesture area. */}
-          <Column
-            verticalArrangement={{ spacedBy: GROUPED_GAP }}
-            modifiers={[
-              weight(1),
-              verticalScroll(),
-              padding(16, 0, 16, insets.bottom + LIST_MARGIN),
-            ]}
-          >
-            {machines.map((machine, index) => (
-              <MachineRow
-                key={machine.id}
-                machine={machine}
-                first={index === 0}
-                last={index === machines.length - 1}
-                onPick={onPick}
-              />
-            ))}
-          </Column>
+          <Refreshable onRefresh={onRefresh} modifiers={[fillMaxWidth(), weight(1)]}>
+            <Column
+              verticalArrangement={{ spacedBy: GROUPED_GAP }}
+              modifiers={[
+                fillMaxSize(),
+                verticalScroll(),
+                padding(16, 0, 16, insets.bottom + LIST_MARGIN),
+              ]}
+            >
+              {machines.map((machine, index) => (
+                <MachineRow
+                  key={machine.id}
+                  machine={machine}
+                  first={index === 0}
+                  last={index === machines.length - 1}
+                  onPick={onPick}
+                />
+              ))}
+            </Column>
+          </Refreshable>
         </Column>
       </ScreenHost>
     </>

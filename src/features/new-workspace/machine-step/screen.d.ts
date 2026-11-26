@@ -7,6 +7,8 @@ export type MachineStepProps = {
   /** Opens the directories of a connected Machine. */
   onPick: (machineId: string) => void;
   onCancel: () => void;
+  /** Pull to refresh. Settles once each Machine it tries to reach answers or fails. */
+  onRefresh: () => Promise<void>;
 };
 
 /** Implemented per platform in `screen.ios.tsx` and `screen.android.tsx`. */

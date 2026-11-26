@@ -6,8 +6,8 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "mise run android:gradle && expo run:android",
-    "ios": "expo run:ios --device \"iPhone 18 Pro\"",
+    "android": "mise run android:gradle && mise run libspaceterm:android && expo run:android",
+    "ios": "mise run libspaceterm:ios && expo run:ios --device \"iPhone 18 Pro\"",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",

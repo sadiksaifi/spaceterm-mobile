@@ -1,0 +1,36 @@
+[package]
+name = "spaceterm-mobile"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "spaceterm_mobile"
+# iOS links the static library from an XCFramework; Android loads the shared library.
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+# Only the binding generator needs UniFFI's command line; the app's library leaves it out.
+bindgen = ["uniffi/cli"]
+
+[dependencies]
+spaceterm-client = { git = "https://github.com/sadiksaifi/SpaceTerm", tag = "libspaceterm@v0.1.0" }
+spaceterm-protocol = { git = "https://github.com/sadiksaifi/SpaceTerm", tag = "libspaceterm@v0.1.0" }
+uniffi = "=0.33.0"
+# Pinned to the versions libspaceterm pins.
+async-channel = "=2.5.0"
+getrandom = "=0.4.3"
+ring = "=0.17.14"
+serde_json = "1.0"
+thiserror = "2.0.17"
+zeroize = "=1.9.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"

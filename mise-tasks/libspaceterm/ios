@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#MISE description="Build libspaceterm for iOS devices and simulators, with its Swift bindings"
+set -euo pipefail
+
+crate=modules/libspaceterm/rust
+manifest=$crate/Cargo.toml
+out=modules/libspaceterm/ios/generated
+export IPHONEOS_DEPLOYMENT_TARGET=26.0
+
+for target in aarch64-apple-ios aarch64-apple-ios-sim; do
+  cargo build --manifest-path "$manifest" --release --lib --target "$target"
+done
+
+# UniFFI reads the interface from a host build of the same crate.
+cargo build --manifest-path "$manifest" --release --lib
+bindings=$(mktemp -d)
+trap 'rm -rf "$bindings"' EXIT
+# Run from the crate: UniFFI reads its Cargo metadata and uniffi.toml from the working directory.
+(cd "$crate" && cargo run --release --features bindgen --bin uniffi-bindgen -- \
+  generate --library target/release/libspaceterm_mobile.dylib \
+  --language swift --out-dir "$bindings")
+
+# The C interface travels inside the XCFramework, so every target that imports the bindings
+# finds its module map on the header search path CocoaPods sets up.
+headers="$bindings/headers"
+mkdir -p "$headers"
+mv "$bindings/spaceterm_mobileFFI.h" "$headers/"
+mv "$bindings/spaceterm_mobileFFI.modulemap" "$headers/module.modulemap"
+
+rm -rf "$out"
+mkdir -p "$out"
+mv "$bindings/spaceterm_mobile.swift" "$out/"
+xcodebuild -create-xcframework \
+  -library "$crate/target/aarch64-apple-ios/release/libspaceterm_mobile.a" -headers "$headers" \
+  -library "$crate/target/aarch64-apple-ios-sim/release/libspaceterm_mobile.a" -headers "$headers" \
+  -output "$out/SpacetermMobile.xcframework" >/dev/null
+echo "Built $out"

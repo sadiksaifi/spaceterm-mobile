@@ -45,3 +45,8 @@ modules/*/android/build/
 
 # local agent state
 .snap/
+
+# libspaceterm builds and bindings, made by `mise run libspaceterm:ios` and `libspaceterm:android`
+modules/libspaceterm/rust/target/
+modules/libspaceterm/ios/generated/
+modules/libspaceterm/android/generated/

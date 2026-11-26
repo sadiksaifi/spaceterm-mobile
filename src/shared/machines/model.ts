@@ -127,7 +127,12 @@ export type MachineClient = {
   readInvitation: (link: string) => InvitationReading;
   /**
    * Asks the Machine of an Invitation Link to pair with this device, at `networkAddress` when it is
-   * given and at the link's address otherwise.
+   * given and at the link's address otherwise. Aborting `signal` ends the pairing at any point, as
+   * `Pairing.cancel` does; nothing settles after.
    */
-  pair: (link: string, networkAddress: string | null) => Promise<Pairing | { kind: "unreachable" }>;
+  pair: (
+    link: string,
+    networkAddress: string | null,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Pairing | { kind: "unreachable" }>;
 };

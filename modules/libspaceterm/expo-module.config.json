@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["LibspacetermModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.libspaceterm.LibspacetermModule"]
+  }
+}

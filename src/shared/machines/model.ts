@@ -270,8 +270,9 @@ export type MachineClient = {
     asked: boolean,
   ) => Promise<CommandResult>;
   /**
-   * The last screens of `panes`, by Pane, for their cards. A Pane with none to show is left out,
-   * as is every Pane of a Machine that sends no previews.
+   * The last screens of `panes`, by Pane, for their cards. A Pane that shows nothing has no rows.
+   * A Pane whose screen did not arrive in time is left out, as is every Pane of a Machine that
+   * sends no previews.
    */
   panePreviews: (
     machineId: string,

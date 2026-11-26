@@ -28,19 +28,22 @@ pub struct ScreenRun {
     pub strikethrough: bool,
 }
 
-/// The screens among `previews`. A Pane that has not started, or whose screen the Machine could
-/// not read in time, has none.
+/// The screens among `previews`. A Pane that has not started, or whose ended screen the Machine
+/// discarded, shows a blank screen. A Pane whose screen did not arrive in time, or that is gone,
+/// has none, so its card keeps the last one.
 pub(crate) fn screens(previews: Vec<PanePreview>) -> Vec<PaneScreen> {
     previews
         .into_iter()
         .filter_map(|preview| {
-            let screen = match preview.state {
-                State::Live { screen, .. } | State::Ended { screen, .. } => screen?,
-                State::Missing | State::NotStarted => return None,
+            let rows = match preview.state {
+                State::Live { screen, .. } => rows(&screen?),
+                State::Ended { screen, .. } => screen.as_ref().map(rows).unwrap_or_default(),
+                State::NotStarted => Vec::new(),
+                State::Missing => return None,
             };
             Some(PaneScreen {
                 pane: hex(&preview.pane),
-                rows: rows(&screen),
+                rows,
             })
         })
         .collect()
@@ -208,22 +211,13 @@ mod tests {
             row(3, vec![run("    ", StyleRef::Default)]),
             row(4, vec![run("\u{e0a0} main", StyleRef::Default)]),
         ];
-        let preview = |state| PanePreview {
+        let shown = screens(vec![PanePreview {
             pane: [1; 32],
-            state,
-        };
-
-        let shown = screens(vec![
-            preview(State::Live {
+            state: State::Live {
                 session: [2; 32],
                 screen: Some(screen(rows, false)),
-            }),
-            preview(State::NotStarted),
-            preview(State::Live {
-                session: [2; 32],
-                screen: None,
-            }),
-        ]);
+            },
+        }]);
 
         assert_eq!(
             shown,
@@ -246,6 +240,37 @@ mod tests {
                 ],
             }]
         );
+    }
+
+    #[test]
+    fn a_discarded_screen_shows_blank_and_a_late_one_keeps_the_last() {
+        let preview = |pane: u8, state| PanePreview {
+            pane: [pane; 32],
+            state,
+        };
+        let shown = screens(vec![
+            preview(1, State::NotStarted),
+            preview(
+                2,
+                State::Ended {
+                    session: Some([9; 32]),
+                    screen: None,
+                },
+            ),
+            preview(
+                3,
+                State::Live {
+                    session: [9; 32],
+                    screen: None,
+                },
+            ),
+            preview(4, State::Missing),
+        ]);
+        let blank = |pane: u8| PaneScreen {
+            pane: hex(&[pane; 32]),
+            rows: Vec::new(),
+        };
+        assert_eq!(shown, vec![blank(1), blank(2)]);
     }
 
     #[test]

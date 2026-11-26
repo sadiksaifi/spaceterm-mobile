@@ -3,6 +3,7 @@ import {
   ContextMenu,
   HStack,
   Image,
+  Overlay,
   Rectangle,
   Spacer,
   Text,
@@ -13,27 +14,38 @@ import {
   accessibilityAddTraits,
   accessibilityLabel,
   background,
+  bold,
   buttonStyle,
   clipShape,
+  clipped,
   contentShape,
+  fixedSize,
   font,
   foregroundStyle,
   frame,
+  italic,
   lineLimit,
+  lineSpacing,
   onTapGesture,
   padding,
   shapes,
+  strikethrough,
   strokeBorder,
+  underline,
 } from "@expo/ui/swift-ui/modifiers";
 import { Color } from "expo-router";
 import type { ReactNode } from "react";
 import { useWindowDimensions, type ColorValue } from "react-native";
 
+import type { PaneScreen } from "@/shared/machines/model";
+import type { TerminalColors } from "@/shared/preferences/model";
 import { useColors } from "@/shared/theme/colors";
 import { secondary } from "@/shared/ui/ios/modifiers";
 
 import type { Split } from "../../layout";
-import { useTerminalBackground } from "../../terminal";
+import { runColors, SNAPSHOT_TEXT } from "../../snapshot";
+import { useTerminalColors } from "../../terminal";
+import type { Screens } from "../../use-pane-previews";
 
 /** The grid's metrics from the mockups. */
 const SIDE = 16;
@@ -77,11 +89,14 @@ function cardWidthIn(width: number): number {
  */
 export function CardGrid({
   cards,
+  screens,
   addLabel,
   onAdd,
   width,
 }: {
   cards: readonly Card[];
+  /** The Panes' last screens, by Pane. */
+  screens: Screens;
   addLabel: string;
   onAdd: (() => void) | undefined;
   /** The width the grid fills. */
@@ -92,7 +107,13 @@ export function CardGrid({
   const cardHeight = cardWidth * ASPECT;
   const tiles: ReactNode[] = [
     ...cards.map((card) => (
-      <CardView key={card.key} card={card} width={cardWidth} height={cardHeight} />
+      <CardView
+        key={card.key}
+        card={card}
+        screens={screens}
+        width={cardWidth}
+        height={cardHeight}
+      />
     )),
     <AddTile key="add" label={addLabel} onAdd={onAdd} width={cardWidth} height={cardHeight} />,
   ];
@@ -111,16 +132,26 @@ export function CardGrid({
   );
 }
 
-function CardView({ card, width, height }: { card: Card; width: number; height: number }) {
+function CardView({
+  card,
+  screens,
+  width,
+  height,
+}: {
+  card: Card;
+  screens: Screens;
+  width: number;
+  height: number;
+}) {
   const colors = useColors();
-  const terminal = useTerminalBackground();
+  const terminal = useTerminalColors();
   const snapshot = (
     <ZStack alignment="topTrailing" modifiers={[frame({ width, height })]}>
       {/* The snapshot and its close button are separate elements for VoiceOver. */}
       <ZStack
         modifiers={[
           frame({ width, height }),
-          background(terminal),
+          background(terminal.background),
           clipShape("roundedRectangle", CORNER),
           strokeBorder({
             content: colors.separator,
@@ -134,7 +165,14 @@ function CardView({ card, width, height }: { card: Card; width: number; height: 
           accessibilityAddTraits(["isButton"]),
         ]}
       >
-        {card.split && <SplitView split={card.split} terminal={terminal} line={colors.separator} />}
+        {card.split && (
+          <SplitView
+            split={card.split}
+            screens={screens}
+            terminal={terminal}
+            line={colors.separator}
+          />
+        )}
       </ZStack>
       <Button
         onPress={card.onClose}
@@ -205,26 +243,25 @@ function AddTile({
   );
 }
 
-/**
- * A Tab's split, each Pane a part of the card. The Panes' last screens cannot be read yet
- * (sadiksaifi/SpaceTerm#948), so each part shows the terminal's background only.
- */
+/** A Tab's split, each Pane a part of the card that shows its last screen. */
 function SplitView({
   split,
+  screens,
   terminal,
   line,
 }: {
   split: Split;
-  terminal: string;
+  screens: Screens;
+  terminal: TerminalColors;
   line: ColorValue;
 }) {
   if (split.kind === "pane") {
-    return <Rectangle modifiers={[foregroundStyle({ type: "color", color: terminal })]} />;
+    return <PaneSnapshot screen={screens[split.pane.id]} terminal={terminal} />;
   }
   const parts = (
     <>
-      <SplitView split={split.first} terminal={terminal} line={line} />
-      <SplitView split={split.second} terminal={terminal} line={line} />
+      <SplitView split={split.first} screens={screens} terminal={terminal} line={line} />
+      <SplitView split={split.second} screens={screens} terminal={terminal} line={line} />
     </>
   );
   // The one-point gap between the parts shows the line color behind them.
@@ -236,5 +273,61 @@ function SplitView({
     <VStack spacing={1} modifiers={[background(line)]}>
       {parts}
     </VStack>
+  );
+}
+
+const SNAPSHOT_FONT = font({ size: SNAPSHOT_TEXT.size, design: "monospaced" });
+/** The space between lines that makes up the mockups' line height. */
+const SNAPSHOT_LINE_SPACING = SNAPSHOT_TEXT.lineHeight - SNAPSHOT_TEXT.size * 1.2;
+
+/**
+ * A Pane's screen from the top-left, cropped where the part ends. SwiftUI draws no background
+ * behind part of a text, so runs keep their text color only.
+ */
+function PaneSnapshot({
+  screen,
+  terminal,
+}: {
+  screen: PaneScreen | undefined;
+  terminal: TerminalColors;
+}) {
+  const part = (
+    <Rectangle modifiers={[foregroundStyle({ type: "color", color: terminal.background })]} />
+  );
+  if (screen === undefined || screen.rows.length === 0) return part;
+  const lines = screen.rows.flatMap((row, at) => [
+    ...(at === 0 ? [] : [<Text key={`${at}`}>{"\n"}</Text>]),
+    ...row.map((run, index) => (
+      <Text
+        key={`${at}/${index}`}
+        modifiers={[
+          foregroundStyle({ type: "color", color: runColors(run, terminal, false).foreground }),
+          ...(run.bold ? [bold()] : []),
+          ...(run.italic ? [italic()] : []),
+          ...(run.underline ? [underline({ isActive: true, pattern: "solid" })] : []),
+          ...(run.strikethrough ? [strikethrough({ isActive: true, pattern: "solid" })] : []),
+        ]}
+      >
+        {run.text}
+      </Text>
+    )),
+  ]);
+  // The text overlays the part from its top-left and is cut where the part ends.
+  return (
+    <Overlay alignment="topLeading" modifiers={[clipped()]}>
+      {part}
+      <Overlay.Content>
+        <Text
+          modifiers={[
+            SNAPSHOT_FONT,
+            lineSpacing(SNAPSHOT_LINE_SPACING),
+            fixedSize({ horizontal: true, vertical: true }),
+            padding({ vertical: SNAPSHOT_TEXT.vertical, horizontal: SNAPSHOT_TEXT.horizontal }),
+          ]}
+        >
+          {lines}
+        </Text>
+      </Overlay.Content>
+    </Overlay>
   );
 }

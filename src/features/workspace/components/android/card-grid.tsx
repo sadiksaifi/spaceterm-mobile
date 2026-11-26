@@ -31,12 +31,16 @@ import {
 import { useState, type ReactNode } from "react";
 import { useWindowDimensions, type ColorValue } from "react-native";
 
+import type { PaneScreen } from "@/shared/machines/model";
+import type { TerminalColors } from "@/shared/preferences/model";
 import { useColors } from "@/shared/theme/colors";
 
 import type { Control } from "@/features/home/actions";
 
 import type { Split } from "../../layout";
-import { useTerminalBackground } from "../../terminal";
+import { runColors, SNAPSHOT_TEXT } from "../../snapshot";
+import { useTerminalColors } from "../../terminal";
+import type { Screens } from "../../use-pane-previews";
 
 /** The grid's metrics from the mockups. */
 const SIDE = 16;
@@ -72,10 +76,13 @@ export type Card = {
  */
 export function CardGrid({
   cards,
+  screens,
   addLabel,
   onAdd,
 }: {
   cards: readonly Card[];
+  /** The Panes' last screens, by Pane. */
+  screens: Screens;
   addLabel: string;
   onAdd: (() => void) | undefined;
 }) {
@@ -84,7 +91,13 @@ export function CardGrid({
   const cardHeight = cardWidth * ASPECT;
   const tiles: ReactNode[] = [
     ...cards.map((card) => (
-      <CardView key={card.key} card={card} width={cardWidth} height={cardHeight} />
+      <CardView
+        key={card.key}
+        card={card}
+        screens={screens}
+        width={cardWidth}
+        height={cardHeight}
+      />
     )),
     <AddTile key="add" label={addLabel} onAdd={onAdd} width={cardWidth} height={cardHeight} />,
   ];
@@ -102,10 +115,20 @@ export function CardGrid({
   );
 }
 
-function CardView({ card, width, height }: { card: Card; width: number; height: number }) {
+function CardView({
+  card,
+  screens,
+  width,
+  height,
+}: {
+  card: Card;
+  screens: Screens;
+  width: number;
+  height: number;
+}) {
   const colors = useColors();
   const material = useMaterialColors();
-  const terminal = useTerminalBackground();
+  const terminal = useTerminalColors();
   const [held, setHeld] = useState(false);
 
   return (
@@ -153,11 +176,16 @@ function CardView({ card, width, height }: { card: Card; width: number; height: 
                 weight(1),
                 padding(SNAPSHOT_INSET, 0, SNAPSHOT_INSET, SNAPSHOT_INSET),
                 clip(Shapes.RoundedCorner(SNAPSHOT_CORNER)),
-                background(terminal),
+                background(terminal.background),
               ]}
             >
               {card.split && (
-                <SplitView split={card.split} terminal={terminal} line={colors.separator} />
+                <SplitView
+                  split={card.split}
+                  screens={screens}
+                  terminal={terminal}
+                  line={colors.separator}
+                />
               )}
             </Box>
           </Column>
@@ -220,22 +248,25 @@ function AddTile({
   );
 }
 
-/**
- * A Tab's split, each Pane a part of the snapshot. The Panes' last screens cannot be read yet
- * (sadiksaifi/SpaceTerm#948), so each part shows the terminal's background only.
- */
+/** A Tab's split, each Pane a part of the snapshot that shows its last screen. */
 function SplitView({
   split,
+  screens,
   terminal,
   line,
 }: {
   split: Split;
-  terminal: string;
+  screens: Screens;
+  terminal: TerminalColors;
   line: ColorValue;
 }) {
-  if (split.kind === "pane") return <Box modifiers={[fillMaxSize(), background(terminal)]} />;
-  const first = <SplitView split={split.first} terminal={terminal} line={line} />;
-  const second = <SplitView split={split.second} terminal={terminal} line={line} />;
+  if (split.kind === "pane") {
+    return <PaneSnapshot screen={screens[split.pane.id]} terminal={terminal} />;
+  }
+  const first = <SplitView split={split.first} screens={screens} terminal={terminal} line={line} />;
+  const second = (
+    <SplitView split={split.second} screens={screens} terminal={terminal} line={line} />
+  );
   // The one-dp gap between the parts shows the line color behind them.
   return split.axis === "row" ? (
     <Row horizontalArrangement={{ spacedBy: 1 }} modifiers={[fillMaxSize(), background(line)]}>
@@ -247,5 +278,67 @@ function SplitView({
       <Box modifiers={[weight(1), fillMaxWidth()]}>{first}</Box>
       <Box modifiers={[weight(1), fillMaxWidth()]}>{second}</Box>
     </Column>
+  );
+}
+
+/** A Pane's screen from the top-left, cropped where the part ends. */
+function PaneSnapshot({
+  screen,
+  terminal,
+}: {
+  screen: PaneScreen | undefined;
+  terminal: TerminalColors;
+}) {
+  const lines =
+    screen?.rows.flatMap((row, at) => [
+      ...(at === 0 ? [] : ["\n"]),
+      ...row.map((run, index) => {
+        const { foreground, background: fill } = runColors(run, terminal, true);
+        return (
+          <Text
+            key={`${at}/${index}`}
+            color={foreground}
+            style={{
+              fontWeight: run.bold ? "bold" : undefined,
+              fontStyle: run.italic ? "italic" : undefined,
+              textDecoration: run.underline
+                ? "underline"
+                : run.strikethrough
+                  ? "lineThrough"
+                  : undefined,
+              background: fill ?? undefined,
+            }}
+          >
+            {run.text}
+          </Text>
+        );
+      }),
+    ]) ?? [];
+  return (
+    <Box modifiers={[fillMaxSize(), clip(Shapes.Rectangle), background(terminal.background)]}>
+      {lines.length > 0 && (
+        <Text
+          softWrap={false}
+          overflow="clip"
+          color={terminal.foreground}
+          style={{
+            fontFamily: "monospace",
+            fontSize: SNAPSHOT_TEXT.size,
+            lineHeight: SNAPSHOT_TEXT.lineHeight,
+          }}
+          modifiers={[
+            fillMaxSize(),
+            padding(
+              SNAPSHOT_TEXT.horizontal,
+              SNAPSHOT_TEXT.vertical,
+              SNAPSHOT_TEXT.horizontal,
+              SNAPSHOT_TEXT.vertical,
+            ),
+          ]}
+        >
+          {lines}
+        </Text>
+      )}
+    </Box>
   );
 }

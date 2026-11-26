@@ -1,4 +1,4 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useEffectEvent, useState } from "react";
 
 import { workspaceRows, type WorkspaceRow } from "@/features/home/model";
@@ -10,6 +10,7 @@ import type { Workspace } from "@/shared/machines/model";
 import { NEW_TAB } from "./entry";
 import { workspaceView } from "./model";
 import WorkspaceScreen from "./screen";
+import { usePanePreviews } from "./use-pane-previews";
 import { useTabCommands } from "./use-tab-commands";
 
 type Params = { machineId: string; workspaceId: string; action?: string };
@@ -61,6 +62,13 @@ export default function WorkspaceRoute() {
 
   // New Tab from Home or another Workspace's menu runs once the Tabs show.
   const tabsShow = view.kind === "tabs";
+  const focused = useIsFocused();
+  const screens = usePanePreviews(
+    client,
+    machineId,
+    commands.grid.tabs.flatMap((tab) => tab.panes.map((pane) => pane.id)),
+    tabsShow && focused,
+  );
   const newTab = useEffectEvent(() => commands.newTab());
   useEffect(() => {
     if (action !== NEW_TAB || !tabsShow) return;
@@ -87,6 +95,7 @@ export default function WorkspaceRoute() {
       rows={rows}
       row={row}
       commands={commands}
+      screens={screens}
       alerts={alerts}
       onBack={() => router.back()}
       onSwitch={(next) =>

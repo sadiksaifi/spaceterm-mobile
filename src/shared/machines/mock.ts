@@ -10,6 +10,9 @@ import type {
   NewTabResult,
   Pairing,
   PairingOutcome,
+  Pane,
+  PaneScreen,
+  ScreenRun,
   Tab,
   Workspace,
   WorktreeContext,
@@ -356,6 +359,18 @@ export function createMockClient(
       );
     },
 
+    panePreviews: (machineId, panes) => {
+      const target = machine(machineId);
+      if (target?.connection !== "connected") return answer({});
+      const screens: Record<string, PaneScreen> = {};
+      for (const workspace of target.workspaces ?? []) {
+        for (const pane of workspace.tabs.flatMap((tab) => tab.panes)) {
+          if (panes.includes(pane.id)) screens[pane.id] = promptScreen(workspace, pane);
+        }
+      }
+      return answer(screens);
+    },
+
     worktreeContext: (machineId, repository) => {
       const target = machine(machineId);
       const branches = target?.git[repository.root];
@@ -588,4 +603,24 @@ function display(home: string, absolute: string, trailingSlash: boolean): string
         : absolute;
   if (!trailingSlash || shown === "/") return shown;
   return `${shown}/`;
+}
+
+/** A shell's prompt in the Workspace's directory, waiting after the Pane's command. */
+function promptScreen(workspace: Workspace, pane: Pane): PaneScreen {
+  const run = (text: string, foreground: string | null = null): ScreenRun => ({
+    text,
+    foreground,
+    background: null,
+    inverse: false,
+    bold: false,
+    faint: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+  });
+  const prompt = [run(`${workspace.directory} `, "#6ca8f5")];
+  if (workspace.branch !== undefined) prompt.push(run(workspace.branch, "#c58ae0"));
+  return {
+    rows: [prompt, [run("❯ ", "#7bc47f"), run(pane.name)], [], prompt, [run("❯ ", "#7bc47f")]],
+  };
 }

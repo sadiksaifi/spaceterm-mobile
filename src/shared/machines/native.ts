@@ -40,6 +40,7 @@ export type NativeMachines = Pick<
   | "newPane"
   | "moveTab"
   | "close"
+  | "panePreviews"
   | "worktreeContext"
   | "worktreeLocation"
   | "createWorktree"
@@ -217,6 +218,10 @@ export function createNativeClient(
     closePane: async (machineId, { id }, tab, pane, asked) => {
       if (pane.revision === undefined) return { kind: "failed" };
       return done(await native.close(machineId, id, tab.id, pane.id, pane.revision, asked));
+    },
+    panePreviews: async (machineId, panes) => {
+      const screens = await native.panePreviews(machineId, [...panes]).catch(() => []);
+      return Object.fromEntries(screens.map(({ pane, rows }) => [pane, { rows }]));
     },
     worktreeContext: (machineId, repository) => native.worktreeContext(machineId, repository.root),
     worktreeLocation: ({ template, home, root }, branch) =>

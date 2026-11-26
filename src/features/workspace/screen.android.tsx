@@ -97,6 +97,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
                 ]}
               >
                 <CardGrid
+                  screens={props.screens}
                   cards={commands.grid.tabs.map((tab) => {
                     const move = moves(commands.grid, tab);
                     return {
@@ -173,6 +174,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
           )}
           {panes !== null && (
             <PanesSheet
+              screens={props.screens}
               tab={panes}
               commands={commands}
               snackbar={<SnackbarSlot {...snackbar} bottom={insets.bottom + 16} />}

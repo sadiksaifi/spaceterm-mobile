@@ -5,6 +5,7 @@ uniffi::setup_scaffolding!();
 
 mod edits;
 mod inventories;
+mod previews;
 mod record_file;
 mod tabs;
 mod workspaces;
@@ -12,13 +13,15 @@ mod worktrees;
 
 use edits::Edits;
 use inventories::Inventories;
+use previews::PaneScreen;
 use record_file::{PrivateRecordFile, hex};
 use spaceterm_client::direct::{DirectError, Endpoint, Invitation, default_port};
 use spaceterm_client::hierarchy::{
-    Axis, CloseTarget, CreateControl, Mutation, Outcome, TabPosition,
+    Axis, CloseTarget, CreateControl, Id, Mutation, Outcome, TabPosition,
 };
 use spaceterm_client::pane::control::ClientName;
 use spaceterm_client::protocol::capability::Capability;
+use spaceterm_client::protocol::preview;
 use spaceterm_client::protocol::{InventoryRevision, Operation, ReplyBody};
 use spaceterm_client::records::PrivateRecords;
 use spaceterm_client::{
@@ -43,6 +46,8 @@ const ENDPOINT_SCHEME: &str = "quic://";
 const ROOM: usize = 128;
 /// How long a read from a Machine waits for its answer.
 const READ_WAIT: Duration = Duration::from_secs(10);
+/// A card shows its last preview until the next one arrives, so a slow one is not worth a wait.
+const PREVIEW_WAIT: Duration = Duration::from_secs(3);
 
 /// The platform's secret storage: the Keychain on iOS, the Android Keystore on Android. Each
 /// pairing keeps one immutable secret under its own key. Calls come from background threads.
@@ -564,6 +569,39 @@ impl Machines {
                 confirmation,
             },
         )
+    }
+
+    /// The last screens of `panes` on a connected Machine, for their cards. A Pane that has not
+    /// started or whose screen did not arrive in time has none, as has every Pane of a Machine
+    /// before work 1.6.
+    pub fn pane_previews(&self, machine_id: String, panes: Vec<String>) -> Vec<PaneScreen> {
+        let Some(link) = self
+            .known(&machine_id)
+            .ok()
+            .and_then(|route| self.connections.core(&route))
+            .and_then(|machine| machine.work().live_link())
+        else {
+            return Vec::new();
+        };
+        let mut ids: Vec<Id> = Vec::new();
+        for pane in panes.iter().filter_map(|pane| decode(pane)) {
+            if !ids.contains(&pane) {
+                ids.push(pane);
+            }
+        }
+        // Every request goes out before the first answer is awaited.
+        let pending: Vec<_> = ids
+            .chunks(preview::MAX_PANES)
+            .filter_map(|chunk| link.read_pane_previews(chunk.to_vec()).ok())
+            .collect();
+        pending
+            .into_iter()
+            .filter_map(|reply| match reply.wait_for(PREVIEW_WAIT)? {
+                Ok(ReplyBody::PanePreviews(previews)) => Some(previews),
+                _ => None,
+            })
+            .flat_map(previews::screens)
+            .collect()
     }
 
     /// What New Worktree needs from the Machine for the repository whose Main Worktree is `root`.

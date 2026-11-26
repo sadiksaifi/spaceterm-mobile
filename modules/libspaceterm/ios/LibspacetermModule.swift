@@ -192,6 +192,10 @@ public class LibspacetermModule: Module {
         asked: asked)
     }.runOnQueue(edits)
 
+    AsyncFunction("panePreviews") { (machineId: String, panes: [String]) -> [[String: Any]] in
+      shared.panePreviews(machineId: machineId, panes: panes).map(paneScreen)
+    }.runOnQueue(edits)
+
     AsyncFunction("worktreeContext") { (machineId: String, root: String) -> [String: Any]? in
       shared.worktreeContext(machineId: machineId, root: root).map { context in
         [
@@ -303,6 +307,24 @@ private func tab(_ tab: TabSummary) -> [String: Any] {
     "worktree": tab.worktree as Any? ?? NSNull(),
     "panes": tab.panes.map(pane),
     "seen": tab.seen,
+  ]
+}
+
+private func paneScreen(_ screen: PaneScreen) -> [String: Any] {
+  ["pane": screen.pane, "rows": screen.rows.map { $0.map(screenRun) }]
+}
+
+private func screenRun(_ run: ScreenRun) -> [String: Any] {
+  [
+    "text": run.text,
+    "foreground": run.foreground as Any? ?? NSNull(),
+    "background": run.background as Any? ?? NSNull(),
+    "inverse": run.inverse,
+    "bold": run.bold,
+    "faint": run.faint,
+    "italic": run.italic,
+    "underline": run.underline,
+    "strikethrough": run.strikethrough,
   ]
 }
 

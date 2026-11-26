@@ -50,6 +50,23 @@ export type NativeWorkspace = {
   fixedTabOrder: boolean;
 };
 
+/** A Pane's last screen, top-left first. A row with no runs is blank. */
+export type NativePaneScreen = { pane: string; rows: NativeScreenRun[][] };
+
+/** Consecutive cells drawn alike. Colors are `#rrggbb`; `null` is the terminal's own. */
+export type NativeScreenRun = {
+  text: string;
+  foreground: string | null;
+  background: string | null;
+  /** Foreground and background trade places. */
+  inverse: boolean;
+  bold: boolean;
+  faint: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+};
+
 export type NativeTab = {
   id: string;
   /** Its Root Pane's name. */
@@ -182,6 +199,8 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
     seen: string,
     asked: boolean,
   ): Promise<boolean>;
+  /** The last screens of `panes`. A Pane with none to show is left out. */
+  panePreviews(machineId: string, panes: string[]): Promise<NativePaneScreen[]>;
   /** `null` when the Machine did not answer. */
   worktreeContext(machineId: string, root: string): Promise<NativeWorktreeContext | null>;
   /** Reads nothing from the Machine. */

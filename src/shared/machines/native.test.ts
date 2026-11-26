@@ -47,6 +47,7 @@ function fakeNative() {
     newTab: vi.fn(async () => "t-new"),
     newPane: vi.fn(async () => true),
     moveTab: vi.fn(async () => true),
+    panePreviews: vi.fn(async () => []),
     close: vi.fn(async () => true),
     worktreeContext: vi.fn(async () => null),
     worktreeLocation: vi.fn(() => null),

@@ -1,9 +1,10 @@
 import { useColorScheme } from "react-native";
 
+import type { TerminalColors } from "@/shared/preferences/model";
 import { themeInUse } from "@/shared/preferences/in-use";
 import { usePreferences } from "@/shared/preferences/provider";
 
-/** The background of the Terminal Theme in use, which a Pane's snapshot is drawn on. */
-export function useTerminalBackground(): string {
-  return themeInUse(usePreferences(), useColorScheme()).colors.background;
+/** The colors of the Terminal Theme in use, which a Pane's snapshot is drawn with. */
+export function useTerminalColors(): TerminalColors {
+  return themeInUse(usePreferences(), useColorScheme()).colors;
 }

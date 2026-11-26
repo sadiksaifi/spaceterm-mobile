@@ -6,6 +6,7 @@ import { heading } from "@/modules/compose-modifiers";
 import type { Tab } from "@/shared/machines/model";
 
 import { text } from "../../text";
+import type { Screens } from "../../use-pane-previews";
 import type { TabCommands } from "../../use-tab-commands";
 import { CardGrid } from "./card-grid";
 
@@ -19,10 +20,13 @@ const SHEET_BOTTOM = 16;
 export function PanesSheet({
   tab,
   commands,
+  screens,
   snackbar,
 }: {
   tab: Tab;
   commands: TabCommands;
+  /** The Panes' last screens, by Pane. */
+  screens: Screens;
   /** The screen's snackbar, which shows here while the sheet covers the screen. */
   snackbar: ReactNode;
 }) {
@@ -42,6 +46,7 @@ export function PanesSheet({
             {text.panes}
           </Text>
           <CardGrid
+            screens={screens}
             cards={tab.panes.map((pane) => {
               const close = () => commands.closePane(tab, pane);
               return {

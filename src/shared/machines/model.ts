@@ -57,6 +57,26 @@ export type Tab = {
   revision?: string;
 };
 
+/** A Pane's last screen, top-left first, cropped to what the Machine sends. */
+export type PaneScreen = {
+  /** A row with no runs is blank. */
+  rows: readonly (readonly ScreenRun[])[];
+};
+
+/** Consecutive cells drawn alike. Colors are `#rrggbb`; `null` is the Terminal Theme's own. */
+export type ScreenRun = {
+  text: string;
+  foreground: string | null;
+  background: string | null;
+  /** Foreground and background trade places. */
+  inverse: boolean;
+  bold: boolean;
+  faint: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+};
+
 export type Worktree = {
   /** The Worktree's root, as the Machine's path. */
   path: string;
@@ -249,6 +269,14 @@ export type MachineClient = {
     pane: Pane,
     asked: boolean,
   ) => Promise<CommandResult>;
+  /**
+   * The last screens of `panes`, by Pane, for their cards. A Pane with none to show is left out,
+   * as is every Pane of a Machine that sends no previews.
+   */
+  panePreviews: (
+    machineId: string,
+    panes: readonly string[],
+  ) => Promise<Readonly<Record<string, PaneScreen>>>;
   /** The branches and rule New Worktree needs, or `null` when the Machine did not answer. */
   worktreeContext: (machineId: string, repository: Repository) => Promise<WorktreeContext | null>;
   /** Where the Machine's rule places a Worktree for `branch`, `null` when the rule gives none. */

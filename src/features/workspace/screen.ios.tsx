@@ -46,6 +46,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
     <ScrollView>
       <VStack modifiers={[padding({ top: 8, bottom: bottom + BAR_HEIGHT + 24 })]}>
         <CardGrid
+          screens={props.screens}
           cards={commands.grid.tabs.map((tab) => {
             const move = moves(commands.grid, tab);
             return {
@@ -118,6 +119,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         onNewWorkspace={props.onNewWorkspace}
       />
       <PanesSheet
+        screens={props.screens}
         tab={panes}
         commands={commands}
         alertsView={(children) => (panes !== null && !sheet ? alertsView(children) : children)}

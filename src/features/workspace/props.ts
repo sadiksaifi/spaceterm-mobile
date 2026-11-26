@@ -2,6 +2,7 @@ import type { RowAlerts } from "@/features/home/row-alerts";
 import type { WorkspaceRow } from "@/features/home/model";
 
 import type { WorkspaceView } from "./model";
+import type { Screens } from "./use-pane-previews";
 import type { TabCommands } from "./use-tab-commands";
 
 export type WorkspaceScreenProps = {
@@ -11,6 +12,8 @@ export type WorkspaceScreenProps = {
   /** The Workspace on screen, as a row of Home, for its menu and alerts. */
   row: WorkspaceRow;
   commands: TabCommands;
+  /** The last screens of the Panes the grid shows, by Pane. */
+  screens: Screens;
   /** Rename Workspace and Kill Workspace, from the Workspace menu, the bar and the sheet. */
   alerts: RowAlerts;
   onBack: () => void;

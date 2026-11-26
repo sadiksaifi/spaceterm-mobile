@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Tab } from "@/shared/machines/model";
 
 import { text } from "../../text";
+import type { Screens } from "../../use-pane-previews";
 import type { TabCommands } from "../../use-tab-commands";
 import { CardGrid, cardGridHeight } from "./card-grid";
 import { menuItem } from "./workspace-bar";
@@ -32,10 +33,13 @@ const SHEET_INSET = 8;
 export function PanesSheet({
   tab,
   commands,
+  screens,
   alertsView,
 }: {
   tab: Tab | null;
   commands: TabCommands;
+  /** The Panes' last screens, by Pane. */
+  screens: Screens;
   /** Wraps the sheet's content in the alerts, which show over the topmost view. */
   alertsView: (children: ReactNode) => ReactNode;
 }) {
@@ -90,6 +94,7 @@ export function PanesSheet({
                   {text.panes}
                 </Text>
                 <CardGrid
+                  screens={screens}
                   width={width}
                   cards={tab.panes.map((pane) => {
                     const close = { onPress: () => commands.closePane(tab, pane) };

@@ -25,9 +25,11 @@ import uniffi.spaceterm_mobile.Machines
 import uniffi.spaceterm_mobile.MachinesException
 import uniffi.spaceterm_mobile.PairedMachine
 import uniffi.spaceterm_mobile.NewWorktreeBranch
+import uniffi.spaceterm_mobile.PaneScreen
 import uniffi.spaceterm_mobile.PaneSide
 import uniffi.spaceterm_mobile.PaneSummary
 import uniffi.spaceterm_mobile.RepositorySummary
+import uniffi.spaceterm_mobile.ScreenRun
 import uniffi.spaceterm_mobile.TabSummary
 import uniffi.spaceterm_mobile.WorkspaceSummary
 import uniffi.spaceterm_mobile.WorktreeCreation
@@ -145,6 +147,10 @@ class LibspacetermModule : Module() {
 
     AsyncFunction("close") Coroutine { machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String, asked: Boolean ->
       withContext(Dispatchers.IO) { machines().close(machineId, workspaceId, tabId, paneId, seen, asked) }
+    }
+
+    AsyncFunction("panePreviews") Coroutine { machineId: String, panes: List<String> ->
+      withContext(Dispatchers.IO) { machines().panePreviews(machineId, panes).map { it.toMap() } }
     }
 
     AsyncFunction("worktreeContext") Coroutine { machineId: String, root: String ->
@@ -328,6 +334,23 @@ private fun TabSummary.toMap() = mapOf(
   "worktree" to worktree,
   "panes" to panes.map { it.toMap() },
   "seen" to seen
+)
+
+private fun PaneScreen.toMap() = mapOf(
+  "pane" to pane,
+  "rows" to rows.map { row -> row.map { it.toMap() } }
+)
+
+private fun ScreenRun.toMap() = mapOf(
+  "text" to text,
+  "foreground" to foreground,
+  "background" to background,
+  "inverse" to inverse,
+  "bold" to bold,
+  "faint" to faint,
+  "italic" to italic,
+  "underline" to underline,
+  "strikethrough" to strikethrough
 )
 
 private fun PaneSummary.toMap() = mapOf(

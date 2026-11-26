@@ -1,7 +1,7 @@
 //! Workspace edits, each pairing's through one journal so a lost answer is never applied twice.
 use crate::record_file::{Publication, hex, publish_private, read_private};
 use spaceterm_client::hierarchy::{Mutation, Outcome, RetainedOutcome};
-use spaceterm_client::workspace::{ClientJournal, EditError, JournalStore, WorkspaceEditor};
+use spaceterm_client::workspace::{EditError, JournalStore, WorkspaceEditor};
 use spaceterm_client::{CoreError, DirectRouteId, PairedMachine};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -59,15 +59,8 @@ impl Edits {
                     }
                 }
                 Ok(None) => {}
-                // The Machine's answer does not fit this edit, as when its sequence went to
-                // another edit, so this one can never run there. The journal lets it go, or no
-                // later edit could be admitted. Nothing is sent again.
-                Err(EditError::Core(CoreError::Protocol)) => {
-                    *slot = None;
-                    if !self.abandon(route, machine) {
-                        return false;
-                    }
-                }
+                // It stays until the Machine answers it. Nothing here drops an edit once sent, so
+                // no later edit can take its sequence while it may still run.
                 Err(error) => return self.failed(&mut slot, error),
             }
         }
@@ -151,19 +144,6 @@ impl Edits {
             *slot = Some((machine.clone(), editor));
         }
         slot.as_mut().map(|(_, editor)| editor)
-    }
-
-    /// Drops the pending edit from the journal, which no editor holds now.
-    fn abandon(&self, route: DirectRouteId, machine: &PairedMachine) -> bool {
-        // This app acts as no agent, so its Client Identity is the pairing's own.
-        let paired = machine.paired();
-        ClientJournal::open(
-            Box::new(self.journal(route)),
-            paired.pin.core,
-            paired.client,
-        )
-        .and_then(|mut journal| journal.abandon())
-        .is_ok()
     }
 
     fn journal(&self, route: DirectRouteId) -> JournalFile {

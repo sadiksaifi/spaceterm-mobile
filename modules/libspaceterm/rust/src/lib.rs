@@ -30,6 +30,9 @@ use zeroize::Zeroizing;
 /// that made it; this app pairs only with released Cores.
 const IDENTITY: &str = "spaceterm";
 const ENDPOINT_SCHEME: &str = "quic://";
+/// The pairings this device can hold, counting unpairs and cancelled pairings that wait for their
+/// Machine: libspaceterm's `records::CAPACITY`, which it does not export.
+const ROOM: usize = 128;
 
 /// The platform's secret storage: the Keychain on iOS, the Android Keystore on Android. Each
 /// pairing keeps one immutable secret under its own key. Calls come from background threads.
@@ -275,9 +278,9 @@ impl Machines {
             }
             JoinStatus::Rejected | JoinStatus::Expired => JoinState::Declined,
             JoinStatus::Retryable { .. } => JoinState::Paused,
-            JoinStatus::Failed(DirectError::Capacity) => JoinState::Full {
-                unfinished: u32::try_from(self.unfinished().len()).unwrap_or(u32::MAX),
-            },
+            JoinStatus::Failed(DirectError::Capacity) => {
+                self.full().unwrap_or(JoinState::Unreachable)
+            }
             JoinStatus::PublicationUnconfirmed | JoinStatus::Failed(_) => JoinState::Unreachable,
         }
     }
@@ -425,6 +428,19 @@ impl Machines {
 }
 
 impl Machines {
+    /// `Full` when this device has no room for another pairing. A Machine with too many pairings
+    /// waiting for approval refuses with the same error, and freeing room here would not help it.
+    fn full(&self) -> Option<JoinState> {
+        let pending = self.connections.pending_unpairs();
+        if self.connections.routes().len() + pending.len() < ROOM {
+            return None;
+        }
+        let unfinished = pending.iter().filter(|p| p.enrollment_cleanup).count();
+        Some(JoinState::Full {
+            unfinished: u32::try_from(unfinished).unwrap_or(u32::MAX),
+        })
+    }
+
     /// The cancelled pairings that still wait for their Machine to answer.
     fn unfinished(&self) -> Vec<UnpairKey> {
         self.connections

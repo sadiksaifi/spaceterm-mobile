@@ -11,7 +11,14 @@ const row = (id: string, name: string): WorkspaceRow => ({
   key: `mac/${id}`,
   machineId: "mac",
   machineName: "MacBook Pro",
-  workspace: { id, name, directory: `~/Projects/${name}`, terminalSessions: 2 },
+  workspace: {
+    id,
+    name,
+    directory: `~/Projects/${name}`,
+    terminalSessions: 2,
+    tabs: [],
+    repository: null,
+  },
   connection: "connected",
 });
 const app = row("w1", "app");
@@ -80,7 +87,10 @@ describe("a command the Machine refuses", () => {
     await act(async () => result.current.handlers.onKillWorkspace?.(app));
     await act(async () => result.current.kill());
 
-    const busier = { ...app, workspace: { ...app.workspace, terminalSessions: 3 } };
+    const busier = {
+      ...app,
+      workspace: { ...app.workspace, terminalSessions: 3, tabs: [], repository: null },
+    };
     await rerender({ snapshot: listing(busier, web) });
     await act(async () => result.current.retry(failureOf(result.current)));
 
@@ -256,7 +266,10 @@ it("kills the Workspace as the alert showed it, even after the list changes", as
   const { result, rerender } = await render({ killWorkspace });
   await act(async () => result.current.handlers.onKillWorkspace?.(app));
 
-  const busier = { ...app, workspace: { ...app.workspace, terminalSessions: 3 } };
+  const busier = {
+    ...app,
+    workspace: { ...app.workspace, terminalSessions: 3, tabs: [], repository: null },
+  };
   await rerender({ snapshot: listing(busier, web) });
   await act(async () => result.current.kill());
 

@@ -6,24 +6,29 @@ uniffi::setup_scaffolding!();
 mod edits;
 mod inventories;
 mod record_file;
+mod tabs;
 mod workspaces;
+mod worktrees;
 
 use edits::Edits;
 use inventories::Inventories;
 use record_file::{PrivateRecordFile, hex};
 use spaceterm_client::direct::{DirectError, Endpoint, Invitation, default_port};
-use spaceterm_client::hierarchy::{CloseTarget, Mutation};
+use spaceterm_client::hierarchy::{Axis, CloseTarget, CreateControl, Mutation, Outcome};
 use spaceterm_client::pane::control::ClientName;
-use spaceterm_client::protocol::InventoryRevision;
+use spaceterm_client::protocol::{InventoryRevision, Operation, ReplyBody};
 use spaceterm_client::records::PrivateRecords;
 use spaceterm_client::{
     CredentialError, CredentialStore, DeviceName, DirectConnections, DirectRouteId,
     DirectRouteStatus, Interaction, JoinId, JoinStatus, UnpairKey,
 };
+use spaceterm_protocol::worktree::{self, Read, ReadReply};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tabs::read_confirmation;
 use workspaces::{Seen, WorkspaceSummary, summaries};
+use worktrees::{NewWorktreeBranch, WorktreeContext, WorktreeCreation};
 use zeroize::Zeroizing;
 
 /// The build identity of released SpaceTerm. An Invitation Link names the identity of the Core
@@ -33,6 +38,8 @@ const ENDPOINT_SCHEME: &str = "quic://";
 /// The pairings this device can hold, counting unpairs and cancelled pairings that wait for their
 /// Machine: libspaceterm's `records::CAPACITY`, which it does not export.
 const ROOM: usize = 128;
+/// How long a read from a Machine waits for its answer.
+const READ_WAIT: Duration = Duration::from_secs(10);
 
 /// The platform's secret storage: the Keychain on iOS, the Android Keystore on Android. Each
 /// pairing keeps one immutable secret under its own key. Calls come from background threads.
@@ -131,6 +138,14 @@ pub enum MachinesError {
     UnknownMachine,
     #[error("Pairing could not start.")]
     Unavailable,
+}
+
+/// A Worktree of a repository: `root` is its Main Worktree and `path` the Worktree, as the
+/// Machine's paths.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct WorktreeTarget {
+    pub root: String,
+    pub path: String,
 }
 
 /// The Machines this device has paired, and pairing with new ones.
@@ -328,9 +343,10 @@ impl Machines {
                 let route = self.connections.route(id)?;
                 let connection = connection_of(status);
                 let workspaces = match connection {
-                    Connection::Connected => self
-                        .inventory(id)
-                        .map(|revision| summaries(&revision.inventory)),
+                    Connection::Connected => self.inventory(id).map(|revision| {
+                        let client = self.connections.core(id).map(|core| core.paired().client);
+                        summaries(&revision.inventory, client)
+                    }),
                     _ => None,
                 };
                 Some(PairedMachine {
@@ -402,6 +418,182 @@ impl Machines {
         )
     }
 
+    /// Opens a Tab with a shell as the Workspace's last Tab, in `worktree` when it is given: the
+    /// path of one of the Worktrees of the repository whose Main Worktree is `root`. Returns the
+    /// new Tab, or `None` when the Machine did not open it.
+    pub fn new_tab(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        worktree: Option<WorktreeTarget>,
+    ) -> Option<String> {
+        let workspace = decode(&workspace_id)?;
+        // No device controls the new shell, so whichever opens it first takes it.
+        let control = CreateControl::Unclaimed;
+        let mutation = match worktree {
+            None => Mutation::CreateTab {
+                workspace,
+                source: None,
+                control,
+            },
+            Some(WorktreeTarget { root, path }) => {
+                Mutation::Worktree(worktree::Operation::OpenTab {
+                    workspace,
+                    source: None,
+                    root: PathBuf::from(root),
+                    path: PathBuf::from(path),
+                    control,
+                })
+            }
+        };
+        match self.outcome(&machine_id, mutation)? {
+            Outcome::Accepted { target } => Some(hex(&target)),
+            _ => None,
+        }
+    }
+
+    /// Adds a Pane with a shell to a Tab, beside `source`, one of its Panes. Returns whether the
+    /// Machine added it.
+    pub fn new_pane(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        tab_id: String,
+        source: String,
+    ) -> bool {
+        let (Some(workspace), Some(tab), Some(source)) =
+            (decode(&workspace_id), decode(&tab_id), decode(&source))
+        else {
+            return false;
+        };
+        self.edit(
+            &machine_id,
+            Mutation::SplitPane {
+                workspace,
+                tab,
+                source,
+                axis: Axis::Right,
+                control: CreateControl::Unclaimed,
+            },
+        )
+    }
+
+    /// Closes a Tab, or one Pane of it when `pane_id` is given, as listed with `seen`. Returns
+    /// whether the Machine closed it. A Machine whose Tab or Pane gained or lost a Terminal Session
+    /// since refuses.
+    pub fn close(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        tab_id: String,
+        pane_id: Option<String>,
+        seen: String,
+    ) -> bool {
+        let (Some(workspace), Some(tab), Some(confirmation)) = (
+            decode(&workspace_id),
+            decode(&tab_id),
+            read_confirmation(&seen),
+        ) else {
+            return false;
+        };
+        let target = match pane_id {
+            None => CloseTarget::Tab { workspace, tab },
+            Some(pane) => {
+                let Some(pane) = decode(&pane) else {
+                    return false;
+                };
+                CloseTarget::Pane {
+                    workspace,
+                    tab,
+                    pane,
+                }
+            }
+        };
+        self.edit(
+            &machine_id,
+            Mutation::Close {
+                target,
+                confirmation,
+            },
+        )
+    }
+
+    /// What New Worktree needs from the Machine for the repository whose Main Worktree is `root`.
+    /// `None` when the Machine did not answer.
+    pub fn worktree_context(&self, machine_id: String, root: String) -> Option<WorktreeContext> {
+        let root = PathBuf::from(root);
+        let reply = self.read_worktree(&machine_id, Read::Context { root: root.clone() })?;
+        let Ok(ReadReply::Context {
+            settings,
+            home,
+            branches,
+        }) = reply
+        else {
+            return None;
+        };
+        let inventory = self
+            .known(&machine_id)
+            .ok()
+            .and_then(|route| self.inventory(&route));
+        Some(worktrees::context(
+            &root,
+            inventory.as_ref().map(|revision| &revision.inventory),
+            settings.template,
+            &home,
+            branches,
+        ))
+    }
+
+    /// Where the Machine's rule places a Worktree of `root` for `branch`, from a
+    /// `WorktreeContext`. Reads nothing from the Machine.
+    pub fn worktree_location(
+        &self,
+        template: String,
+        home: String,
+        root: String,
+        branch: String,
+    ) -> Option<String> {
+        worktrees::location(&template, &home, &root, &branch)
+    }
+
+    /// Creates a Worktree of the repository whose Main Worktree is `root` at `location`, which can
+    /// start with `~/`, and opens one Tab in it.
+    pub fn create_worktree(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        root: String,
+        location: String,
+        branch: NewWorktreeBranch,
+    ) -> WorktreeCreation {
+        let Some(workspace) = decode(&workspace_id) else {
+            return WorktreeCreation::Failed;
+        };
+        let root = PathBuf::from(root);
+        // The Machine expands the Location and checks it is missing or empty.
+        let path = match self.read_worktree(
+            &machine_id,
+            Read::Location {
+                root: root.clone(),
+                location,
+            },
+        ) {
+            Some(Ok(ReadReply::Location(path))) => path,
+            Some(Err(error)) => return worktrees::failure(error),
+            _ => return WorktreeCreation::Failed,
+        };
+        worktrees::creation(self.outcome(
+            &machine_id,
+            Mutation::Worktree(worktree::Operation::Create {
+                workspace,
+                root,
+                path,
+                branch: worktrees::branch(branch),
+                control: CreateControl::Unclaimed,
+            }),
+        ))
+    }
+
     /// A new listener for changes, such as one per JavaScript runtime.
     pub fn changes(&self) -> Arc<Changes> {
         let routes = self.connections.subscribe();
@@ -462,15 +654,38 @@ impl Machines {
         Some(link.inventory()?.1)
     }
 
-    /// Sends `mutation` to a connected Machine and waits for its answer.
+    /// Sends `mutation` to a connected Machine and waits for its answer: whether it made the
+    /// change.
     fn edit(&self, machine_id: &str, mutation: Mutation) -> bool {
-        let Ok(route) = self.known(machine_id) else {
-            return false;
-        };
-        let Some(machine) = self.connections.core(&route) else {
-            return false;
-        };
+        matches!(
+            self.outcome(machine_id, mutation),
+            Some(Outcome::Accepted { .. })
+        )
+    }
+
+    /// Sends `mutation` to a connected Machine and waits for its outcome, `None` without one.
+    fn outcome(&self, machine_id: &str, mutation: Mutation) -> Option<Outcome> {
+        let route = self.known(machine_id).ok()?;
+        let machine = self.connections.core(&route)?;
         self.edits.submit(route, &machine, mutation)
+    }
+
+    /// Asks a connected Machine for Worktree facts and waits for the answer, `None` without one.
+    fn read_worktree(
+        &self,
+        machine_id: &str,
+        read: Read,
+    ) -> Option<Result<ReadReply, worktree::Error>> {
+        let route = self.known(machine_id).ok()?;
+        let link = self.connections.core(&route)?.work().live_link()?;
+        match link
+            .request(Operation::WorktreeRead(read))
+            .ok()?
+            .wait_for(READ_WAIT)?
+        {
+            Ok(ReplyBody::Worktree(reply)) => Some(reply),
+            _ => None,
+        }
     }
     fn known(&self, machine_id: &str) -> Result<DirectRouteId, MachinesError> {
         decode(machine_id)

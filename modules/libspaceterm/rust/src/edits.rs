@@ -1,7 +1,7 @@
 //! Workspace edits, each pairing's through one journal so a lost answer is never applied twice.
 use crate::record_file::{Publication, hex, publish_private, read_private};
 use spaceterm_client::connection::link::RequestError;
-use spaceterm_client::hierarchy::{Mutation, Outcome, RetainedOutcome};
+use spaceterm_client::hierarchy::{Mutation, Outcome};
 use spaceterm_client::protocol::Refusal;
 use spaceterm_client::workspace::{ClientJournal, EditError, JournalStore, WorkspaceEditor};
 use spaceterm_client::{CoreError, DirectRouteId, PairedMachine};
@@ -29,24 +29,18 @@ impl Edits {
         }
     }
 
-    /// Sends `mutation` to `machine` and waits for its answer. Returns whether the Machine made
-    /// the change. One edit per pairing runs at a time.
+    /// Sends `mutation` to `machine` and waits for its answer: the Machine's outcome, or `None`
+    /// when no answer arrived. One edit per pairing runs at a time.
     pub(crate) fn submit(
         &self,
         route: DirectRouteId,
         machine: &PairedMachine,
         mutation: Mutation,
-    ) -> bool {
-        let Some(slot) = self.slot(route) else {
-            return false;
-        };
-        let Ok(mut slot) = slot.lock() else {
-            return false;
-        };
+    ) -> Option<Outcome> {
+        let slot = self.slot(route)?;
+        let mut slot = slot.lock().ok()?;
         let deadline = Instant::now() + EDIT_WAIT;
-        let Some(editor) = self.editor(&mut slot, route, machine) else {
-            return false;
-        };
+        let editor = self.editor(&mut slot, route, machine)?;
         if let Some(pending) = editor.journal().pending().cloned() {
             // An edit whose answer was lost goes first, again under its own sequence, so the
             // Machine applies it at most once: it may have run already, be queued there, or never
@@ -57,7 +51,7 @@ impl Edits {
                     let _ = editor.presented(outcome.sequence);
                     // Try Again of that same edit: its answer is this one's.
                     if pending.mutation == mutation {
-                        return accepted(&outcome);
+                        return Some(outcome.outcome);
                     }
                 }
                 Ok(None) => {}
@@ -67,21 +61,19 @@ impl Edits {
                 Err(EditError::Request(RequestError::Refused(Refusal::Stale))) => {
                     *slot = None;
                     if !self.abandon(route, machine) {
-                        return false;
+                        return None;
                     }
                 }
                 // Anything else leaves it to be sent again, as it may still run.
                 Err(error) => return self.failed(&mut slot, error),
             }
         }
-        let Some(editor) = self.editor(&mut slot, route, machine) else {
-            return false;
-        };
+        let editor = self.editor(&mut slot, route, machine)?;
         match editor.submit(mutation, deadline) {
             Ok(outcome) => {
                 // The person sees every answer when it arrives, so none waits to be presented.
                 let _ = editor.presented(outcome.sequence);
-                accepted(&outcome)
+                Some(outcome.outcome)
             }
             Err(error) => self.failed(&mut slot, error),
         }
@@ -94,12 +86,12 @@ impl Edits {
         &self,
         slot: &mut Option<(PairedMachine, WorkspaceEditor)>,
         error: EditError,
-    ) -> bool {
+    ) -> Option<Outcome> {
         // Storage that failed under the editor gets a fresh editor, which reads the journal anew.
         if let EditError::Core(CoreError::StorageUnavailable) = error {
             *slot = None;
         }
-        false
+        None
     }
 
     /// Forgets a pairing's edits once its Saved Connection is gone, after any edit under way.
@@ -175,10 +167,6 @@ impl Edits {
             name: journal_name(&route),
         }
     }
-}
-
-fn accepted(outcome: &RetainedOutcome) -> bool {
-    matches!(outcome.outcome, Outcome::Accepted { .. })
 }
 
 fn journal_name(route: &DirectRouteId) -> String {

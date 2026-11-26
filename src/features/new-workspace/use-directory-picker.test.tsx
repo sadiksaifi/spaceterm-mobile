@@ -13,7 +13,14 @@ import type {
 import { useDirectoryPicker } from "./use-directory-picker";
 
 const home: DirectoryListing = { kind: "listed", path: "~/", parent: null, directories: [] };
-const notes: Workspace = { id: "w1", name: "notes", directory: "~/notes", terminalSessions: 1 };
+const notes: Workspace = {
+  id: "w1",
+  name: "notes",
+  directory: "~/notes",
+  terminalSessions: 1,
+  tabs: [],
+  repository: null,
+};
 const created: CreateWorkspaceResult = { kind: "created", workspace: notes };
 
 /** A Machine that lists `home` and answers Create Workspace from `answers`, in order. */
@@ -28,6 +35,13 @@ function machine(answers: CreateWorkspaceResult[]) {
     createWorkspace: createWorkspace as MachineClient["createWorkspace"],
     renameWorkspace: async () => ({ kind: "done" }),
     killWorkspace: async () => ({ kind: "done" }),
+    newTab: async () => ({ kind: "failed" }),
+    newPane: async () => ({ kind: "failed" }),
+    closeTab: async () => ({ kind: "failed" }),
+    closePane: async () => ({ kind: "failed" }),
+    worktreeContext: async () => null,
+    worktreeLocation: () => null,
+    createWorktree: async () => ({ kind: "failed" }),
     disconnect: () => {},
     connect: async () => {},
     restartCore: async () => ({ kind: "done" }),

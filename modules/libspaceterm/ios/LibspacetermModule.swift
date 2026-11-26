@@ -163,6 +163,64 @@ public class LibspacetermModule: Module {
     AsyncFunction("killWorkspace") { (machineId: String, workspaceId: String, seen: String) -> Bool in
       shared.killWorkspace(machineId: machineId, workspaceId: workspaceId, seen: seen)
     }.runOnQueue(edits)
+
+    AsyncFunction("newTab") {
+      (machineId: String, workspaceId: String, root: String?, path: String?) -> String? in
+      let worktree = root.flatMap { root in path.map { WorktreeTarget(root: root, path: $0) } }
+      return shared.newTab(machineId: machineId, workspaceId: workspaceId, worktree: worktree)
+    }.runOnQueue(edits)
+
+    AsyncFunction("newPane") {
+      (machineId: String, workspaceId: String, tabId: String, source: String) -> Bool in
+      shared.newPane(machineId: machineId, workspaceId: workspaceId, tabId: tabId, source: source)
+    }.runOnQueue(edits)
+
+    AsyncFunction("close") {
+      (machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String) -> Bool in
+      shared.close(
+        machineId: machineId, workspaceId: workspaceId, tabId: tabId, paneId: paneId, seen: seen)
+    }.runOnQueue(edits)
+
+    AsyncFunction("worktreeContext") { (machineId: String, root: String) -> [String: Any]? in
+      shared.worktreeContext(machineId: machineId, root: root).map { context in
+        [
+          "root": context.root,
+          "local": context.local,
+          "remote": context.remote,
+          "checkedOut": context.checkedOut,
+          "startFrom": context.startFrom as Any? ?? NSNull(),
+          "template": context.template,
+          "home": context.home,
+        ]
+      }
+    }.runOnQueue(edits)
+
+    Function("worktreeLocation") {
+      (template: String, home: String, root: String, branch: String) -> String? in
+      shared.worktreeLocation(template: template, home: home, root: root, branch: branch)
+    }
+
+    AsyncFunction("createWorktree") {
+      (machineId: String, workspaceId: String, root: String, location: String, kind: String,
+        name: String, base: String) -> [String: Any] in
+      let branch: NewWorktreeBranch
+      switch kind {
+      case "existing": branch = .existing(name: name)
+      case "remote": branch = .remote(remote: base, name: name)
+      case "new-from-remote": branch = .new(name: name, base: base, baseIsRemote: true)
+      default: branch = .new(name: name, base: base, baseIsRemote: false)
+      }
+      switch shared.createWorktree(
+        machineId: machineId, workspaceId: workspaceId, root: root, location: location,
+        branch: branch)
+      {
+      case .created(let tab): return ["kind": "created", "tab": tab]
+      case .invalidName: return ["kind": "invalid-name"]
+      case .branchExists: return ["kind": "branch-exists"]
+      case .notEmpty: return ["kind": "not-empty"]
+      case .failed: return ["kind": "failed"]
+      }
+    }.runOnQueue(edits)
   }
 
   private func startListening() {
@@ -220,6 +278,46 @@ private func workspace(_ workspace: WorkspaceSummary) -> [String: Any] {
     "branch": workspace.branch as Any? ?? NSNull(),
     "terminalSessions": Int(workspace.terminalSessions),
     "seen": workspace.seen,
+    "tabs": workspace.tabs.map(tab),
+    "repository": workspace.repository.map(repository) as Any? ?? NSNull(),
+  ]
+}
+
+private func tab(_ tab: TabSummary) -> [String: Any] {
+  [
+    "id": tab.id,
+    "name": tab.name,
+    "worktree": tab.worktree as Any? ?? NSNull(),
+    "panes": tab.panes.map(pane),
+    "seen": tab.seen,
+  ]
+}
+
+private func pane(_ pane: PaneSummary) -> [String: Any] {
+  [
+    "id": pane.id,
+    "name": pane.name,
+    "source": pane.source as Any? ?? NSNull(),
+    "side": side(pane.side),
+    "running": pane.running,
+    "controlledElsewhere": pane.controlledElsewhere,
+    "seen": pane.seen,
+  ]
+}
+
+private func side(_ side: PaneSide) -> String {
+  switch side {
+  case .right: return "right"
+  case .down: return "down"
+  case .left: return "left"
+  case .up: return "up"
+  }
+}
+
+private func repository(_ repository: RepositorySummary) -> [String: Any] {
+  [
+    "root": repository.root,
+    "worktrees": repository.worktrees.map { ["path": $0.path, "name": $0.name] },
   ]
 }
 

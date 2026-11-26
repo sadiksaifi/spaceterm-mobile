@@ -19,7 +19,90 @@ export type Workspace = {
    * Terminal Sessions Kill ends. Absent where the Machine client keeps none, as in the mock.
    */
   revision?: string;
+  /** Every Tab of every Worktree, in the order the Machine keeps them. */
+  tabs: readonly Tab[];
+  /** The repository the Workspace is in, `null` outside one. */
+  repository: Repository | null;
 };
+
+/** The side of the Pane it was placed beside that a Pane takes. */
+export type PaneSide = "right" | "down" | "left" | "up";
+
+export type Pane = {
+  id: string;
+  /** The title a program set, else the command running, else the shell. */
+  name: string;
+  /** The Pane this one was placed beside, `null` for the first. The split is drawn from these. */
+  source: string | null;
+  side: PaneSide;
+  /** A command is running, so closing the Pane asks first. */
+  running: boolean;
+  /** Another device controls the Pane, so closing it asks first. */
+  controlledElsewhere: boolean;
+  /** Opaque. Changes whenever what Close Pane ends changes. Absent in the mock. */
+  revision?: string;
+};
+
+export type Tab = {
+  id: string;
+  /** Its first Pane's name. */
+  name: string;
+  /** The path of the Worktree the Tab belongs to, `null` outside a repository. */
+  worktree: string | null;
+  /** In the order the Machine keeps them. The first is the Tab's own. */
+  panes: readonly Pane[];
+  /** Opaque. Changes whenever what Close Tab ends changes. Absent in the mock. */
+  revision?: string;
+};
+
+export type Worktree = {
+  /** The Worktree's root, as the Machine's path. */
+  path: string;
+  /** The branch it has checked out, or the short commit of a detached `HEAD`. */
+  name: string;
+};
+
+export type Repository = {
+  /** The Main Worktree, as the Machine's path. */
+  root: string;
+  /** As Git lists them, the Main Worktree first. */
+  worktrees: readonly Worktree[];
+};
+
+/** What New Worktree reads from the Machine to fill its form. */
+export type WorktreeContext = {
+  root: string;
+  /** Newest first. */
+  local: readonly string[];
+  /** Remote branches the repository has fetched, such as `origin/topic`, newest first. */
+  remote: readonly string[];
+  /** Local branches a Worktree has checked out. */
+  checkedOut: readonly string[];
+  /** The branch Start From holds as the form opens, `null` with no local branch. */
+  startFrom: string | null;
+  /** The Machine's rule for where a Worktree goes, and its home directory. Opaque here. */
+  template: string;
+  home: string;
+};
+
+/** The branch a new Worktree checks out. */
+export type NewWorktreeBranch =
+  | { kind: "new"; name: string; base: string; baseIsRemote: boolean }
+  | { kind: "existing"; name: string }
+  /** A new local branch `name` that tracks the fetched remote branch `remote`. */
+  | { kind: "remote"; remote: string; name: string };
+
+export type WorktreeCreation =
+  /** The Worktree exists, and `tab` is its one Tab. */
+  | { kind: "created"; tab: string }
+  | { kind: "invalid-name" }
+  | { kind: "branch-exists" }
+  /** The Location exists and is not empty. */
+  | { kind: "not-empty" }
+  | { kind: "failed" };
+
+/** What New Tab comes to: the Tab it opened, or a failure. */
+export type NewTabResult = { kind: "done"; tab: string } | { kind: "failed" };
 
 /** What a view needs to name a Machine and open its settings. */
 export type MachineRef = { id: string; name: string };
@@ -130,6 +213,32 @@ export type MachineClient = {
     name: string,
   ) => Promise<CommandResult>;
   killWorkspace: (machineId: string, workspace: Workspace) => Promise<CommandResult>;
+  /** Opens a Tab with a shell as the Workspace's last Tab, in `worktree` when it is given. */
+  newTab: (machineId: string, workspace: Workspace, worktree?: Worktree) => Promise<NewTabResult>;
+  /** Adds a Pane with a shell to `tab`, as its last Pane. */
+  newPane: (machineId: string, workspace: Workspace, tab: Tab) => Promise<CommandResult>;
+  /**
+   * `tab` and `pane` are as the person saw them. The Machine refuses when what the close ends has
+   * changed since, so no Terminal Session ends that the person was not shown.
+   */
+  closeTab: (machineId: string, workspace: Workspace, tab: Tab) => Promise<CommandResult>;
+  closePane: (
+    machineId: string,
+    workspace: Workspace,
+    tab: Tab,
+    pane: Pane,
+  ) => Promise<CommandResult>;
+  /** The branches and rule New Worktree needs, or `null` when the Machine did not answer. */
+  worktreeContext: (machineId: string, repository: Repository) => Promise<WorktreeContext | null>;
+  /** Where the Machine's rule places a Worktree for `branch`, `null` when the rule gives none. */
+  worktreeLocation: (context: WorktreeContext, branch: string) => string | null;
+  /** Creates a Worktree at `location`, which can start with `~/`, and opens one Tab in it. */
+  createWorktree: (
+    machineId: string,
+    workspace: Workspace,
+    context: WorktreeContext,
+    request: { branch: NewWorktreeBranch; location: string },
+  ) => Promise<WorktreeCreation>;
   /** Closes this device's connection to a Machine. Nothing on the Machine changes. */
   disconnect: (machineId: string) => void;
   /**

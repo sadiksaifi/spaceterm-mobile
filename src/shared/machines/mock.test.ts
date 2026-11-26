@@ -23,6 +23,8 @@ const workspace = {
   name: "app",
   directory: "~/Projects/app",
   terminalSessions: 1,
+  tabs: [],
+  repository: null,
 };
 
 describe("the mock client", () => {
@@ -218,14 +220,14 @@ describe("the mock client", () => {
 
   it("restarts SpaceTerm Core on a connected Machine, which ends its Terminal Sessions", async () => {
     const client = createMockClient([
-      { ...mac, workspaces: [{ ...workspace, terminalSessions: 3 }] },
+      { ...mac, workspaces: [{ ...workspace, terminalSessions: 3, tabs: [], repository: null }] },
       { ...mac, id: "away", connection: "not-connected", workspaces: [workspace] },
     ]);
 
     expect(await client.restartCore("away")).toEqual({ kind: "failed" });
     expect(await client.restartCore("mac")).toEqual({ kind: "done" });
     expect(client.getSnapshot().machines[0]?.workspaces).toEqual([
-      { ...workspace, terminalSessions: 0 },
+      { ...workspace, terminalSessions: 0, tabs: [], repository: null },
     ]);
   });
 
@@ -353,5 +355,48 @@ describe("the mock client", () => {
       const client = createMockClient([mac], { pairing: pairing("unreachable") });
       expect(await client.pair(link, "10.0.0.5")).toEqual({ kind: "unreachable" });
     });
+  });
+});
+
+describe("the mock client's Tabs", () => {
+  const zsh = (id: string, source: string | null = null) => ({
+    id,
+    name: "zsh",
+    source,
+    side: "right" as const,
+    running: false,
+    controlledElsewhere: false,
+  });
+  const split = {
+    ...workspace,
+    terminalSessions: 3,
+    tabs: [
+      { id: "t1", name: "zsh", worktree: null, panes: [zsh("p1"), zsh("p2", "p1")] },
+      { id: "t2", name: "zsh", worktree: null, panes: [zsh("p3")] },
+    ],
+  };
+  const listedNow = (client: ReturnType<typeof createMockClient>) =>
+    client.getSnapshot().machines[0].workspaces?.[0];
+
+  it("closes a Tab when its last Pane closes, and counts one Terminal Session per Pane", async () => {
+    const client = createMockClient([{ ...mac, workspaces: [split] }]);
+    const [, second] = split.tabs;
+
+    await client.closePane("mac", split, second, second.panes[0]);
+
+    expect(listedNow(client)?.tabs.map((tab) => tab.id)).toEqual(["t1"]);
+    expect(listedNow(client)?.terminalSessions).toBe(2);
+  });
+
+  it("adds a Tab last and a Pane beside a Tab's last Pane", async () => {
+    const client = createMockClient([{ ...mac, workspaces: [split] }]);
+
+    const opened = await client.newTab("mac", split);
+    await client.newPane("mac", split, split.tabs[0]);
+
+    const tabs = listedNow(client)?.tabs ?? [];
+    expect(opened.kind === "done" && tabs.at(-1)?.id).toBe(opened.kind === "done" && opened.tab);
+    expect(tabs[0].panes.at(-1)?.source).toBe("p2");
+    expect(listedNow(client)?.terminalSessions).toBe(5);
   });
 });

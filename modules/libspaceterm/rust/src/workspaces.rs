@@ -1,6 +1,7 @@
 //! A Machine's Workspaces as Home lists them, read from the Inventory its Core publishes.
 use crate::record_file::hex;
-use spaceterm_client::hierarchy::{CloseConfirmation, CloseTarget, Inventory, Workspace};
+use crate::tabs::{RepositorySummary, TabSummary, repository, tabs};
+use spaceterm_client::hierarchy::{CloseConfirmation, CloseTarget, Id, Inventory, Workspace};
 use spaceterm_protocol::repository::RepositoryHead;
 use std::path::Path;
 
@@ -19,6 +20,10 @@ pub struct WorkspaceSummary {
     /// The Workspace as listed, which Rename and Kill send back, so the Machine refuses a change
     /// the person did not see. Opaque outside this crate.
     pub seen: String,
+    /// In the order the Machine keeps them.
+    pub tabs: Vec<TabSummary>,
+    /// `None` outside a repository.
+    pub repository: Option<RepositorySummary>,
 }
 
 /// What a listed Workspace's `seen` holds: the name version Rename expects, and the Panes and
@@ -43,8 +48,9 @@ impl Seen {
     }
 }
 
-/// The Workspaces of `inventory`, in the order the Machine keeps them.
-pub(crate) fn summaries(inventory: &Inventory) -> Vec<WorkspaceSummary> {
+/// The Workspaces of `inventory`, in the order the Machine keeps them. `client` is this device's
+/// identity on the Machine.
+pub(crate) fn summaries(inventory: &Inventory, client: Option<Id>) -> Vec<WorkspaceSummary> {
     let home = home(inventory);
     inventory
         .workspaces
@@ -65,6 +71,8 @@ pub(crate) fn summaries(inventory: &Inventory) -> Vec<WorkspaceSummary> {
                 branch: directory.and_then(|path| branch(inventory, path)),
                 terminal_sessions: sessions(seen.confirmation.as_ref()),
                 seen: seen.write(),
+                tabs: tabs(inventory, workspace, client),
+                repository: repository(inventory, workspace),
             }
         })
         .collect()
@@ -194,7 +202,7 @@ mod tests {
     fn a_workspace_shows_where_its_first_shell_is_and_the_sessions_kill_would_end() {
         let api = workspace(1, "api", vec![pane(10, "/srv/api"), pane(11, "/tmp")]);
         let listed = inventory(vec![api], &[10, 11]);
-        let summaries = summaries(&listed);
+        let summaries = summaries(&listed, None);
         assert_eq!(summaries.len(), 1);
         let WorkspaceSummary {
             id: listed_id,
@@ -202,7 +210,7 @@ mod tests {
             directory,
             branch,
             terminal_sessions,
-            seen: _,
+            ..
         } = summaries[0].clone();
         assert_eq!(
             (listed_id, name, directory, branch, terminal_sessions),
@@ -221,7 +229,7 @@ mod tests {
         let mut api = workspace(1, "api", vec![pane(10, "/srv/api")]);
         api.name_version = 7;
         let listed = inventory(vec![api], &[10]);
-        let seen = Seen::read(&summaries(&listed)[0].seen).unwrap();
+        let seen = Seen::read(&summaries(&listed, None)[0].seen).unwrap();
         assert_eq!(seen.version, 7);
         assert_eq!(
             seen.confirmation,
@@ -233,7 +241,7 @@ mod tests {
     fn a_pinned_directory_comes_before_the_first_shell() {
         let mut logs = workspace(2, "logs", vec![pane(20, "/tmp")]);
         logs.pinned_directory = Some(PathBuf::from("/var/log"));
-        let summaries = summaries(&inventory(vec![logs], &[]));
+        let summaries = summaries(&inventory(vec![logs], &[]), None);
         assert_eq!(summaries[0].directory, "/var/log");
         assert_eq!(summaries[0].terminal_sessions, 0);
     }

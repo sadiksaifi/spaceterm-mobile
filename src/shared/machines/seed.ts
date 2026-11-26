@@ -1,7 +1,27 @@
 import type { MockMachine } from "./mock";
+import type { Pane, Tab } from "./model";
 
 const MAC_HOME = "/Users/you";
 const LINUX_HOME = "/home/you";
+const MOBILE = `${MAC_HOME}/Projects/spaceterm-mobile`;
+
+/** A Pane as the mockups draw it: idle unless `running`. */
+function pane(id: string, name: string, place: Partial<Pane> = {}): Pane {
+  return {
+    id,
+    name,
+    source: null,
+    side: "right",
+    running: false,
+    controlledElsewhere: false,
+    ...place,
+  };
+}
+
+/** A Tab named after its first Pane. */
+function tab(id: string, worktree: string | null, panes: Pane[]): Tab {
+  return { id, name: panes[0].name, worktree, panes };
+}
 
 export const macbook: MockMachine = {
   id: "macbook-pro",
@@ -34,6 +54,13 @@ export const macbook: MockMachine = {
     [`${MAC_HOME}/Projects/spaceterm-mobile`]: "main",
     [`${MAC_HOME}/Projects/zed`]: "main",
   },
+  git: {
+    [MOBILE]: {
+      local: ["main", "feat/pairing", "feat/home", "fix/scroll"],
+      remote: ["origin/main", "origin/feat/pairing", "origin/feat/themes", "origin/fix/scroll"],
+    },
+  },
+  worktreeTemplate: "~/Projects/{repository}-{branch}",
   workspaces: [
     {
       id: "w-mobile",
@@ -41,6 +68,23 @@ export const macbook: MockMachine = {
       directory: "~/Projects/spaceterm-mobile",
       branch: "main",
       terminalSessions: 5,
+      // The mockups' example: Claude Code, a Tab of three Panes, and an idle shell.
+      tabs: [
+        tab("t-claude", MOBILE, [pane("p-claude", "Claude Code", { running: true })]),
+        tab("t-expo", MOBILE, [
+          pane("p-expo", "expo start", { running: true }),
+          pane("p-tests", "zsh", { source: "p-expo", side: "right" }),
+          pane("p-log", "git log", { source: "p-tests", side: "down", running: true }),
+        ]),
+        tab("t-zsh", MOBILE, [pane("p-zsh", "zsh")]),
+      ],
+      repository: {
+        root: MOBILE,
+        worktrees: [
+          { path: MOBILE, name: "main" },
+          { path: `${MOBILE}-feat-pairing`, name: "feat/pairing" },
+        ],
+      },
     },
     {
       id: "w-desktop",
@@ -48,6 +92,18 @@ export const macbook: MockMachine = {
       directory: "~/Projects/spaceterm-desktop",
       branch: "fix/sidebar",
       terminalSessions: 3,
+      tabs: [
+        tab("t-cargo", null, [
+          pane("p-cargo", "cargo run", { running: true }),
+          pane("p-desktop-zsh", "zsh", { source: "p-cargo", side: "right" }),
+          pane("p-nvim", "nvim", {
+            source: "p-desktop-zsh",
+            side: "down",
+            controlledElsewhere: true,
+          }),
+        ]),
+      ],
+      repository: null,
     },
   ],
 };
@@ -74,8 +130,26 @@ const buildServer: MockMachine = {
     [`${LINUX_HOME}/srv/worker`]: "main",
   },
   workspaces: [
-    { id: "w-api", name: "api", directory: "~/srv/api", branch: "main", terminalSessions: 2 },
-    { id: "w-logs", name: "logs", directory: "/var/log", terminalSessions: 1 },
+    {
+      id: "w-api",
+      name: "api",
+      directory: "~/srv/api",
+      branch: "main",
+      terminalSessions: 2,
+      tabs: [
+        tab("t-api", null, [pane("p-api", "go run ./cmd/api", { running: true })]),
+        tab("t-api-zsh", null, [pane("p-api-zsh", "zsh")]),
+      ],
+      repository: null,
+    },
+    {
+      id: "w-logs",
+      name: "logs",
+      directory: "/var/log",
+      terminalSessions: 1,
+      tabs: [tab("t-logs", null, [pane("p-logs", "zsh")])],
+      repository: null,
+    },
   ],
 };
 
@@ -85,7 +159,16 @@ const homeServer: MockMachine = {
   connection: "not-connected",
   home: LINUX_HOME,
   directories: {},
-  workspaces: [{ id: "w-homelab", name: "homelab", directory: "~/homelab", terminalSessions: 1 }],
+  workspaces: [
+    {
+      id: "w-homelab",
+      name: "homelab",
+      directory: "~/homelab",
+      terminalSessions: 1,
+      tabs: [tab("t-homelab", null, [pane("p-homelab", "zsh")])],
+      repository: null,
+    },
+  ],
 };
 
 /** The Machine Add Machine pairs in the mockups. */

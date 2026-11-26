@@ -87,17 +87,25 @@ pub(crate) fn tabs(
                     side: side(pane.side),
                     running: running(pane),
                     controlled_elsewhere: controlled_elsewhere(inventory, pane, client),
-                    seen: write_confirmation(inventory.close_confirmation(CloseTarget::Pane {
-                        workspace: workspace.id,
-                        tab: tab.id,
-                        pane: pane.id,
-                    })),
+                    seen: write_close(
+                        inventory,
+                        CloseTarget::Pane {
+                            workspace: workspace.id,
+                            tab: tab.id,
+                            pane: pane.id,
+                        },
+                        client,
+                    ),
                 })
                 .collect(),
-            seen: write_confirmation(inventory.close_confirmation(CloseTarget::Tab {
-                workspace: workspace.id,
-                tab: tab.id,
-            })),
+            seen: write_close(
+                inventory,
+                CloseTarget::Tab {
+                    workspace: workspace.id,
+                    tab: tab.id,
+                },
+                client,
+            ),
         })
         .collect()
 }
@@ -135,12 +143,42 @@ pub(crate) fn repository(
     })
 }
 
-pub(crate) fn write_confirmation(confirmation: Option<CloseConfirmation>) -> String {
-    serde_json::to_string(&confirmation).unwrap_or_default()
+/// What a close sends back: the Terminal Sessions the person saw, and this device's control of
+/// each, when it controls every one.
+fn write_close(inventory: &Inventory, target: CloseTarget, client: Option<Id>) -> String {
+    let confirmation = inventory.close_confirmation(target);
+    let own = confirmation.as_ref().and_then(|confirmation| {
+        let controls = &inventory.close.as_ref()?.controls;
+        confirmation
+            .panes
+            .iter()
+            .map(|pane| {
+                controls
+                    .iter()
+                    .find(|control| {
+                        control.pane == pane.id
+                            && control.session == pane.session
+                            && Some(control.owner) == client
+                    })
+                    .cloned()
+            })
+            .collect::<Option<Vec<_>>>()
+    });
+    serde_json::json!({ "confirmation": confirmation, "own": own }).to_string()
 }
 
-pub(crate) fn read_confirmation(text: &str) -> Option<CloseConfirmation> {
-    serde_json::from_str::<Option<CloseConfirmation>>(text).ok()?
+/// The confirmation a close sends. A close nobody was asked about also carries this device's
+/// control of each Pane, when it has it: the Machine then refuses if a command started or
+/// another device took control since. Without that control, the Machine checks only that the
+/// Terminal Sessions are the same (sadiksaifi/SpaceTerm#952).
+pub(crate) fn read_confirmation(text: &str, asked: bool) -> Option<CloseConfirmation> {
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    let mut confirmation: CloseConfirmation =
+        serde_json::from_value(value.get("confirmation")?.clone()).ok()?;
+    if !asked {
+        confirmation.own_controls = serde_json::from_value(value.get("own")?.clone()).ok()?;
+    }
+    Some(confirmation)
 }
 
 /// A Tab takes its Root Pane's name.
@@ -463,21 +501,49 @@ mod tests {
         let listed_inventory = inventory(&listed, Vec::new());
         let tab = &tabs(&listed_inventory, &listed, None)[0];
         assert_eq!(
-            read_confirmation(&tab.seen),
+            read_confirmation(&tab.seen, true),
             listed_inventory.close_confirmation(CloseTarget::Tab {
                 workspace: id(1),
                 tab: id(100)
             })
         );
         assert_eq!(
-            read_confirmation(&tab.panes[1].seen),
+            read_confirmation(&tab.panes[1].seen, true),
             listed_inventory.close_confirmation(CloseTarget::Pane {
                 workspace: id(1),
                 tab: id(100),
                 pane: id(11)
             })
         );
-        assert!(read_confirmation(&tab.seen).is_some_and(|seen| seen.panes.len() == 2));
+        assert!(read_confirmation(&tab.seen, true).is_some_and(|seen| seen.panes.len() == 2));
+    }
+
+    #[test]
+    fn a_close_nobody_was_asked_about_carries_this_devices_control_of_every_pane() {
+        let listed = workspace(vec![tab(100, vec![pane(10, None), pane(11, None)])]);
+        let control = |pane: u8, owner: u8| ConfirmedControl {
+            pane: id(pane),
+            session: Some(id(pane + 50)),
+            owner: id(owner),
+            epoch: 1,
+        };
+        let own = inventory(&listed, vec![control(10, 9), control(11, 9)]);
+        let tab = &tabs(&own, &listed, Some(id(9)))[0];
+        let direct = read_confirmation(&tab.seen, false).and_then(|seen| seen.own_controls);
+        assert_eq!(direct, Some(vec![control(10, 9), control(11, 9)]));
+        // A close the person agreed to may end a running command, so it carries no control.
+        assert_eq!(
+            read_confirmation(&tab.seen, true).map(|seen| seen.own_controls),
+            Some(None)
+        );
+
+        // One Pane this device does not control leaves the close unguarded.
+        let shared = inventory(&listed, vec![control(10, 9)]);
+        let tab = &tabs(&shared, &listed, Some(id(9)))[0];
+        assert_eq!(
+            read_confirmation(&tab.seen, false).map(|seen| seen.own_controls),
+            Some(None)
+        );
     }
 
     #[test]

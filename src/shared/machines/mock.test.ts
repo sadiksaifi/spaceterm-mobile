@@ -382,7 +382,7 @@ describe("the mock client's Tabs", () => {
     const client = createMockClient([{ ...mac, workspaces: [split] }]);
     const [, second] = split.tabs;
 
-    await client.closePane("mac", split, second, second.panes[0]);
+    await client.closePane("mac", split, second, second.panes[0], false);
 
     expect(listedNow(client)?.tabs.map((tab) => tab.id)).toEqual(["t1"]);
     expect(listedNow(client)?.terminalSessions).toBe(2);

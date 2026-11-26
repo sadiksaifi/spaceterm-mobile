@@ -176,9 +176,13 @@ public class LibspacetermModule: Module {
     }.runOnQueue(edits)
 
     AsyncFunction("close") {
-      (machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String) -> Bool in
+      (
+        machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String,
+        asked: Bool
+      ) -> Bool in
       shared.close(
-        machineId: machineId, workspaceId: workspaceId, tabId: tabId, paneId: paneId, seen: seen)
+        machineId: machineId, workspaceId: workspaceId, tabId: tabId, paneId: paneId, seen: seen,
+        asked: asked)
     }.runOnQueue(edits)
 
     AsyncFunction("worktreeContext") { (machineId: String, root: String) -> [String: Any]? in

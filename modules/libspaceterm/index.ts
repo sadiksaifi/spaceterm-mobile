@@ -163,13 +163,14 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   ): Promise<string | null>;
   /** Adds a Pane beside `source`, one of the Tab's Panes. */
   newPane(machineId: string, workspaceId: string, tabId: string, source: string): Promise<boolean>;
-  /** Closes the Tab, or its Pane `paneId`, as listed with `seen`. */
+  /** Closes the Tab, or its Pane `paneId`, as listed with `seen`. `asked`: the person agreed. */
   close(
     machineId: string,
     workspaceId: string,
     tabId: string,
     paneId: string | null,
     seen: string,
+    asked: boolean,
   ): Promise<boolean>;
   /** `null` when the Machine did not answer. */
   worktreeContext(machineId: string, root: string): Promise<NativeWorktreeContext | null>;

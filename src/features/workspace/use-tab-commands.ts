@@ -29,8 +29,9 @@ export type TabAlert =
 
 /** A command the Machine refused, or did not answer. */
 export type TabFailure =
-  | { command: "close-tab"; tab: Tab }
-  | { command: "close-pane"; tab: Tab; pane: Pane }
+  /** `asked`: the person agreed to the close, so Try Again closes without asking again. */
+  | { command: "close-tab"; tab: Tab; asked: boolean }
+  | { command: "close-pane"; tab: Tab; pane: Pane; asked: boolean }
   | { command: "new-tab" }
   | { command: "new-pane"; tab: Tab }
   /** Picking a Worktree with no Tab opens one there; this is that Tab not opening. */
@@ -135,11 +136,13 @@ export function useTabCommands({
         : { ...grid, expecting: null },
     );
 
-  const sendCloseTab = (tab: Tab) =>
-    run({ command: "close-tab", tab }, () => client.closeTab(machineId, workspace, tab));
-  const sendClosePane = (tab: Tab, pane: Pane) =>
-    run({ command: "close-pane", tab, pane }, () =>
-      client.closePane(machineId, workspace, tab, pane),
+  const sendCloseTab = (tab: Tab, asked: boolean) =>
+    run({ command: "close-tab", tab, asked }, () =>
+      client.closeTab(machineId, workspace, tab, asked),
+    );
+  const sendClosePane = (tab: Tab, pane: Pane, asked: boolean) =>
+    run({ command: "close-pane", tab, pane, asked }, () =>
+      client.closePane(machineId, workspace, tab, pane, asked),
     );
 
   const closeTab = (tab: Tab) => {
@@ -147,7 +150,7 @@ export function useTabCommands({
     if (step === "kill") onKill();
     else if (step === "ask")
       change((current) => ({ ...current, alert: { kind: "close-tab", tab } }));
-    else sendCloseTab(tab);
+    else sendCloseTab(tab, false);
   };
 
   const closePane = (tab: Tab, pane: Pane) => {
@@ -155,7 +158,7 @@ export function useTabCommands({
     const step = closePaneStep(workspace, tab, pane);
     if (step === "ask") {
       change((current) => ({ ...current, alert: { kind: "close-pane", tab, pane } }));
-    } else sendClosePane(tab, pane);
+    } else sendClosePane(tab, pane, false);
   };
 
   const newTab = () =>
@@ -206,8 +209,8 @@ export function useTabCommands({
       const { alert } = local;
       if (alert === null) return;
       change((current) => ({ ...current, alert: null }));
-      if (alert.kind === "close-tab") sendCloseTab(alert.tab);
-      else sendClosePane(alert.tab, alert.pane);
+      if (alert.kind === "close-tab") sendCloseTab(alert.tab, true);
+      else sendClosePane(alert.tab, alert.pane, true);
     },
     cancel: () => change((current) => ({ ...current, alert: null })),
     retry(shown) {
@@ -217,15 +220,17 @@ export function useTabCommands({
         case "close-tab": {
           const tab = listedTab(shown.tab.id);
           if (tab === undefined) return;
-          // What the person agreed to close is unchanged, so it closes without asking again.
-          return tab.revision === shown.tab.revision ? sendCloseTab(tab) : closeTab(tab);
+          // Unchanged since, so it closes as before: without asking again if the person agreed.
+          return tab.revision === shown.tab.revision
+            ? sendCloseTab(tab, shown.asked)
+            : closeTab(tab);
         }
         case "close-pane": {
           const tab = listedTab(shown.tab.id);
           const pane = tab?.panes.find((each) => each.id === shown.pane.id);
           if (tab === undefined || pane === undefined) return;
           return pane.revision === shown.pane.revision
-            ? sendClosePane(tab, pane)
+            ? sendClosePane(tab, pane, shown.asked)
             : closePane(tab, pane);
         }
         case "new-tab":

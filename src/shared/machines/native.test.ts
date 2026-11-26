@@ -550,11 +550,11 @@ describe("a Workspace's Tabs through libspaceterm", () => {
     const { native, client, shown } = listed();
     const [tab] = shown.tabs;
 
-    await expect(client.closeTab("m1", shown, tab)).resolves.toEqual({ kind: "done" });
-    await client.closePane("m1", shown, tab, tab.panes[0]);
+    await expect(client.closeTab("m1", shown, tab, true)).resolves.toEqual({ kind: "done" });
+    await client.closePane("m1", shown, tab, tab.panes[0], false);
 
-    expect(native.close).toHaveBeenNthCalledWith(1, "m1", "w1", "t1", null, "tab seen");
-    expect(native.close).toHaveBeenNthCalledWith(2, "m1", "w1", "t1", "p1", "pane seen");
+    expect(native.close).toHaveBeenNthCalledWith(1, "m1", "w1", "t1", null, "tab seen", true);
+    expect(native.close).toHaveBeenNthCalledWith(2, "m1", "w1", "t1", "p1", "pane seen", false);
   });
 
   it("opens a Tab in a Worktree of the Workspace's repository and answers with it", async () => {

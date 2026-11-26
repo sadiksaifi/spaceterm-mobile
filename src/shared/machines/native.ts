@@ -200,13 +200,13 @@ export function createNativeClient(
       if (source === undefined) return { kind: "failed" };
       return done(await native.newPane(machineId, id, tab.id, source.id));
     },
-    closeTab: async (machineId, { id }, tab) => {
+    closeTab: async (machineId, { id }, tab, asked) => {
       if (tab.revision === undefined) return { kind: "failed" };
-      return done(await native.close(machineId, id, tab.id, null, tab.revision));
+      return done(await native.close(machineId, id, tab.id, null, tab.revision, asked));
     },
-    closePane: async (machineId, { id }, tab, pane) => {
+    closePane: async (machineId, { id }, tab, pane, asked) => {
       if (pane.revision === undefined) return { kind: "failed" };
-      return done(await native.close(machineId, id, tab.id, pane.id, pane.revision));
+      return done(await native.close(machineId, id, tab.id, pane.id, pane.revision, asked));
     },
     worktreeContext: (machineId, repository) => native.worktreeContext(machineId, repository.root),
     worktreeLocation: ({ template, home, root }, branch) =>

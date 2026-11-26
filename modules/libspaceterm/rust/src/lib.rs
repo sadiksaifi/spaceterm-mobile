@@ -478,9 +478,10 @@ impl Machines {
         )
     }
 
-    /// Closes a Tab, or one Pane of it when `pane_id` is given, as listed with `seen`. Returns
-    /// whether the Machine closed it. A Machine whose Tab or Pane gained or lost a Terminal Session
-    /// since refuses.
+    /// Closes a Tab, or one Pane of it when `pane_id` is given, as listed with `seen`. `asked` is
+    /// whether the person agreed to close it. Returns whether the Machine closed it. A Machine
+    /// whose Tab or Pane gained or lost a Terminal Session since refuses, and so does one where
+    /// a close nobody was asked about would now end work it can guard.
     pub fn close(
         &self,
         machine_id: String,
@@ -488,11 +489,12 @@ impl Machines {
         tab_id: String,
         pane_id: Option<String>,
         seen: String,
+        asked: bool,
     ) -> bool {
         let (Some(workspace), Some(tab), Some(confirmation)) = (
             decode(&workspace_id),
             decode(&tab_id),
-            read_confirmation(&seen),
+            read_confirmation(&seen, asked),
         ) else {
             return false;
         };

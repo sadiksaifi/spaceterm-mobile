@@ -139,8 +139,8 @@ class LibspacetermModule : Module() {
       withContext(Dispatchers.IO) { machines().newPane(machineId, workspaceId, tabId, source) }
     }
 
-    AsyncFunction("close") Coroutine { machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String ->
-      withContext(Dispatchers.IO) { machines().close(machineId, workspaceId, tabId, paneId, seen) }
+    AsyncFunction("close") Coroutine { machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String, asked: Boolean ->
+      withContext(Dispatchers.IO) { machines().close(machineId, workspaceId, tabId, paneId, seen, asked) }
     }
 
     AsyncFunction("worktreeContext") Coroutine { machineId: String, root: String ->

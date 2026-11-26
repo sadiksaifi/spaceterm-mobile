@@ -74,13 +74,13 @@ describe("closing a Tab", () => {
     const { result } = await render({ closeTab });
 
     await act(async () => result.current.closeTab(idle));
-    expect(closeTab).toHaveBeenCalledTimes(1);
+    expect(closeTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), idle, false);
     expect(result.current.alert).toBeNull();
 
     await act(async () => result.current.closeTab(busy));
     expect(result.current.alert).toEqual({ kind: "close-tab", tab: busy });
     await act(async () => result.current.confirm());
-    expect(closeTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), busy);
+    expect(closeTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), busy, true);
     expect(result.current.alert).toBeNull();
   });
 
@@ -98,12 +98,25 @@ describe("closing a Tab", () => {
     const { result } = await render({ closeTab });
 
     await act(async () => result.current.closeTab(idle));
-    expect(result.current.failure).toEqual({ command: "close-tab", tab: idle });
+    expect(result.current.failure).toEqual({ command: "close-tab", tab: idle, asked: false });
 
     closeTab.mockImplementationOnce(done);
     await act(async () => result.current.retry(result.current.failure!));
     expect(closeTab).toHaveBeenCalledTimes(2);
     expect(result.current.failure).toBeNull();
+  });
+
+  it("closes an agreed Tab again on Try Again without asking again", async () => {
+    const closeTab = jest.fn<TabClient["closeTab"]>(refused);
+    const { result } = await render({ closeTab });
+
+    await act(async () => result.current.closeTab(busy));
+    await act(async () => result.current.confirm());
+    closeTab.mockImplementationOnce(done);
+    await act(async () => result.current.retry(result.current.failure!));
+
+    expect(result.current.alert).toBeNull();
+    expect(closeTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), busy, true);
   });
 
   it("treats closing a Tab's last Pane as closing the Tab", async () => {

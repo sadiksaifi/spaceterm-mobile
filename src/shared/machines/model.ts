@@ -219,14 +219,22 @@ export type MachineClient = {
   newPane: (machineId: string, workspace: Workspace, tab: Tab) => Promise<CommandResult>;
   /**
    * `tab` and `pane` are as the person saw them. The Machine refuses when what the close ends has
-   * changed since, so no Terminal Session ends that the person was not shown.
+   * changed since, so no Terminal Session ends that the person was not shown. `asked` is whether
+   * the person agreed to the close; without it, the Machine also refuses where it can tell that a
+   * command started or another device took control since.
    */
-  closeTab: (machineId: string, workspace: Workspace, tab: Tab) => Promise<CommandResult>;
+  closeTab: (
+    machineId: string,
+    workspace: Workspace,
+    tab: Tab,
+    asked: boolean,
+  ) => Promise<CommandResult>;
   closePane: (
     machineId: string,
     workspace: Workspace,
     tab: Tab,
     pane: Pane,
+    asked: boolean,
   ) => Promise<CommandResult>;
   /** The branches and rule New Worktree needs, or `null` when the Machine did not answer. */
   worktreeContext: (machineId: string, repository: Repository) => Promise<WorktreeContext | null>;

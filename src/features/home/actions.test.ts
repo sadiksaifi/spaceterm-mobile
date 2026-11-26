@@ -16,6 +16,7 @@ const all: HomeActions = {
   onOpenSettings: vi.fn(),
   onMachineSettings: vi.fn(),
   onTryAgain: vi.fn(),
+  onRefresh: vi.fn(async () => {}),
   onGetDesktop: noop,
 };
 
@@ -25,9 +26,17 @@ describe("homeControls", () => {
     expect(homeControls(view, all)).toEqual({
       searchable: true,
       newWorkspace: { onPress: all.onNewWorkspace },
+      refresh: { onPress: expect.any(Function) },
       addMachine: { onPress: all.onAddMachine },
       settings: { onPress: all.onOpenSettings },
     });
+  });
+
+  it("refreshes as a pull does", () => {
+    const onRefresh = vi.fn(async () => {});
+    const view: HomeView = { kind: "workspaces", rows: [], canCreateWorkspace: true };
+    homeControls(view, { ...all, onRefresh }).refresh?.onPress?.();
+    expect(onRefresh).toHaveBeenCalledOnce();
   });
 
   it("shows New Workspace unavailable when only kept rows are listed", () => {
@@ -45,7 +54,11 @@ describe("homeControls", () => {
       { kind: "unreachable", state: "not-connected", machine: null },
     ];
     for (const view of views) {
-      expect(homeControls(view, all)).toMatchObject({ searchable: false, newWorkspace: null });
+      expect(homeControls(view, all)).toMatchObject({
+        searchable: false,
+        newWorkspace: null,
+        refresh: null,
+      });
     }
   });
 
@@ -54,6 +67,7 @@ describe("homeControls", () => {
     expect(homeControls(view, { onGetDesktop: noop })).toEqual({
       searchable: true,
       newWorkspace: { onPress: undefined },
+      refresh: { onPress: undefined },
       addMachine: { onPress: undefined },
       settings: { onPress: undefined },
     });

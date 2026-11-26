@@ -6,6 +6,7 @@ import type { RowCommand } from "./actions";
 export const text = {
   title: "Workspaces",
   more: cased("More", "More options"),
+  refresh: "Refresh",
   addMachine: "Add Machine",
   settings: "Settings",
   newWorkspace: "New Workspace",

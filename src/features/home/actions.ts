@@ -38,17 +38,21 @@ export type HomeControls = {
   searchable: boolean;
   /** New Workspace shows wherever search does, and works once a connected Machine can take it. */
   newWorkspace: Control | null;
+  /** Refresh shows wherever search does and does what a pull does. */
+  refresh: Control | null;
   addMachine: Control;
   settings: Control;
 };
 
 export function homeControls(view: HomeView, actions: HomeActions): HomeControls {
   const searchable = isSearchable(view);
+  const { onRefresh } = actions;
   return {
     searchable,
     newWorkspace: searchable
       ? { onPress: view.canCreateWorkspace ? actions.onNewWorkspace : undefined }
       : null,
+    refresh: searchable ? { onPress: onRefresh && (() => void onRefresh()) } : null,
     addMachine: { onPress: actions.onAddMachine },
     settings: { onPress: actions.onOpenSettings },
   };

@@ -2,8 +2,6 @@ import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect } from "react";
 import { BackHandler } from "react-native";
 
-import { useMachineClient } from "@/shared/machines/client";
-
 import { useAddMachineFlow, type PairingRequest } from "../flow";
 import { usePairing } from "../use-pairing";
 import CodeStepScreen from "./screen";
@@ -24,8 +22,7 @@ function Pairing({ request }: { request: PairingRequest }) {
   const flow = useAddMachineFlow();
   const router = useRouter();
   // A link from another app can open the Invitation Link step over this one.
-  const { view: pairing, end, again } = usePairing(request, useIsFocused());
-  const client = useMachineClient();
+  const { view: pairing, end, stopUnfinished } = usePairing(request, useIsFocused());
   const { kind } = pairing;
   const { cameraBeneath, close } = flow;
 
@@ -56,8 +53,7 @@ function Pairing({ request }: { request: PairingRequest }) {
         router.back();
       }}
       onTryAgain={flow.restart}
-      // A pairing that did not stop still holds its room, which the next try reports.
-      onStopUnfinished={() => void client.stopUnfinishedPairings().then(again)}
+      onStopUnfinished={stopUnfinished}
       onClose={() => {
         end();
         close();

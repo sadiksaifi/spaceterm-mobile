@@ -69,24 +69,50 @@ it("shows that this device has no room, and how many unfinished pairings hold it
   expect(result.current.view).toEqual({ kind: "full", unfinished: 3 });
 });
 
-it("pairs again with the same link when asked", async () => {
+/** A device with no room until its unfinished pairings stop, when the test calls `stopped`. */
+function full() {
+  let stopped: (all: boolean) => void = () => {};
+  const stopUnfinishedPairings = jest.fn(
+    () => new Promise<boolean>((resolve) => (stopped = resolve)),
+  );
   const pair = jest
     .fn<MachineClient["pair"]>()
     .mockResolvedValueOnce({ kind: "full", unfinished: 1 })
-    .mockResolvedValueOnce({
+    .mockResolvedValue({
       kind: "comparing",
       code: "482 915",
       outcome: new Promise<PairingOutcome>(() => {}),
       cancel: () => {},
     });
-  const { result } = await render({ ...createMockClient([]), pair });
+  const client: MachineClient = { ...createMockClient([]), pair, stopUnfinishedPairings };
+  return { client, pair, stopUnfinishedPairings, stopped: (all = true) => stopped(all) };
+}
+
+it("stops the unfinished pairings, then pairs again with the same link", async () => {
+  const { client, pair, stopUnfinishedPairings, stopped } = full();
+  const { result } = await render(client);
   await act(async () => {});
   expect(result.current.view).toEqual({ kind: "full", unfinished: 1 });
 
-  await act(async () => result.current.again());
+  await act(async () => result.current.stopUnfinished());
+  // The step waits while they stop, so Stop cannot run twice.
+  expect(result.current.view).toEqual({ kind: "reaching" });
+  await act(async () => stopped());
   expect(result.current.view).toEqual({ kind: "comparing", code: "482 915" });
+  expect(stopUnfinishedPairings).toHaveBeenCalledTimes(1);
   expect(pair).toHaveBeenCalledTimes(2);
   expect(pair).toHaveBeenLastCalledWith(request.link, request.networkAddress, expect.anything());
+});
+
+it("pairs nothing after the unfinished pairings stop once the person has left", async () => {
+  const { client, pair, stopped } = full();
+  const { result, rerender } = await render(client);
+  await act(async () => {});
+  await act(async () => result.current.stopUnfinished());
+  await act(async () => rerender({ showing: false }));
+
+  await act(async () => stopped());
+  expect(pair).toHaveBeenCalledTimes(1);
 });
 
 it("ends the pairing when the person leaves before the Machine approves", async () => {

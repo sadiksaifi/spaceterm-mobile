@@ -19,12 +19,13 @@ export type PairingView =
  * Pairs with the Machine of `request` while `showing`. Leaving the step, or covering it with
  * another, before the Machine answers ends the pairing, so a later approval pairs nothing. Shown
  * again, the step starts a new pairing. `end` ends it at once, for Cancel: the step may close only
- * after an approval arrives. `again` starts a new pairing with the same link.
+ * after an approval arrives. `stopUnfinished` stops the unfinished pairings that fill this device,
+ * once the person confirms it, then pairs again with the same link while the step still shows.
  */
 export function usePairing(
   request: PairingRequest,
   showing: boolean,
-): { view: PairingView; end: () => void; again: () => void } {
+): { view: PairingView; end: () => void; stopUnfinished: () => void } {
   const client = useMachineClient();
   // Each time the step shows is a round with a pairing of its own; a view is kept with its round.
   const [shown, setShown] = useState({ showing, round: 0 });
@@ -73,11 +74,27 @@ export function usePairing(
   }, [client, request, showing, round]);
 
   const end = useCallback(() => ending.current(), []);
-  const again = useCallback(
-    () => setShown((current) => ({ ...current, round: current.round + 1 })),
-    [],
-  );
+  const latest = useRef(shown);
+  useEffect(() => {
+    latest.current = shown;
+  }, [shown]);
+  const stopUnfinished = useCallback(() => {
+    const asked = latest.current.round;
+    // The step waits while they stop, so Stop shows no more and cannot run twice.
+    setAnswer({ round: asked, view: { kind: "reaching" } });
+    // A pairing that did not stop still holds its room, which the next pairing reports.
+    void client.stopUnfinishedPairings().then(() => {
+      const now = latest.current;
+      if (now.showing && now.round === asked) {
+        setShown({ showing: true, round: asked + 1 });
+      }
+    });
+  }, [client]);
   // Covered, the step keeps what it showed, as when it closes. Shown again, it waits for the new
   // pairing's code.
-  return { view: answer?.round === round ? answer.view : { kind: "reaching" }, end, again };
+  return {
+    view: answer?.round === round ? answer.view : { kind: "reaching" },
+    end,
+    stopUnfinished,
+  };
 }

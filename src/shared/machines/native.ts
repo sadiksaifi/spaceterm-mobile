@@ -39,6 +39,8 @@ export type NativeMachines = Pick<
 /** How many times a pairing tries again when the Machine does not answer, and how long it waits. */
 const PAIRING_RETRIES = 3;
 const PAIRING_RETRY_WAIT = 2000;
+/** How long Connect waits for a reached Machine to send its Workspaces before it gives up. */
+const LIST_WAIT = 30_000;
 
 /**
  * The client for the Machines this device has paired through libspaceterm. Pairing, Saved
@@ -85,7 +87,9 @@ export function createNativeClient(
       return { id, name, connection: "connected", workspaces: listed };
     }
     const known = kept.get(id) ?? null;
-    if (connection === "connected" || connection === "connecting")
+    // A link that Connect gave up on for never listing shows as not connected, so Try Again shows.
+    const gaveUp = connection === "connected" && stillNotConnected.has(id);
+    if (!gaveUp && (connection === "connected" || connection === "connecting"))
       return { id, name, connection: "reconnecting", workspaces: known };
     const state = stillNotConnected.has(id) ? "still-not-connected" : "not-connected";
     return { id, name, connection: state, workspaces: known };
@@ -144,21 +148,27 @@ export function createNativeClient(
       // A Machine at a public address needs no local network access, so a refusal still tries.
       await native.allowLocalNetwork();
       // A Machine reached meanwhile, by a retry or another Connect, keeps its connection: a second
-      // Connect would drop it and start over.
-      const now = native.paired().find(({ id }) => id === machineId)?.connection;
-      const reached = now === "connected" || now === "connecting";
+      // Connect would drop it and start over. A link that never listed is started over.
+      const now = native.paired().find(({ id }) => id === machineId);
+      const reached = now !== undefined && (answered(now) || now.connection === "connecting");
       if (!reached && !(await native.connect(machineId))) {
         stillNotConnected.add(machineId);
         refresh();
         return;
       }
       await new Promise<void>((settle) => {
-        watch(() => {
+        const giveUp = setTimeout(() => {
+          stop();
+          stillNotConnected.add(machineId);
+          settle();
+        }, LIST_WAIT);
+        const stop = watch(() => {
           const machine = native.paired().find(({ id }) => id === machineId);
           if (machine?.connection === "connecting") return false;
           // Connected counts once the Workspaces arrive, as the snapshot shows it.
           if (machine?.connection === "connected" && machine.workspaces === null) return false;
           if (machine !== undefined && !answered(machine)) stillNotConnected.add(machineId);
+          clearTimeout(giveUp);
           settle();
           return true;
         });

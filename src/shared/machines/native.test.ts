@@ -250,8 +250,21 @@ describe("the paired Machines", () => {
         name: "Mac mini",
         connection: "connected",
         workspaces: [
-          { id: "w1", name: "api", directory: "~/srv/api", branch: "main", terminalSessions: 2 },
-          { id: "w2", name: "logs", directory: "/var/log", terminalSessions: 1 },
+          {
+            id: "w1",
+            name: "api",
+            directory: "~/srv/api",
+            branch: "main",
+            terminalSessions: 2,
+            revision: "api seen",
+          },
+          {
+            id: "w2",
+            name: "logs",
+            directory: "/var/log",
+            terminalSessions: 1,
+            revision: "logs seen",
+          },
         ],
       },
       { id: "m2", name: "MacBook Pro", connection: "reconnecting", workspaces: null },
@@ -286,7 +299,15 @@ describe("the paired Machines", () => {
         id: "m1",
         name: "Mac mini",
         connection: "reconnecting",
-        workspaces: [{ id: "w2", name: "logs", directory: "/var/log", terminalSessions: 1 }],
+        workspaces: [
+          {
+            id: "w2",
+            name: "logs",
+            directory: "/var/log",
+            terminalSessions: 1,
+            revision: "logs seen",
+          },
+        ],
       },
     ]);
   });

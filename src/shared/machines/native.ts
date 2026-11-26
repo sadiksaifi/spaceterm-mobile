@@ -56,12 +56,9 @@ export function createNativeClient(
   const stillNotConnected = new Set<string>();
   /** Each Machine's last Workspace list, kept while it is not connected. */
   const kept = new Map<string, readonly Workspace[]>();
-  /** What each listed Workspace sends back with Rename and Kill, by the object Home was given. */
-  const seen = new WeakMap<Workspace, string>();
   let starting = true;
   let snapshot = read();
-  /** The snapshot with every `seen`, so a change to either lists the Workspaces anew. */
-  let published = signature(snapshot);
+  let published = JSON.stringify(snapshot);
 
   native.addListener("onChange", () => {
     for (const watcher of changeWatchers) watcher();
@@ -94,22 +91,13 @@ export function createNativeClient(
     return { id, name, connection: state, workspaces: known };
   }
 
-  function toWorkspace({ branch, seen: sent, ...listed }: NativeWorkspace): Workspace {
-    const workspace = branch === null ? listed : { ...listed, branch };
-    seen.set(workspace, sent);
-    return workspace;
-  }
-
-  function signature(of: MachinesSnapshot): string {
-    const sent = of.machines.flatMap((machine) =>
-      (machine.workspaces ?? []).map((workspace) => seen.get(workspace)),
-    );
-    return JSON.stringify([of, sent]);
+  function toWorkspace({ branch, seen, ...listed }: NativeWorkspace): Workspace {
+    return branch === null ? { ...listed, revision: seen } : { ...listed, branch, revision: seen };
   }
 
   function refresh() {
     const next = read();
-    const nextSignature = signature(next);
+    const nextSignature = JSON.stringify(next);
     if (nextSignature === published) return;
     snapshot = next;
     published = nextSignature;
@@ -138,15 +126,13 @@ export function createNativeClient(
     },
     listDirectory: async (_machineId, path) => ({ kind: "unavailable", path, parent: null }),
     createWorkspace: async () => ({ kind: "failed" }),
-    renameWorkspace: async (machineId, workspace, name) => {
-      const sent = seen.get(workspace);
-      if (sent === undefined) return { kind: "failed" };
-      return done(await native.renameWorkspace(machineId, workspace.id, sent, name));
+    renameWorkspace: async (machineId, { id, revision }, name) => {
+      if (revision === undefined) return { kind: "failed" };
+      return done(await native.renameWorkspace(machineId, id, revision, name));
     },
-    killWorkspace: async (machineId, workspace) => {
-      const sent = seen.get(workspace);
-      if (sent === undefined) return { kind: "failed" };
-      return done(await native.killWorkspace(machineId, workspace.id, sent));
+    killWorkspace: async (machineId, { id, revision }) => {
+      if (revision === undefined) return { kind: "failed" };
+      return done(await native.killWorkspace(machineId, id, revision));
     },
     restartCore: async () => ({ kind: "failed" }),
     disconnect: (machineId) => {

@@ -190,11 +190,15 @@ function relisted({ machines }: MachinesSnapshot, row: WorkspaceRow): WorkspaceR
   return workspace === undefined ? row : { ...row, workspace };
 }
 
-/** Whether a Kill alert for `now` would say what the one for `agreed` said. */
+/**
+ * Whether Kill would end what the person agreed to: the same Workspace name and Terminal Sessions.
+ * The revision tells a replaced session from the one it replaced, which the count does not.
+ */
 function sameToKill(now: WorkspaceRow, agreed: WorkspaceRow): boolean {
   return (
     now.workspace.name === agreed.workspace.name &&
-    now.workspace.terminalSessions === agreed.workspace.terminalSessions
+    now.workspace.terminalSessions === agreed.workspace.terminalSessions &&
+    now.workspace.revision === agreed.workspace.revision
   );
 }
 

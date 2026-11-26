@@ -14,6 +14,11 @@ export type Workspace = {
   branch?: string;
   /** The Terminal Sessions that Kill Workspace ends, across every Worktree. */
   terminalSessions: number;
+  /**
+   * Opaque. Changes whenever what Rename or Kill acts on changes: the name, or the Panes and
+   * Terminal Sessions Kill ends. Absent where the Machine client keeps none, as in the mock.
+   */
+  revision?: string;
 };
 
 /** What a view needs to name a Machine and open its settings. */

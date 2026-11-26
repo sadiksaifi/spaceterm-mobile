@@ -89,6 +89,22 @@ describe("a command the Machine refuses", () => {
     expect(result.current.alert).toEqual({ kind: "kill", row: busier });
   });
 
+  it("asks again on Try Again when a Terminal Session was replaced, keeping the count", async () => {
+    const killWorkspace = jest.fn(refused);
+    const seen = { ...app, workspace: { ...app.workspace, revision: "first session" } };
+    const { result, rerender } = await render({ killWorkspace });
+    await rerender({ snapshot: listing(seen, web) });
+    await act(async () => result.current.handlers.onKillWorkspace?.(seen));
+    await act(async () => result.current.kill());
+
+    const replaced = { ...seen, workspace: { ...seen.workspace, revision: "second session" } };
+    await rerender({ snapshot: listing(replaced, web) });
+    await act(async () => result.current.retry(failureOf(result.current)));
+
+    expect(killWorkspace).toHaveBeenCalledTimes(1);
+    expect(result.current.alert).toEqual({ kind: "kill", row: replaced });
+  });
+
   it("reopens Rename on Try Again with the Workspace as it is listed now", async () => {
     const { result, rerender } = await render({ renameWorkspace: refused });
     await act(async () => result.current.handlers.onRenameWorkspace?.(app));

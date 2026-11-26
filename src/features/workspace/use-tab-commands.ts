@@ -227,17 +227,18 @@ export function useTabCommands({
         case "close-tab": {
           const tab = listedTab(shown.tab.id);
           if (tab === undefined) return;
-          // Unchanged since, so it closes as before: without asking again if the person agreed.
-          return tab.revision === shown.tab.revision
-            ? sendCloseTab(tab, shown.asked)
+          // What the person agreed to close is unchanged, so it closes without asking again. A
+          // close nobody was asked about goes through the rules again, as the Tab may now ask.
+          return shown.asked && tab.revision === shown.tab.revision
+            ? sendCloseTab(tab, true)
             : closeTab(tab);
         }
         case "close-pane": {
           const tab = listedTab(shown.tab.id);
           const pane = tab?.panes.find((each) => each.id === shown.pane.id);
           if (tab === undefined || pane === undefined) return;
-          return pane.revision === shown.pane.revision
-            ? sendClosePane(tab, pane, shown.asked)
+          return shown.asked && pane.revision === shown.pane.revision
+            ? sendClosePane(tab, pane, true)
             : closePane(tab, pane);
         }
         case "new-tab": {

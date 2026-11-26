@@ -106,6 +106,19 @@ describe("closing a Tab", () => {
     expect(result.current.failure).toBeNull();
   });
 
+  it("asks on Try Again when a Tab closed without asking now runs a command", async () => {
+    const closeTab = jest.fn<TabClient["closeTab"]>(refused);
+    const { result, rerender } = await render({ closeTab });
+    await act(async () => result.current.closeTab(idle));
+
+    const started = { ...idle, panes: [pane("idle-p", { running: true })] };
+    await rerender({ listed: workspace([started, busy]) });
+    await act(async () => result.current.retry(result.current.failure!));
+
+    expect(closeTab).toHaveBeenCalledTimes(1);
+    expect(result.current.alert).toEqual({ kind: "close-tab", tab: started });
+  });
+
   it("closes an agreed Tab again on Try Again without asking again", async () => {
     const closeTab = jest.fn<TabClient["closeTab"]>(refused);
     const { result } = await render({ closeTab });

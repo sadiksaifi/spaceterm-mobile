@@ -1,6 +1,7 @@
 import closeIcon from "@expo/material-symbols/close.xml";
 import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml";
 import machineIcon from "@expo/material-symbols/desktop_windows.xml";
+import refreshIcon from "@expo/material-symbols/refresh.xml";
 import {
   Column,
   Icon,
@@ -69,6 +70,11 @@ export default function MachineStepScreen({
                 {text.title}
               </Text>
             </TopAppBar.Title>
+            <TopAppBar.Actions>
+              <IconButton onClick={() => void onRefresh()}>
+                <Icon source={refreshIcon} contentDescription={text.refresh} />
+              </IconButton>
+            </TopAppBar.Actions>
           </TopAppBar>
           <Text
             style={{ typography: "titleSmall" }}

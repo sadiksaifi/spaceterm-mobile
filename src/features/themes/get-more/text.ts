@@ -5,6 +5,7 @@ import type { GetMoreFailure } from "./use-get-more";
 export const text = {
   title: cased("Get More Themes", "Get more themes"),
   close: "Close",
+  refresh: "Refresh",
   intro: "Get a theme made for Zed, then select it in Themes.",
   importFromFile: cased("Import from File…", "Import from file"),
   /** The iOS search field placeholder; the toolbar has no room for more. */

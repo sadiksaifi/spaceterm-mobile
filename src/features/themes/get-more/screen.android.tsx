@@ -1,5 +1,6 @@
 import closeIcon from "@expo/material-symbols/close.xml";
 import downloadIcon from "@expo/material-symbols/download.xml";
+import refreshIcon from "@expo/material-symbols/refresh.xml";
 import searchIcon from "@expo/material-symbols/search.xml";
 import searchOffIcon from "@expo/material-symbols/search_off.xml";
 import warningIcon from "@expo/material-symbols/warning.xml";
@@ -101,6 +102,11 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
                   {text.title}
                 </Text>
               </TopAppBar.Title>
+              <TopAppBar.Actions>
+                <IconButton onClick={() => void page.refresh()}>
+                  <Icon source={refreshIcon} contentDescription={text.refresh} />
+                </IconButton>
+              </TopAppBar.Actions>
             </TopAppBar>
             <SearchField onQuery={page.setQuery} />
             <Refreshable onRefresh={page.refresh} modifiers={[weight(1), fillMaxWidth()]}>

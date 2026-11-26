@@ -2,6 +2,7 @@ import arrowBackIcon from "@expo/material-symbols/arrow_back.xml";
 import arrowUpwardIcon from "@expo/material-symbols/arrow_upward.xml";
 import closeIcon from "@expo/material-symbols/close.xml";
 import folderIcon from "@expo/material-symbols/folder.xml";
+import refreshIcon from "@expo/material-symbols/refresh.xml";
 import warningIcon from "@expo/material-symbols/warning.xml";
 import {
   AlertDialog,
@@ -118,6 +119,9 @@ export default function DirectoryStepScreen({
                 </Text>
               </TopAppBar.Title>
               <TopAppBar.Actions>
+                <IconButton onClick={() => void picker.refresh()}>
+                  <Icon source={refreshIcon} contentDescription={text.refresh} />
+                </IconButton>
                 <Button
                   onClick={() => picker.open(field.current?.text())}
                   enabled={view.canOpen}

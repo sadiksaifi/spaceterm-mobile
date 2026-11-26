@@ -36,6 +36,13 @@ export default function MachineStepScreen({
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button icon="xmark" accessibilityLabel={text.cancel} onPress={onCancel} />
       </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="arrow.clockwise"
+          accessibilityLabel={text.refresh}
+          onPress={() => void onRefresh()}
+        />
+      </Stack.Toolbar>
       <Host style={{ flex: 1, backgroundColor: colors.groupedBackground }}>
         <List modifiers={[listStyle("insetGrouped"), refreshable(onRefresh)]}>
           <Section header={<SectionHeader>{text.machine}</SectionHeader>}>

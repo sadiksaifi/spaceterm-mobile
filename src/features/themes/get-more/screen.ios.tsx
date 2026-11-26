@@ -61,6 +61,13 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button icon="xmark" accessibilityLabel={text.close} onPress={onClose} />
       </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="arrow.clockwise"
+          accessibilityLabel={text.refresh}
+          onPress={() => void page.refresh()}
+        />
+      </Stack.Toolbar>
       <Stack.SearchBar
         placeholder={text.search}
         onChangeText={(event) => page.setQuery(event.nativeEvent.text)}

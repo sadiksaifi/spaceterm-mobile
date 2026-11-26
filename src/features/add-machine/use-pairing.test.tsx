@@ -94,8 +94,11 @@ it("stops the unfinished pairings, then pairs again with the same link", async (
   await act(async () => {});
   expect(result.current.view).toEqual({ kind: "full", unfinished: 1 });
 
-  await act(async () => result.current.stopUnfinished());
-  // The step waits while they stop, so Stop cannot run twice.
+  // Two quick taps on the dialog's Stop both arrive before the step shows that it waits.
+  await act(async () => {
+    result.current.stopUnfinished();
+    result.current.stopUnfinished();
+  });
   expect(result.current.view).toEqual({ kind: "reaching" });
   await act(async () => stopped());
   expect(result.current.view).toEqual({ kind: "comparing", code: "482 915" });

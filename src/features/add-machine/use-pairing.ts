@@ -78,12 +78,16 @@ export function usePairing(
   useEffect(() => {
     latest.current = shown;
   }, [shown]);
+  const stopping = useRef(false);
   const stopUnfinished = useCallback(() => {
+    // A second tap can arrive before the step shows that it waits.
+    if (stopping.current) return;
+    stopping.current = true;
     const asked = latest.current.round;
-    // The step waits while they stop, so Stop shows no more and cannot run twice.
     setAnswer({ round: asked, view: { kind: "reaching" } });
     // A pairing that did not stop still holds its room, which the next pairing reports.
     void client.stopUnfinishedPairings().then(() => {
+      stopping.current = false;
       const now = latest.current;
       if (now.showing && now.round === asked) {
         setShown({ showing: true, round: asked + 1 });

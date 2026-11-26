@@ -64,7 +64,7 @@ export type NativePane = {
   name: string;
   source: string | null;
   side: "right" | "down" | "left" | "up";
-  /** The shell reports a command running. */
+  /** Closing it would end work, as the Machine observes, else as the shell reports. */
   running: boolean;
   controlledElsewhere: boolean;
   /** What Close Pane sends back. Opaque. */

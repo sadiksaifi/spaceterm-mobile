@@ -38,8 +38,8 @@ pub struct PaneSummary {
     /// arrangement draws the split from these.
     pub source: Option<String>,
     pub side: PaneSide,
-    /// The shell reports a command running. The Machine's own view of the foreground is not
-    /// published yet: sadiksaifi/SpaceTerm#949.
+    /// Closing it would end work, as the Machine last observed. A Machine that does not publish
+    /// what it observes leaves this to the shell's report of a running command.
     pub running: bool,
     /// Another device controls the Pane.
     pub controlled_elsewhere: bool,
@@ -85,7 +85,15 @@ pub(crate) fn tabs(
                     name: pane_name(pane),
                     source: pane.source.as_ref().map(|source| hex(source)),
                     side: side(pane.side),
-                    running: running(pane),
+                    running: running(
+                        inventory,
+                        CloseTarget::Pane {
+                            workspace: workspace.id,
+                            tab: tab.id,
+                            pane: pane.id,
+                        },
+                        pane,
+                    ),
                     controlled_elsewhere: controlled_elsewhere(inventory, pane, client),
                     seen: write_close(
                         inventory,
@@ -167,16 +175,16 @@ fn write_close(inventory: &Inventory, target: CloseTarget, client: Option<Id>) -
     serde_json::json!({ "confirmation": confirmation, "own": own }).to_string()
 }
 
-/// The confirmation a close sends. A close nobody was asked about also carries this device's
-/// control of each Pane, when it has it: the Machine then refuses if a command started or
-/// another device took control since. Without that control, the Machine checks only that the
-/// Terminal Sessions are the same (sadiksaifi/SpaceTerm#952).
+/// The confirmation a close sends. A close nobody was asked about carries this device's control
+/// of each Pane, when it has it, and the Machine refuses if a command started or another device
+/// took control since. Without that control, it asks the Machine to close only what is idle.
 pub(crate) fn read_confirmation(text: &str, asked: bool) -> Option<CloseConfirmation> {
     let value: serde_json::Value = serde_json::from_str(text).ok()?;
     let mut confirmation: CloseConfirmation =
         serde_json::from_value(value.get("confirmation")?.clone()).ok()?;
     if !asked {
-        confirmation.own_controls = serde_json::from_value(value.get("own")?.clone()).ok()?;
+        let own: Option<Vec<_>> = serde_json::from_value(value.get("own")?.clone()).ok()?;
+        confirmation.own_controls = Some(own.unwrap_or_default());
     }
     Some(confirmation)
 }
@@ -278,11 +286,13 @@ fn is_glyph_mark(character: char) -> bool {
     )
 }
 
-fn running(pane: &Pane) -> bool {
-    pane.presentation
-        .as_deref()
-        .and_then(|snapshot| snapshot.command.as_ref())
-        .is_some_and(|command| command.state == CommandState::Running)
+fn running(inventory: &Inventory, target: CloseTarget, pane: &Pane) -> bool {
+    inventory.close_would_end_work(target).unwrap_or_else(|| {
+        pane.presentation
+            .as_deref()
+            .and_then(|snapshot| snapshot.command.as_ref())
+            .is_some_and(|command| command.state == CommandState::Running)
+    })
 }
 
 fn controlled_elsewhere(inventory: &Inventory, pane: &Pane, client: Option<Id>) -> bool {
@@ -307,7 +317,8 @@ fn side(side: Side) -> PaneSide {
 mod tests {
     use super::*;
     use spaceterm_client::hierarchy::{
-        CloseInventory, ConfirmedControl, ConfirmedPane, PaneObservers, WorktreeMembership,
+        CloseInventory, ConfirmedControl, ConfirmedPane, Foreground, PaneActivity, PaneObservers,
+        WorktreeMembership,
     };
     use spaceterm_client::pane::metadata::{
         Command, DirectoryProvenance, Freshness, Progress, PromptZone, TitleGlyph,
@@ -354,6 +365,7 @@ mod tests {
             repository_directory: None,
             presentation: presentation.map(Box::new),
             observers: PaneObservers::default(),
+            activity: None,
             confirmed_directory: None,
             creator: None,
         }
@@ -537,13 +549,37 @@ mod tests {
             Some(None)
         );
 
-        // One Pane this device does not control leaves the close unguarded.
+        // One Pane this device does not control: the Machine closes only if nothing runs.
         let shared = inventory(&listed, vec![control(10, 9)]);
         let tab = &tabs(&shared, &listed, Some(id(9)))[0];
-        assert_eq!(
-            read_confirmation(&tab.seen, false).map(|seen| seen.own_controls),
-            Some(None)
-        );
+        assert!(read_confirmation(&tab.seen, false).is_some_and(|seen| seen.is_close_if_idle()));
+    }
+
+    #[test]
+    fn a_pane_runs_as_the_machine_observes_it_else_as_its_shell_reports() {
+        let running = |shell_says: bool, machine: Option<bool>| {
+            let command = shell_says.then(|| running_command("git log").unwrap());
+            let mut listed_pane = pane(
+                10,
+                Some(snapshot(
+                    "zsh",
+                    "",
+                    TitleProvenance::WorkingDirectory,
+                    command,
+                )),
+            );
+            listed_pane.activity = machine.map(|needs_close_review| PaneActivity {
+                session: Some(id(60)),
+                foreground: Foreground::Program,
+                needs_close_review,
+            });
+            let listed = workspace(vec![tab(100, vec![listed_pane])]);
+            tabs(&inventory(&listed, Vec::new()), &listed, None)[0].panes[0].running
+        };
+        assert!(running(false, Some(true)));
+        assert!(!running(true, Some(false)));
+        assert!(running(true, None));
+        assert!(!running(false, None));
     }
 
     #[test]

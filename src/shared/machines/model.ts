@@ -35,7 +35,7 @@ export type Pane = {
   /** The Pane this one was placed beside, `null` for the first. The split is drawn from these. */
   source: string | null;
   side: PaneSide;
-  /** A command is running, so closing the Pane asks first. */
+  /** Closing the Pane would end work the Machine sees, so it asks first. */
   running: boolean;
   /** Another device controls the Pane, so closing it asks first. */
   controlledElsewhere: boolean;

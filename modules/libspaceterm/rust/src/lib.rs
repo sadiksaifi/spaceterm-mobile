@@ -192,6 +192,8 @@ impl Machines {
             }
         }));
         connections.resume_retained();
+        // After the Saved Connections are read, so only a durably removed pairing is swept.
+        edits.sweep(|route| records.durably_without(route));
         Arc::new(Self {
             connections,
             records,

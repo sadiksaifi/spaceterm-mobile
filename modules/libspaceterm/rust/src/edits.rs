@@ -1,8 +1,9 @@
 //! Workspace edits, each pairing's through one journal so a lost answer is never applied twice.
 use crate::record_file::{Publication, hex, publish_private, read_private};
-use spaceterm_client::connection::link::RequestError;
 use spaceterm_client::hierarchy::{Mutation, Outcome, RetainedOutcome};
-use spaceterm_client::workspace::{ClientJournal, EditError, JournalStore, WorkspaceEditor};
+use spaceterm_client::workspace::{
+    ClientJournal, EditError, EditProgress, JournalStore, WorkspaceEditor,
+};
 use spaceterm_client::{CoreError, DirectRouteId, PairedMachine};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -47,19 +48,36 @@ impl Edits {
             return false;
         };
         if let Some(pending) = editor.journal().pending().cloned() {
-            // An earlier edit whose answer was lost goes first, with its own sequence, so the
-            // Machine applies it at most once: it may have run already, or still be queued there.
-            match editor.retry(deadline) {
-                Ok(outcome) => {
-                    if let Some(outcome) = outcome {
+            if pending.mutation == mutation {
+                // Try Again of an edit whose answer was lost: it goes again under its own
+                // sequence, so the Machine applies it at most once, whether it ran already or
+                // never arrived.
+                match editor.retry(deadline) {
+                    Ok(Some(outcome)) => {
                         let _ = editor.presented(outcome.sequence);
-                        // Try Again of that same edit: its answer is this one's.
-                        if pending.mutation == mutation {
-                            return accepted(&outcome);
+                        return accepted(&outcome);
+                    }
+                    Ok(None) => {}
+                    Err(error) => return self.failed(&mut slot, error),
+                }
+            } else {
+                // Another edit. The person was told the lost one failed, so it is never sent
+                // again: the Machine only says what became of it.
+                match editor.resolve(deadline) {
+                    Ok(Some(EditProgress::Outcome { outcome, .. })) => {
+                        let _ = editor.presented(outcome.sequence);
+                    }
+                    Ok(_) => {}
+                    // The Machine holds no outcome for it, so the journal lets it go. One still
+                    // in flight there can run yet, but this device never sends it again.
+                    Err(EditError::Unconfirmed) => {
+                        *slot = None;
+                        if !self.abandon(route, machine) {
+                            return false;
                         }
                     }
+                    Err(error) => return self.failed(&mut slot, error),
                 }
-                Err(error) => return self.failed(&mut slot, route, machine, error),
             }
         }
         let Some(editor) = self.editor(&mut slot, route, machine) else {
@@ -71,26 +89,21 @@ impl Edits {
                 let _ = editor.presented(outcome.sequence);
                 accepted(&outcome)
             }
-            Err(error) => self.failed(&mut slot, route, machine, error),
+            Err(error) => self.failed(&mut slot, error),
         }
     }
 
-    /// Settles a failed edit. One the Machine refused never runs, so the journal drops it; one
-    /// whose answer was lost stays for the next edit to send again.
+    /// Settles a failed edit, which stays in the journal: a refusal does not show the Machine
+    /// left it undone, since Core can refuse after it applied one. Try Again sends it again; any
+    /// other edit first asks what became of it.
     fn failed(
         &self,
         slot: &mut Option<(PairedMachine, WorkspaceEditor)>,
-        route: DirectRouteId,
-        machine: &PairedMachine,
         error: EditError,
     ) -> bool {
-        match error {
-            EditError::Request(RequestError::Refused(_)) => {
-                *slot = None;
-                self.abandon(route, machine);
-            }
-            EditError::Core(CoreError::StorageUnavailable) => *slot = None,
-            _ => {}
+        // Storage that failed under the editor gets a fresh editor, which reads the journal anew.
+        if let EditError::Core(CoreError::StorageUnavailable) = error {
+            *slot = None;
         }
         false
     }
@@ -104,6 +117,23 @@ impl Edits {
             .and_then(|mut editors| editors.remove(route));
         let _held = slot.as_ref().map(|slot| slot.lock());
         let _ = fs::remove_file(self.directory.join(journal_name(route)));
+    }
+
+    /// Deletes the journals of pairings `removed` says are gone. A removal whose save failed
+    /// keeps its journal, and a later save of it calls no one, so each start sweeps.
+    pub(crate) fn sweep(&self, removed: impl Fn(&DirectRouteId) -> bool) {
+        let Ok(entries) = fs::read_dir(&self.directory) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(route) = name.to_str().and_then(journal_route) else {
+                continue;
+            };
+            if removed(&route) {
+                self.forget(&route);
+            }
+        }
     }
 
     fn slot(&self, route: DirectRouteId) -> Option<Slot> {
@@ -161,6 +191,21 @@ fn journal_name(route: &DirectRouteId) -> String {
     format!("workspace-edits-{}.json", hex(route))
 }
 
+/// The pairing a journal file belongs to, read back from its name.
+fn journal_route(name: &str) -> Option<DirectRouteId> {
+    let hex = name
+        .strip_prefix("workspace-edits-")?
+        .strip_suffix(".json")?;
+    let mut route = DirectRouteId::default();
+    if hex.len() != route.len() * 2 {
+        return None;
+    }
+    for (byte, pair) in route.iter_mut().zip(hex.as_bytes().chunks(2)) {
+        *byte = u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?;
+    }
+    Some(route)
+}
+
 /// One pairing's journal in a private file beside the Saved Connections. Only one editor per
 /// pairing exists in the process, which holds the writer lease the journal asks for.
 struct JournalFile {
@@ -212,6 +257,26 @@ mod tests {
         journal.replace(b"first").unwrap();
         journal.replace(b"second").unwrap();
         assert_eq!(journal.read(), Ok(Some(b"second".to_vec())));
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn a_sweep_deletes_only_the_journals_of_removed_pairings() {
+        let mut nonce = [0u8; 8];
+        getrandom::fill(&mut nonce).unwrap();
+        let directory = std::env::temp_dir().join(format!("spaceterm-sweep-{}", hex(&nonce)));
+        fs::create_dir_all(&directory).unwrap();
+        let (kept, removed) = ([1; 32], [2; 32]);
+        for route in [kept, removed] {
+            fs::write(directory.join(journal_name(&route)), b"{}").unwrap();
+        }
+        fs::write(directory.join("saved-connections.json"), b"{}").unwrap();
+
+        Edits::new(directory.clone()).sweep(|route| *route == removed);
+
+        assert!(directory.join(journal_name(&kept)).exists());
+        assert!(!directory.join(journal_name(&removed)).exists());
+        assert!(directory.join("saved-connections.json").exists());
         let _ = fs::remove_dir_all(directory);
     }
 }

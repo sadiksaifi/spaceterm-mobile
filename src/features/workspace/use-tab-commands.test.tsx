@@ -27,9 +27,9 @@ function tab(id: string, panes: Pane[] = [pane(`${id}-p`)], worktree = MAIN): Ta
 const idle = tab("idle");
 const busy = tab("busy", [pane("x"), pane("y", { running: true })]);
 
-function workspace(tabs: Tab[]): Workspace {
+function workspace(tabs: Tab[], id = "w"): Workspace {
   return {
-    id: "w",
+    id,
     name: "api",
     directory: "~/srv/api",
     terminalSessions: tabs.length,
@@ -170,5 +170,32 @@ describe("picking a Worktree", () => {
     await act(async () => result.current.pickWorktree(fix));
     expect(result.current.failure).toEqual({ command: "switch", worktree: fix });
     expect(result.current.grid.active?.name).toBe("main");
+  });
+});
+
+describe("New Tab", () => {
+  it("opens again in the Worktree it was asked for when Try Again comes after a switch", async () => {
+    const newTab = jest.fn<TabClient["newTab"]>(async () => ({ kind: "failed" }));
+    const { result } = await render({ newTab }, [idle, busy, tab("f", undefined, FIX)]);
+    const fix = { path: FIX, name: "fix" };
+
+    await act(async () => result.current.pickWorktree(fix));
+    await act(async () => result.current.newTab());
+    expect(result.current.failure).toEqual({ command: "new-tab", worktree: fix });
+
+    await act(async () => result.current.pickWorktree({ path: MAIN, name: "main" }));
+    await act(async () => result.current.retry(result.current.failure!));
+    expect(newTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), fix);
+  });
+
+  it("opens a Tab in another Workspace while one Workspace's New Tab is on its way", async () => {
+    const newTab = jest.fn<TabClient["newTab"]>(() => new Promise<NewTabResult>(() => {}));
+    const { result, rerender } = await render({ newTab });
+
+    await act(async () => result.current.newTab());
+    await rerender({ listed: workspace([idle], "other") });
+    await act(async () => result.current.newTab());
+
+    expect(newTab).toHaveBeenCalledTimes(2);
   });
 });

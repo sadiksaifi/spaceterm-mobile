@@ -32,7 +32,8 @@ export type TabFailure =
   /** `asked`: the person agreed to the close, so Try Again closes without asking again. */
   | { command: "close-tab"; tab: Tab; asked: boolean }
   | { command: "close-pane"; tab: Tab; pane: Pane; asked: boolean }
-  | { command: "new-tab" }
+  /** `worktree`: the active Worktree then, where Try Again opens the Tab while it is listed. */
+  | { command: "new-tab"; worktree: Worktree | null }
   | { command: "new-pane"; tab: Tab }
   /** Picking a Worktree with no Tab opens one there; this is that Tab not opening. */
   | { command: "switch"; worktree: Worktree };
@@ -93,8 +94,10 @@ export function useTabCommands({
   const [state, updateGrid] = useGridState(key);
   const [stored, setLocal] = useState<Local>({ key, alert: null, failure: null, panes: null });
   const local = stored.key === key ? stored : { key, alert: null, failure: null, panes: null };
-  // The commands under way, as of the last event rather than the last render.
+  // The commands under way, as of the last event rather than the last render. The screen stays
+  // mounted when it changes Workspace, so each id names its Workspace.
   const inFlight = useRef(new Set<string>());
+  const underway = (failure: TabFailure) => inFlight.current.has(`${key}/${flightId(failure)}`);
   const grid = gridView(workspace, state);
   const listedTab = (id: string) => workspace.tabs.find((each) => each.id === id);
 
@@ -113,12 +116,13 @@ export function useTabCommands({
     send: () => Promise<T>,
     after?: (result: T) => void,
   ) => {
-    const id = flightId(failure);
-    if (inFlight.current.has(id)) return;
+    if (underway(failure)) return;
+    const id = `${key}/${flightId(failure)}`;
     inFlight.current.add(id);
     change((current) => ({
       ...current,
-      failure: current.failure && flightId(current.failure) === id ? null : current.failure,
+      failure:
+        current.failure && flightId(current.failure) === flightId(failure) ? null : current.failure,
     }));
     void send().then((result) => {
       inFlight.current.delete(id);
@@ -161,12 +165,13 @@ export function useTabCommands({
     } else sendClosePane(tab, pane, false);
   };
 
-  const newTab = () =>
+  const newTabIn = (worktree: Worktree | null) =>
     run(
-      { command: "new-tab" },
-      () => client.newTab(machineId, workspace, grid.active ?? undefined),
+      { command: "new-tab", worktree },
+      () => client.newTab(machineId, workspace, worktree ?? undefined),
       opened,
     );
+  const newTab = () => newTabIn(grid.active);
 
   const newPane = (tab: Tab) =>
     run({ command: "new-pane", tab }, () => client.newPane(machineId, workspace, tab));
@@ -175,6 +180,8 @@ export function useTabCommands({
     const picked = { ...state, picked: worktree.path, expecting: null };
     const hasTabs = gridView(workspace, picked).active?.path === worktree.path;
     if (hasTabs) return updateGrid((grid) => ({ ...grid, picked: worktree.path }));
+    // Another New Tab is on its way; the grid keeps waiting for that one.
+    if (underway({ command: "switch", worktree })) return;
     updateGrid((grid) => ({ ...grid, picked: worktree.path, expecting: PENDING }));
     run(
       { command: "switch", worktree },
@@ -233,8 +240,11 @@ export function useTabCommands({
             ? sendClosePane(tab, pane, shown.asked)
             : closePane(tab, pane);
         }
-        case "new-tab":
-          return newTab();
+        case "new-tab": {
+          const { worktree } = shown;
+          const listed = grid.worktrees.some((each) => each.worktree.path === worktree?.path);
+          return worktree !== null && listed ? newTabIn(worktree) : newTab();
+        }
         case "new-pane": {
           const tab = listedTab(shown.tab.id);
           return tab && newPane(tab);

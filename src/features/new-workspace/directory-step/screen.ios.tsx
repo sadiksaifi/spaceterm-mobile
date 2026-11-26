@@ -27,6 +27,7 @@ import {
   onGeometryChange,
   onSubmit,
   padding,
+  refreshable,
   submitLabel,
   textCase,
   textInputAutocapitalization,
@@ -118,6 +119,7 @@ export default function DirectoryStepScreen({
                   modifiers={[
                     listStyle("insetGrouped"),
                     onGeometryChange((list) => setListBottom(list.y + list.height)),
+                    refreshable(picker.refresh),
                   ]}
                 >
                   <Section header={<SectionHeader>{text.directoryOn(machineName)}</SectionHeader>}>

@@ -33,6 +33,7 @@ import {
   semantics,
   size,
   weight,
+  type ModifierConfig,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
 import { useImperativeHandle, useRef, type Ref } from "react";
@@ -40,6 +41,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
 import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
+import { Refreshable } from "@/shared/ui/android/refreshable";
 import { SnackbarSlot, useSnackbar } from "@/shared/ui/android/snackbar";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 import {
@@ -83,7 +85,7 @@ export default function DirectoryStepScreen({
     picker.retry,
     picker.dismissFailure,
   );
-  const rows = [
+  const rows: ListRow[] = [
     ...(parent === null ? [] : [{ key: "parent", label: text.parentDirectory, path: parent }]),
     ...(content.kind === "directories"
       ? content.directories.map((directory) => ({
@@ -136,26 +138,14 @@ export default function DirectoryStepScreen({
               onGo={picker.open}
             />
 
-            <LazyColumn
-              verticalArrangement={{ spacedBy: GROUPED_GAP }}
-              contentPadding={{ start: 16, end: 16, top: 16, bottom: 16 }}
-              modifiers={
-                content.kind === "directories" ? [fillMaxWidth(), weight(1)] : [fillMaxWidth()]
-              }
-            >
-              <LazyColumn.Items data={rows} keyExtractor={(row) => row.key}>
-                {({ item, index }: { item: (typeof rows)[number]; index: number }) => (
-                  <DirectoryRow
-                    label={item.label}
-                    icon={item.key === "parent" ? arrowUpwardIcon : folderIcon}
-                    first={index === 0}
-                    last={index === rows.length - 1}
-                    enabled={!view.opening}
-                    onPress={() => picker.navigate(item.path)}
-                  />
-                )}
-              </LazyColumn.Items>
-            </LazyColumn>
+            {content.kind === "directories" ? (
+              // Only a list of directories scrolls, so only it pulls to refresh.
+              <Refreshable onRefresh={picker.refresh} modifiers={[fillMaxWidth(), weight(1)]}>
+                <DirectoryList rows={rows} picker={picker} modifiers={[fillMaxSize()]} />
+              </Refreshable>
+            ) : (
+              <DirectoryList rows={rows} picker={picker} modifiers={[fillMaxWidth()]} />
+            )}
 
             {content.kind !== "directories" && (
               <Column modifiers={[fillMaxWidth(), weight(1)]}>
@@ -179,6 +169,41 @@ export default function DirectoryStepScreen({
         )}
       </ScreenHost>
     </>
+  );
+}
+
+/** Parent Directory and the directories, as rows. */
+type ListRow = { key: string; label: string; path: string };
+
+function DirectoryList({
+  rows,
+  picker,
+  modifiers,
+}: {
+  rows: readonly ListRow[];
+  picker: DirectoryStepProps["picker"];
+  modifiers: ModifierConfig[];
+}) {
+  const { opening } = picker.view;
+  return (
+    <LazyColumn
+      verticalArrangement={{ spacedBy: GROUPED_GAP }}
+      contentPadding={{ start: 16, end: 16, top: 16, bottom: 16 }}
+      modifiers={modifiers}
+    >
+      <LazyColumn.Items data={rows} keyExtractor={(row) => row.key}>
+        {({ item, index }: { item: ListRow; index: number }) => (
+          <DirectoryRow
+            label={item.label}
+            icon={item.key === "parent" ? arrowUpwardIcon : folderIcon}
+            first={index === 0}
+            last={index === rows.length - 1}
+            enabled={!opening}
+            onPress={() => picker.navigate(item.path)}
+          />
+        )}
+      </LazyColumn.Items>
+    </LazyColumn>
   );
 }
 

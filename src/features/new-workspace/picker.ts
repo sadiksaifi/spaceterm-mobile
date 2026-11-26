@@ -32,6 +32,8 @@ export type PickerEvent =
   /** A directory row, Parent Directory or Try Again. */
   | { type: "navigate"; path: string }
   | { type: "answered"; request: number; listing: DirectoryListing }
+  /** Pull to refresh: the directory shown, listed again. */
+  | { type: "refreshed"; request: number; listing: DirectoryListing }
   | { type: "edit"; field: string }
   /** The checkmark on iOS, Open on Android, or Try Again. */
   | { type: "open" }
@@ -84,6 +86,11 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
         fieldVersion: field === state.field ? state.fieldVersion : state.fieldVersion + 1,
       };
     }
+    case "refreshed":
+      // The field stays as it is, typed or not.
+      return event.request === state.request && state.listing.kind !== "loading"
+        ? { ...state, listing: event.listing }
+        : state;
     case "edit":
       return event.field === state.field || state.confirm.kind === "opening"
         ? state

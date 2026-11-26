@@ -157,7 +157,11 @@ export function createNativeClient(
       stillNotConnected.delete(machineId);
       // A Machine at a public address needs no local network access, so a refusal still tries.
       await native.allowLocalNetwork();
-      if (!(await native.connect(machineId))) {
+      // A Machine reached meanwhile, by a retry or another Connect, keeps its connection: a second
+      // Connect would drop it and start over.
+      const now = native.paired().find(({ id }) => id === machineId)?.connection;
+      const reached = now === "connected" || now === "connecting";
+      if (!reached && !(await native.connect(machineId))) {
         stillNotConnected.add(machineId);
         refresh();
         return;

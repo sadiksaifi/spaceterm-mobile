@@ -148,12 +148,13 @@ export default function DirectoryStepScreen({
             )}
 
             {content.kind !== "directories" && (
-              <Column modifiers={[fillMaxWidth(), weight(1)]}>
+              // The state scrolls, so a directory with no subdirectories can be listed again.
+              <Refreshable onRefresh={picker.refresh} modifiers={[fillMaxWidth(), weight(1)]}>
                 <ContentState
                   content={content}
                   onRetry={view.opening ? undefined : picker.navigate}
                 />
-              </Column>
+              </Refreshable>
             )}
           </Column>
           <SnackbarSlot {...snackbar} bottom={insets.bottom + SNACKBAR_MARGIN} />

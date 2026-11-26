@@ -357,6 +357,23 @@ describe("the paired Machines", () => {
     expect(client.getSnapshot().machines[0]?.connection).toBe("still-not-connected");
   });
 
+  it("leaves a Machine alone that connected or started connecting before Connect reached it", async () => {
+    const { native, state, change } = fakeNative();
+    state.machines = [{ ...mini, connection: "connected", workspaces: [] }];
+    const client = createNativeClient(native);
+    const connect = vi.spyOn(native, "connect");
+
+    await client.connect("m1");
+    change({ machines: [{ ...mini, connection: "connecting" }] });
+    const connecting = client.connect("m1");
+    await flush();
+    change({ machines: [{ ...mini, connection: "connected", workspaces: [] }] });
+    await connecting;
+
+    expect(connect).not.toHaveBeenCalled();
+    expect(client.getSnapshot().machines[0]?.connection).toBe("connected");
+  });
+
   it("connects once the Machine has sent its Workspaces", async () => {
     const { native, state, change } = fakeNative();
     state.machines = [mini];

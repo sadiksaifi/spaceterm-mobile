@@ -177,6 +177,8 @@ export function useGetMore(
     importFile: () => void importNow(),
     retry: () => setRequests((count) => count + 1),
     async refresh() {
+      // A list still loading shows the newest answer when it arrives.
+      if (list.kind === "loading") return;
       const asked = search;
       const result = await catalog.search(trimmed);
       if (result === "unavailable") return;

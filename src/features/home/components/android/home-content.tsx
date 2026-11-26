@@ -1,3 +1,5 @@
+import { Refreshable } from "@/shared/ui/android/refreshable";
+
 import type { HomeActions } from "../../actions";
 import type { HomeView } from "../../model";
 import type { RowAlerts } from "../../row-alerts";
@@ -31,5 +33,11 @@ export function HomeContent({
       />
     );
   }
-  return <EmptyState view={view} actions={actions} bottom={emptyBottom} />;
+  const empty = <EmptyState view={view} actions={actions} bottom={emptyBottom} />;
+  // An empty list pulls to refresh as the list does. Unreachable has Try Again in its place.
+  return view.kind === "no-workspaces" || view.kind === "no-results" ? (
+    <Refreshable onRefresh={actions.onRefresh}>{empty}</Refreshable>
+  ) : (
+    empty
+  );
 }

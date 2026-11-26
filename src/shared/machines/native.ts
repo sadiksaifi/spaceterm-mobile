@@ -2,9 +2,11 @@ import type {
   LibspacetermModule,
   NativeJoinState,
   NativePairedMachine,
+  NativeWorkspace,
 } from "@/modules/libspaceterm";
 
 import type {
+  CommandResult,
   Invitation,
   Machine,
   MachineClient,
@@ -12,6 +14,7 @@ import type {
   MachinesSnapshot,
   Pairing,
   PairingOutcome,
+  Workspace,
 } from "./model";
 
 /** What the client asks of libspaceterm. */
@@ -27,6 +30,8 @@ export type NativeMachines = Pick<
   | "connect"
   | "disconnect"
   | "unpair"
+  | "renameWorkspace"
+  | "killWorkspace"
 > & {
   addListener: (event: "onChange", listener: () => void) => { remove: () => void };
 };
@@ -34,11 +39,14 @@ export type NativeMachines = Pick<
 /** How many times a pairing tries again when the Machine does not answer, and how long it waits. */
 const PAIRING_RETRIES = 3;
 const PAIRING_RETRY_WAIT = 2000;
+/** How long a connected Machine has to send its Workspaces before it shows as not connected. */
+const LIST_WAIT = 30_000;
 
 /**
  * The client for the Machines this device has paired through libspaceterm. Pairing, Saved
- * Connections, and connecting are real. Workspaces are not read yet: a connected Machine lists
- * none, and every Workspace command fails.
+ * Connections, connecting, the Workspace list, Rename and Kill Workspace are real. Creating a
+ * Workspace, listing directories, and restarting SpaceTerm Core fail until libspaceterm is wired
+ * for them.
  */
 export function createNativeClient(
   native: NativeMachines,
@@ -48,8 +56,15 @@ export function createNativeClient(
   const changeWatchers = new Set<() => void>();
   /** Machines whose last Connect ended without a connection. */
   const stillNotConnected = new Set<string>();
+  /** Each connected Machine's wait for its first Workspace list, however it connected. */
+  const listWaits = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Connected Machines whose list did not arrive in time; Try Again starts them over. */
+  const unlisted = new Set<string>();
+  /** Each Machine's last Workspace list, kept while it is not connected. */
+  const kept = new Map<string, readonly Workspace[]>();
   let starting = true;
   let snapshot = read();
+  let published = JSON.stringify(snapshot);
 
   native.addListener("onChange", () => {
     for (const watcher of changeWatchers) watcher();
@@ -62,26 +77,59 @@ export function createNativeClient(
     const paired = native.paired();
     const machines = paired.map(toMachine);
     starting &&=
-      paired.some((machine) => machine.connection === "connecting") &&
-      !paired.some((machine) => machine.connection === "connected");
+      machines.some((machine) => machine.connection === "reconnecting") &&
+      !machines.some((machine) => machine.connection === "connected");
     return { machines, starting };
   }
 
-  function toMachine({ id, name, connection }: NativePairedMachine): Machine {
-    if (connection === "connected") {
+  /** A Machine counts as connected once it has sent its Workspaces, as Home needs them. */
+  function toMachine({ id, name, connection, workspaces }: NativePairedMachine): Machine {
+    if (answered({ connection, workspaces })) {
       stillNotConnected.delete(id);
-      return { id, name, connection, workspaces: [] };
+      forgetList(id);
+      const listed = (workspaces ?? []).map(toWorkspace);
+      kept.set(id, listed);
+      return { id, name, connection: "connected", workspaces: listed };
     }
-    if (connection === "connecting")
-      return { id, name, connection: "reconnecting", workspaces: null };
+    const known = kept.get(id) ?? null;
+    const waiting = connection === "connected";
+    if (waiting) awaitList(id);
+    else forgetList(id);
+    // A link that never listed shows as not connected, so Try Again shows.
+    if (waiting && unlisted.has(id))
+      return { id, name, connection: "still-not-connected", workspaces: known };
+    if (connection === "connected" || connection === "connecting")
+      return { id, name, connection: "reconnecting", workspaces: known };
     const state = stillNotConnected.has(id) ? "still-not-connected" : "not-connected";
-    return { id, name, connection: state, workspaces: null };
+    return { id, name, connection: state, workspaces: known };
+  }
+
+  function awaitList(id: string) {
+    if (listWaits.has(id) || unlisted.has(id)) return;
+    const wait = setTimeout(() => {
+      listWaits.delete(id);
+      unlisted.add(id);
+      refresh();
+    }, LIST_WAIT);
+    listWaits.set(id, wait);
+  }
+
+  function forgetList(id: string) {
+    clearTimeout(listWaits.get(id));
+    listWaits.delete(id);
+    unlisted.delete(id);
+  }
+
+  function toWorkspace({ branch, seen, ...listed }: NativeWorkspace): Workspace {
+    return branch === null ? { ...listed, revision: seen } : { ...listed, branch, revision: seen };
   }
 
   function refresh() {
     const next = read();
-    if (JSON.stringify(next) === JSON.stringify(snapshot)) return;
+    const nextSignature = JSON.stringify(next);
+    if (nextSignature === published) return;
     snapshot = next;
+    published = nextSignature;
     for (const listener of listeners) listener();
   }
 
@@ -107,8 +155,14 @@ export function createNativeClient(
     },
     listDirectory: async (_machineId, path) => ({ kind: "unavailable", path, parent: null }),
     createWorkspace: async () => ({ kind: "failed" }),
-    renameWorkspace: async () => ({ kind: "failed" }),
-    killWorkspace: async () => ({ kind: "failed" }),
+    renameWorkspace: async (machineId, { id, revision }, name) => {
+      if (revision === undefined) return { kind: "failed" };
+      return done(await native.renameWorkspace(machineId, id, revision, name));
+    },
+    killWorkspace: async (machineId, { id, revision }) => {
+      if (revision === undefined) return { kind: "failed" };
+      return done(await native.killWorkspace(machineId, id, revision));
+    },
     restartCore: async () => ({ kind: "failed" }),
     disconnect: (machineId) => {
       stillNotConnected.delete(machineId);
@@ -116,20 +170,32 @@ export function createNativeClient(
     },
     connect: async (machineId) => {
       stillNotConnected.delete(machineId);
+      forgetList(machineId);
+      refresh();
       // A Machine at a public address needs no local network access, so a refusal still tries.
       await native.allowLocalNetwork();
-      if (!(await native.connect(machineId))) {
+      // A Machine reached meanwhile, by a retry or another Connect, keeps its connection: a second
+      // Connect would drop it and start over. A link that never listed is started over.
+      const now = native.paired().find(({ id }) => id === machineId);
+      const reached = now !== undefined && (answered(now) || now.connection === "connecting");
+      if (!reached && !(await native.connect(machineId))) {
         stillNotConnected.add(machineId);
         refresh();
         return;
       }
       await new Promise<void>((settle) => {
-        watch(() => {
+        const giveUp = setTimeout(() => {
+          stop();
+          stillNotConnected.add(machineId);
+          settle();
+        }, LIST_WAIT);
+        const stop = watch(() => {
           const machine = native.paired().find(({ id }) => id === machineId);
           if (machine?.connection === "connecting") return false;
-          if (machine !== undefined && machine.connection !== "connected") {
-            stillNotConnected.add(machineId);
-          }
+          // Connected counts once the Workspaces arrive, as the snapshot shows it.
+          if (machine?.connection === "connected" && machine.workspaces === null) return false;
+          if (machine !== undefined && !answered(machine)) stillNotConnected.add(machineId);
+          clearTimeout(giveUp);
           settle();
           return true;
         });
@@ -138,6 +204,8 @@ export function createNativeClient(
     },
     unpair: (machineId) => {
       stillNotConnected.delete(machineId);
+      forgetList(machineId);
+      kept.delete(machineId);
       void native.unpair(machineId).then(refresh);
     },
     readInvitation: (link) => {
@@ -235,6 +303,18 @@ export function createNativeClient(
     },
   };
   return client;
+}
+
+/** Whether a Machine is connected and has sent its Workspaces. */
+function answered({
+  connection,
+  workspaces,
+}: Pick<NativePairedMachine, "connection" | "workspaces">): boolean {
+  return connection === "connected" && workspaces !== null;
+}
+
+function done(changed: boolean): CommandResult {
+  return changed ? { kind: "done" } : { kind: "failed" };
 }
 
 /** The six digits as the Machine shows them, in two groups of three. */

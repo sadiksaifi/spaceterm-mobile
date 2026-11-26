@@ -23,6 +23,8 @@ export type DirectoryPicker = {
    * It stays the same object while it lasts.
    */
   failure: PickerFailure | null;
+  /** Pull to refresh: lists the directory shown again. Settles once the Machine answers. */
+  refresh: () => Promise<void>;
   edit: (field: string) => void;
   navigate: (path: string) => void;
   /**
@@ -98,6 +100,12 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
     fieldVersion: state.fieldVersion,
     askingCreate: confirm.kind === "asking-create" ? confirm.directory : null,
     failure: confirm.kind === "failed" ? confirm : null,
+    async refresh() {
+      const { listing: shown, request: asked } = latest.current;
+      if (shown.kind === "loading") return;
+      const answer = await client.listDirectory(machineId, shown.path);
+      if (mounted.current) send({ type: "refreshed", request: asked, listing: answer });
+    },
     edit: (typed) => send({ type: "edit", field: typed }),
     navigate: (path) => send({ type: "navigate", path }),
     open(submitted) {

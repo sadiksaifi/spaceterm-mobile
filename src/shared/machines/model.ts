@@ -14,6 +14,11 @@ export type Workspace = {
   branch?: string;
   /** The Terminal Sessions that Kill Workspace ends, across every Worktree. */
   terminalSessions: number;
+  /**
+   * Opaque. Changes whenever what Rename or Kill acts on changes: the name, or the Panes and
+   * Terminal Sessions Kill ends. Absent where the Machine client keeps none, as in the mock.
+   */
+  revision?: string;
 };
 
 /** What a view needs to name a Machine and open its settings. */
@@ -107,8 +112,17 @@ export type MachineClient = {
     directory: string,
     options?: { createDirectory?: boolean },
   ) => Promise<CreateWorkspaceResult>;
-  renameWorkspace: (machineId: string, workspaceId: string, name: string) => Promise<CommandResult>;
-  killWorkspace: (machineId: string, workspaceId: string) => Promise<CommandResult>;
+  /**
+   * `workspace` is as the person saw it, from a snapshot. The Machine refuses a Rename when the
+   * Workspace was renamed since, and a Kill when it gained or lost a Terminal Session since, so
+   * nothing changes that the person did not see.
+   */
+  renameWorkspace: (
+    machineId: string,
+    workspace: Workspace,
+    name: string,
+  ) => Promise<CommandResult>;
+  killWorkspace: (machineId: string, workspace: Workspace) => Promise<CommandResult>;
   /** Closes this device's connection to a Machine. Nothing on the Machine changes. */
   disconnect: (machineId: string) => void;
   /**

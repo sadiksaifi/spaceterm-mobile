@@ -33,7 +33,7 @@ export type RowAlerts = {
   /** Rename with the field's text. Rename stays unavailable while the text is no name. */
   rename: (typed: string) => void;
   kill: () => void;
-  /** Try Again: Rename reopens with the name asked for; Kill runs again. */
+  /** Try Again: Rename reopens with the name asked for; Kill runs again, or asks again if it changed. */
   retry: (failure: RowFailure) => void;
   /** Cancel, or the close button, on `failure`. */
   dismissFailure: (failure: RowFailure) => void;
@@ -49,7 +49,8 @@ type State = {
 /**
  * Rename Workspace and Kill Workspace ask first, in an alert each platform draws. The alert
  * closes before the Machine answers; the list shows the answer, and a refusal becomes `failure`,
- * which offers Try Again. Each platform shows the failure its own way. `snapshot` is what Home
+ * which offers Try Again. Try Again works on the Workspace as listed then, and asks again before
+ * a Kill whose alert would now say something else. Each platform shows the failure its own way. `snapshot` is what Home
  * lists: a refusal for a Workspace that has gone offers nothing to try again.
  */
 export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): RowAlerts {
@@ -116,13 +117,14 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
   const runRename = (row: WorkspaceRow, name: string) => {
     if (renameWorkspace === undefined) return;
     run({ command: "rename", row, name }, () =>
-      renameWorkspace(row.machineId, row.workspace.id, name),
+      renameWorkspace(row.machineId, row.workspace, name),
     );
   };
 
   const runKill = (row: WorkspaceRow) => {
     if (killWorkspace === undefined) return;
-    run({ command: "kill", row }, () => killWorkspace(row.machineId, row.workspace.id));
+    // The Workspace as the alert showed it, so the Machine ends only what the person approved.
+    run({ command: "kill", row }, () => killWorkspace(row.machineId, row.workspace));
   };
 
   /** True the first time one of `shown`'s buttons runs. */
@@ -162,17 +164,42 @@ export function useRowAlerts(actions: HomeActions, snapshot: MachinesSnapshot): 
     retry(shown) {
       // A failure that has since been replaced or dismissed offers nothing.
       if (shown !== failure || !firstAnswer(shown)) return;
+      // The Workspace as listed now: the Machine refuses one the person has not seen.
+      const row = relisted(snapshot, shown.row);
       if (shown.command === "rename") {
         clearFailure(shown);
-        open({ kind: "rename", row: shown.row, initial: shown.name });
+        open({ kind: "rename", row, initial: shown.name });
+      } else if (sameToKill(row, shown.row)) {
+        runKill(row);
       } else {
-        runKill(shown.row);
+        // What Kill ends has changed since the person agreed to it, so they are asked again.
+        clearFailure(shown);
+        open({ kind: "kill", row });
       }
     },
     dismissFailure(shown) {
       if (firstAnswer(shown)) clearFailure(shown);
     },
   };
+}
+
+/** `row` with its Workspace as Home lists it now, or as it was when Home no longer lists it. */
+function relisted({ machines }: MachinesSnapshot, row: WorkspaceRow): WorkspaceRow {
+  const machine = machines.find((candidate) => candidate.id === row.machineId);
+  const workspace = machine?.workspaces?.find((listed) => listed.id === row.workspace.id);
+  return workspace === undefined ? row : { ...row, workspace };
+}
+
+/**
+ * Whether Kill would end what the person agreed to: the same Workspace name and Terminal Sessions.
+ * The revision tells a replaced session from the one it replaced, which the count does not.
+ */
+function sameToKill(now: WorkspaceRow, agreed: WorkspaceRow): boolean {
+  return (
+    now.workspace.name === agreed.workspace.name &&
+    now.workspace.terminalSessions === agreed.workspace.terminalSessions &&
+    now.workspace.revision === agreed.workspace.revision
+  );
 }
 
 /** Whether Home still lists the Workspace `row` shows. */

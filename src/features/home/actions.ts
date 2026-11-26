@@ -1,4 +1,4 @@
-import type { CommandResult, MachinesSnapshot } from "@/shared/machines/model";
+import type { CommandResult, MachinesSnapshot, Workspace } from "@/shared/machines/model";
 
 import { isSearchable, type HomeView, type WorkspaceRow } from "./model";
 
@@ -11,10 +11,10 @@ export type HomeActions = {
   onNewTab?: (machineId: string, workspaceId: string) => void;
   renameWorkspace?: (
     machineId: string,
-    workspaceId: string,
+    workspace: Workspace,
     name: string,
   ) => Promise<CommandResult>;
-  killWorkspace?: (machineId: string, workspaceId: string) => Promise<CommandResult>;
+  killWorkspace?: (machineId: string, workspace: Workspace) => Promise<CommandResult>;
   onNewWorkspace?: () => void;
   onAddMachine?: () => void;
   onScanQrCode?: () => void;
@@ -22,6 +22,8 @@ export type HomeActions = {
   onOpenSettings?: () => void;
   onMachineSettings?: (machineId: string) => void;
   onTryAgain?: () => void;
+  /** Pull to refresh. Settles once each Machine it tries to reach answers or fails. */
+  onRefresh?: () => Promise<void>;
   onGetDesktop: () => void;
 };
 
@@ -36,17 +38,21 @@ export type HomeControls = {
   searchable: boolean;
   /** New Workspace shows wherever search does, and works once a connected Machine can take it. */
   newWorkspace: Control | null;
+  /** Refresh shows wherever search does and does what a pull does. */
+  refresh: Control | null;
   addMachine: Control;
   settings: Control;
 };
 
 export function homeControls(view: HomeView, actions: HomeActions): HomeControls {
   const searchable = isSearchable(view);
+  const { onRefresh } = actions;
   return {
     searchable,
     newWorkspace: searchable
       ? { onPress: view.canCreateWorkspace ? actions.onNewWorkspace : undefined }
       : null,
+    refresh: searchable ? { onPress: onRefresh && (() => void onRefresh()) } : null,
     addMachine: { onPress: actions.onAddMachine },
     settings: { onPress: actions.onOpenSettings },
   };

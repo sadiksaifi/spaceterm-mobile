@@ -74,6 +74,49 @@ describe("a command the Machine refuses", () => {
     expect(result.current.alert).toBeNull();
   });
 
+  it("asks again on Try Again when the Workspace gained a Terminal Session since", async () => {
+    const killWorkspace = jest.fn(refused);
+    const { result, rerender } = await render({ killWorkspace });
+    await act(async () => result.current.handlers.onKillWorkspace?.(app));
+    await act(async () => result.current.kill());
+
+    const busier = { ...app, workspace: { ...app.workspace, terminalSessions: 3 } };
+    await rerender({ snapshot: listing(busier, web) });
+    await act(async () => result.current.retry(failureOf(result.current)));
+
+    expect(killWorkspace).toHaveBeenCalledTimes(1);
+    expect(result.current.failure).toBeNull();
+    expect(result.current.alert).toEqual({ kind: "kill", row: busier });
+  });
+
+  it("asks again on Try Again when a Terminal Session was replaced, keeping the count", async () => {
+    const killWorkspace = jest.fn(refused);
+    const seen = { ...app, workspace: { ...app.workspace, revision: "first session" } };
+    const { result, rerender } = await render({ killWorkspace });
+    await rerender({ snapshot: listing(seen, web) });
+    await act(async () => result.current.handlers.onKillWorkspace?.(seen));
+    await act(async () => result.current.kill());
+
+    const replaced = { ...seen, workspace: { ...seen.workspace, revision: "second session" } };
+    await rerender({ snapshot: listing(replaced, web) });
+    await act(async () => result.current.retry(failureOf(result.current)));
+
+    expect(killWorkspace).toHaveBeenCalledTimes(1);
+    expect(result.current.alert).toEqual({ kind: "kill", row: replaced });
+  });
+
+  it("reopens Rename on Try Again with the Workspace as it is listed now", async () => {
+    const { result, rerender } = await render({ renameWorkspace: refused });
+    await act(async () => result.current.handlers.onRenameWorkspace?.(app));
+    await act(async () => result.current.rename("web"));
+
+    const renamed = { ...app, workspace: { ...app.workspace, name: "api" } };
+    await rerender({ snapshot: listing(renamed, web) });
+    await act(async () => result.current.retry(failureOf(result.current)));
+
+    expect(result.current.alert).toEqual({ kind: "rename", row: renamed, initial: "web" });
+  });
+
   it("keeps Rename open when the failure it replaced reports closing late", async () => {
     const { result } = await render({ renameWorkspace: refused });
 
@@ -206,4 +249,16 @@ it("tries once when Try Again is tapped twice before the refusal goes", async ()
     shown.retry(failure);
   });
   expect(killWorkspace).toHaveBeenCalledTimes(1);
+});
+
+it("kills the Workspace as the alert showed it, even after the list changes", async () => {
+  const killWorkspace = jest.fn<NonNullable<HomeActions["killWorkspace"]>>(done);
+  const { result, rerender } = await render({ killWorkspace });
+  await act(async () => result.current.handlers.onKillWorkspace?.(app));
+
+  const busier = { ...app, workspace: { ...app.workspace, terminalSessions: 3 } };
+  await rerender({ snapshot: listing(busier, web) });
+  await act(async () => result.current.kill());
+
+  expect(killWorkspace).toHaveBeenCalledWith("mac", app.workspace);
 });

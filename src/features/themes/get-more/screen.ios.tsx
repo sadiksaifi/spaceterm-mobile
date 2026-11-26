@@ -21,6 +21,7 @@ import {
   lineLimit,
   listRowBackground,
   listStyle,
+  refreshable,
   padding,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
@@ -60,6 +61,13 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button icon="xmark" accessibilityLabel={text.close} onPress={onClose} />
       </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="arrow.clockwise"
+          accessibilityLabel={text.refresh}
+          onPress={() => void page.refresh()}
+        />
+      </Stack.Toolbar>
       <Stack.SearchBar
         placeholder={text.search}
         onChangeText={(event) => page.setQuery(event.nativeEvent.text)}
@@ -91,7 +99,7 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
               onIsPresentedChange={(shown) => !shown && page.cancelRemove()}
             >
               <Alert.Trigger>
-                <List modifiers={[listStyle("insetGrouped")]}>
+                <List modifiers={[listStyle("insetGrouped"), refreshable(page.refresh)]}>
                   {/* While a search has text, the page shows only what it finds. */}
                   {!filtering && (
                     <Section

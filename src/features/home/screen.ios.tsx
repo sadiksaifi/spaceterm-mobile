@@ -29,6 +29,15 @@ export default function HomeScreen({ snapshot, ...actions }: HomeScreenProps) {
       <Stack.Screen.Title large>{text.title}</Stack.Screen.Title>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel={text.more}>
+          {controls.refresh && (
+            <Stack.Toolbar.MenuAction
+              icon="arrow.clockwise"
+              disabled={!controls.refresh.onPress}
+              onPress={controls.refresh.onPress}
+            >
+              {text.refresh}
+            </Stack.Toolbar.MenuAction>
+          )}
           <Stack.Toolbar.MenuAction
             icon="plus"
             disabled={!controls.addMachine.onPress}

@@ -7,6 +7,7 @@ import {
   foregroundStyle,
   lineLimit,
   listStyle,
+  refreshable,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 
@@ -22,7 +23,12 @@ import type { MachineStepProps } from "./screen";
 
 const tertiary = foregroundStyle({ type: "hierarchical", style: "tertiary" });
 
-export default function MachineStepScreen({ machines, onPick, onCancel }: MachineStepProps) {
+export default function MachineStepScreen({
+  machines,
+  onPick,
+  onCancel,
+  onRefresh,
+}: MachineStepProps) {
   const colors = useColors();
   return (
     <>
@@ -30,8 +36,15 @@ export default function MachineStepScreen({ machines, onPick, onCancel }: Machin
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button icon="xmark" accessibilityLabel={text.cancel} onPress={onCancel} />
       </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="arrow.clockwise"
+          accessibilityLabel={text.refresh}
+          onPress={() => void onRefresh()}
+        />
+      </Stack.Toolbar>
       <Host style={{ flex: 1, backgroundColor: colors.groupedBackground }}>
-        <List modifiers={[listStyle("insetGrouped")]}>
+        <List modifiers={[listStyle("insetGrouped"), refreshable(onRefresh)]}>
           <Section header={<SectionHeader>{text.machine}</SectionHeader>}>
             {machines.map((machine) => (
               <MachineRow key={machine.id} machine={machine} onPick={onPick} />

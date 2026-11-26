@@ -4,6 +4,7 @@ import { openBrowserAsync } from "expo-web-browser";
 import { linkStepHref, pastedInvitationLink } from "@/features/add-machine/flow";
 import { newWorkspaceHref } from "@/features/new-workspace/entry";
 import { useMachineClient, useMachines } from "@/shared/machines/client";
+import { reachUnconnected } from "@/shared/machines/reach";
 
 import HomeScreen from "./screen";
 
@@ -43,17 +44,8 @@ export default function HomeRoute() {
       onMachineSettings={(machineId) =>
         router.navigate({ pathname: "/settings/machines/[machineId]", params: { machineId } })
       }
-      // Try Again reaches every Machine that is not connected and not already being reached.
-      onTryAgain={() => {
-        for (const machine of snapshot.machines) {
-          if (
-            machine.connection === "not-connected" ||
-            machine.connection === "still-not-connected"
-          ) {
-            void client.connect(machine.id);
-          }
-        }
-      }}
+      onTryAgain={() => void reachUnconnected(client, snapshot.machines)}
+      onRefresh={() => reachUnconnected(client, snapshot.machines)}
       // The page opens inside the app. If it cannot open, the person stays on Home.
       onGetDesktop={() => void openBrowserAsync(DESKTOP_PROJECT_URL).catch(() => {})}
     />

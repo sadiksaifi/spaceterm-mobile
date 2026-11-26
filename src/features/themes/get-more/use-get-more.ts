@@ -43,6 +43,11 @@ export type GetMorePage = {
   importFile: () => void;
   /** Try Again: loads the list again. */
   retry: () => void;
+  /**
+   * Pull to refresh: searches again while the list stays. A list that cannot load keeps the one
+   * shown. Settles once the catalog answers.
+   */
+  refresh: () => Promise<void>;
   failure: GetMoreFailure | null;
   /** Takes away `failure` if it is still the one shown. */
   dismissFailure: (failure: GetMoreFailure) => void;
@@ -71,6 +76,8 @@ export function useGetMore(
   const [importFailure, setImportFailure] = useState<GetMoreFailure | null>(null);
   // Set at once, unlike state, so a second tap while the picker opens opens no second picker.
   const importing = useRef(false);
+  /** Counts refreshes, so only the newest one shows its answer. */
+  const refreshes = useRef(0);
   // An import failure is the person's latest action, so it shows first.
   const failure = importFailure ?? gets.failure;
 
@@ -171,6 +178,20 @@ export function useGetMore(
     },
     importFile: () => void importNow(),
     retry: () => setRequests((count) => count + 1),
+    async refresh() {
+      // A list still loading shows the newest answer when it arrives.
+      if (list.kind === "loading") return;
+      const asked = search;
+      const ticket = ++refreshes.current;
+      const result = await catalog.search(trimmed);
+      if (result === "unavailable" || ticket !== refreshes.current) return;
+      // A newer search has its own answer; this one shows only while its search does.
+      setAnswer((current) =>
+        current?.search === asked
+          ? { search: asked, list: { kind: "ready", extensions: result } }
+          : current,
+      );
+    },
     failure,
     dismissFailure,
     retryFailure: (shown) => {

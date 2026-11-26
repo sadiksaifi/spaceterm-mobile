@@ -78,6 +78,27 @@ describe("the Directory Picker", () => {
     expect(pickerView(late)).toMatchObject({ field: "~/", content: { kind: "loading" } });
   });
 
+  it("lists the directory again in place on refresh, keeping a typed path", () => {
+    const typed = run([{ type: "edit", field: "~/new" }], atHome);
+    const notes = { name: "notes", path: "~/notes/" };
+    const relisted = { ...home, directories: [...home.directories, notes] };
+    const refreshed = run(
+      [{ type: "refreshed", request: typed.request, listing: relisted }],
+      typed,
+    );
+    expect(pickerView(refreshed)).toMatchObject({
+      field: "~/new",
+      content: { kind: "directories", directories: relisted.directories },
+    });
+    expect(refreshed.fieldVersion).toBe(typed.fieldVersion);
+  });
+
+  it("drops a refresh of a directory it has since left", () => {
+    const left = run([{ type: "navigate", path: "~/scratch/" }], atHome);
+    const late = run([{ type: "refreshed", request: atHome.request, listing: home }], left);
+    expect(pickerView(late)).toMatchObject({ field: "~/scratch/", content: { kind: "loading" } });
+  });
+
   it("keeps Parent Directory and Try Again where the Machine cannot list, and opens only a typed path", () => {
     const state = run(
       [

@@ -27,6 +27,7 @@ import {
   onGeometryChange,
   onSubmit,
   padding,
+  refreshable,
   submitLabel,
   textCase,
   textInputAutocapitalization,
@@ -81,6 +82,11 @@ export default function DirectoryStepScreen({
       )}
       {/* The system spinner stands in for the checkmark until the Machine answers. */}
       <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="arrow.clockwise"
+          accessibilityLabel={text.refresh}
+          onPress={() => void picker.refresh()}
+        />
         {view.opening ? (
           <Stack.Toolbar.View>
             {/* The indicator reads as "In progress"; the view around it says what is. */}
@@ -118,6 +124,7 @@ export default function DirectoryStepScreen({
                   modifiers={[
                     listStyle("insetGrouped"),
                     onGeometryChange((list) => setListBottom(list.y + list.height)),
+                    refreshable(picker.refresh),
                   ]}
                 >
                   <Section header={<SectionHeader>{text.directoryOn(machineName)}</SectionHeader>}>

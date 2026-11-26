@@ -20,9 +20,9 @@ export function EmptyState({
     case "no-machines":
       return <NoMachines actions={actions} />;
     case "no-workspaces":
-      return <NoWorkspaces />;
+      return <NoWorkspaces onRefresh={actions.onRefresh} />;
     case "no-results":
-      return <NoResults query={view.query} />;
+      return <NoResults query={view.query} onRefresh={actions.onRefresh} />;
     case "unreachable":
       return <Unreachable view={view} actions={actions} />;
   }

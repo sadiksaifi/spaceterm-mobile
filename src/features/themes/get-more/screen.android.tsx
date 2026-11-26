@@ -1,5 +1,6 @@
 import closeIcon from "@expo/material-symbols/close.xml";
 import downloadIcon from "@expo/material-symbols/download.xml";
+import refreshIcon from "@expo/material-symbols/refresh.xml";
 import searchIcon from "@expo/material-symbols/search.xml";
 import searchOffIcon from "@expo/material-symbols/search_off.xml";
 import warningIcon from "@expo/material-symbols/warning.xml";
@@ -41,6 +42,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { heading, hiddenFromAccessibility } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 import { GROUPED_GAP, groupedCorners } from "@/shared/ui/android/grouped";
+import { Refreshable } from "@/shared/ui/android/refreshable";
 import { GroupedRow } from "@/shared/ui/android/grouped-row";
 import { GROUP_SPACE } from "@/shared/ui/android/page";
 import { ConfirmDialog } from "@/shared/ui/android/confirm-dialog";
@@ -100,57 +102,64 @@ export default function GetMoreScreen({ page, onClose }: GetMoreProps) {
                   {text.title}
                 </Text>
               </TopAppBar.Title>
+              <TopAppBar.Actions>
+                <IconButton onClick={() => void page.refresh()}>
+                  <Icon source={refreshIcon} contentDescription={text.refresh} />
+                </IconButton>
+              </TopAppBar.Actions>
             </TopAppBar>
             <SearchField onQuery={page.setQuery} />
-            <LazyColumn
-              verticalArrangement={{ spacedBy: GROUPED_GAP }}
-              contentPadding={{ start: 16, end: 16, top: 0, bottom: insets.bottom + GROUP_SPACE }}
-              modifiers={[weight(1), fillMaxWidth()]}
-            >
-              {/* While a search has text, the page shows only what it finds. */}
-              {!filtering && (
-                <Text
-                  style={{ typography: "bodyMedium" }}
-                  color={colors.secondaryText}
-                  modifiers={[padding(8, 16, 8, 16)]}
-                >
-                  {text.intro}
-                </Text>
-              )}
-              {!filtering && (
-                <Column modifiers={[padding(0, 0, 0, 12)]}>
-                  <GroupedRow
-                    first
-                    last
-                    leading={<Icon source={downloadIcon} tint={colors.secondaryText} />}
-                    headline={text.importFromFile}
-                    onClick={page.importFile}
-                  />
-                </Column>
-              )}
-              {list.kind === "loading" && <Loading />}
-              {list.kind === "unavailable" && <Unavailable onRetry={page.retry} />}
-              {list.kind === "ready" && list.extensions.length === 0 && filtering && (
-                <NoResults query={page.query.trim()} />
-              )}
-              {list.kind === "ready" && (
-                <LazyColumn.Items
-                  data={list.extensions}
-                  keyExtractor={(extension) => extension.id}
-                  estimatedItemSize={ROW_HEIGHT}
-                >
-                  {({ item, index }: { item: CatalogExtension; index: number }) => (
-                    <ExtensionRow
-                      key={item.id}
-                      extension={item}
-                      first={index === 0}
-                      last={index === list.extensions.length - 1}
-                      page={page}
+            <Refreshable onRefresh={page.refresh} modifiers={[weight(1), fillMaxWidth()]}>
+              <LazyColumn
+                verticalArrangement={{ spacedBy: GROUPED_GAP }}
+                contentPadding={{ start: 16, end: 16, top: 0, bottom: insets.bottom + GROUP_SPACE }}
+                modifiers={[fillMaxSize()]}
+              >
+                {/* While a search has text, the page shows only what it finds. */}
+                {!filtering && (
+                  <Text
+                    style={{ typography: "bodyMedium" }}
+                    color={colors.secondaryText}
+                    modifiers={[padding(8, 16, 8, 16)]}
+                  >
+                    {text.intro}
+                  </Text>
+                )}
+                {!filtering && (
+                  <Column modifiers={[padding(0, 0, 0, 12)]}>
+                    <GroupedRow
+                      first
+                      last
+                      leading={<Icon source={downloadIcon} tint={colors.secondaryText} />}
+                      headline={text.importFromFile}
+                      onClick={page.importFile}
                     />
-                  )}
-                </LazyColumn.Items>
-              )}
-            </LazyColumn>
+                  </Column>
+                )}
+                {list.kind === "loading" && <Loading />}
+                {list.kind === "unavailable" && <Unavailable onRetry={page.retry} />}
+                {list.kind === "ready" && list.extensions.length === 0 && filtering && (
+                  <NoResults query={page.query.trim()} />
+                )}
+                {list.kind === "ready" && (
+                  <LazyColumn.Items
+                    data={list.extensions}
+                    keyExtractor={(extension) => extension.id}
+                    estimatedItemSize={ROW_HEIGHT}
+                  >
+                    {({ item, index }: { item: CatalogExtension; index: number }) => (
+                      <ExtensionRow
+                        key={item.id}
+                        extension={item}
+                        first={index === 0}
+                        last={index === list.extensions.length - 1}
+                        page={page}
+                      />
+                    )}
+                  </LazyColumn.Items>
+                )}
+              </LazyColumn>
+            </Refreshable>
           </Column>
           <SnackbarSlot {...snackbar} bottom={insets.bottom + GROUP_SPACE} />
         </Box>

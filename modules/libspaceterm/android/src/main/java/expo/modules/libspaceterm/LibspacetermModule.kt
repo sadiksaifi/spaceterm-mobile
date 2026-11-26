@@ -9,10 +9,13 @@ import androidx.annotation.RequiresApi
 import expo.modules.interfaces.permissions.PermissionsStatus
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.Exceptions
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 import kotlin.concurrent.thread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import uniffi.spaceterm_mobile.Changes
 import uniffi.spaceterm_mobile.Connection
 import uniffi.spaceterm_mobile.InvitationReading
@@ -21,6 +24,7 @@ import uniffi.spaceterm_mobile.JoinState
 import uniffi.spaceterm_mobile.Machines
 import uniffi.spaceterm_mobile.MachinesException
 import uniffi.spaceterm_mobile.PairedMachine
+import uniffi.spaceterm_mobile.WorkspaceSummary
 
 class LibspacetermModule : Module() {
   private val changesLock = Any()
@@ -103,6 +107,17 @@ class LibspacetermModule : Module() {
 
     AsyncFunction("unpair") { machineId: String ->
       changeMachine { unpair(machineId) }
+    }
+
+    // Each waits up to ten seconds for the Machine's answer, on the IO dispatcher: Expo's shared
+    // queue would hold every other call of this module behind it. libspaceterm runs one edit per
+    // Machine at a time.
+    AsyncFunction("renameWorkspace") Coroutine { machineId: String, workspaceId: String, seen: String, name: String ->
+      withContext(Dispatchers.IO) { machines().renameWorkspace(machineId, workspaceId, seen, name) }
+    }
+
+    AsyncFunction("killWorkspace") Coroutine { machineId: String, workspaceId: String, seen: String ->
+      withContext(Dispatchers.IO) { machines().killWorkspace(machineId, workspaceId, seen) }
     }
 
     OnStartObserving("onChange") { startObserving() }
@@ -226,5 +241,15 @@ private fun PairedMachine.toMap() = mapOf(
     Connection.CONNECTING -> "connecting"
     Connection.DISCONNECTED -> "disconnected"
     Connection.UNAVAILABLE -> "unavailable"
-  }
+  },
+  "workspaces" to workspaces?.map { it.toMap() }
+)
+
+private fun WorkspaceSummary.toMap() = mapOf(
+  "id" to id,
+  "name" to name,
+  "directory" to directory,
+  "branch" to branch,
+  "terminalSessions" to terminalSessions.toInt(),
+  "seen" to seen
 )

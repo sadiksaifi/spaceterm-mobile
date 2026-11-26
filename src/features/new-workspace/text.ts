@@ -7,6 +7,7 @@ export const text = {
   close: "Close",
   back: "Back",
   loading: "Loading",
+  refresh: "Refresh",
 
   openDirectory: cased("Open Directory", "Open directory"),
   open: "Open",

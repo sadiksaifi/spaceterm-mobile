@@ -158,6 +158,57 @@ it("loads the list again with Try Again after it could not load", async () => {
   expect(result.current.list).toEqual({ kind: "ready", extensions: [catppuccin] });
 });
 
+it("lists anew in place on refresh, and keeps the list when the refresh cannot load", async () => {
+  const refreshed = deferred<CatalogExtension[] | "unavailable">();
+  const search = jest
+    .fn<ThemeCatalog["search"]>()
+    .mockResolvedValueOnce([catppuccin])
+    .mockReturnValueOnce(refreshed.promise)
+    .mockResolvedValueOnce("unavailable");
+  const { result } = await render({ search, themes: jest.fn<ThemeCatalog["themes"]>() });
+  await act(settle);
+
+  let done = false;
+  await act(async () => void result.current.refresh().then(() => (done = true)));
+  expect(result.current.list).toEqual({ kind: "ready", extensions: [catppuccin] });
+  expect(done).toBe(false);
+  await act(async () => {
+    refreshed.resolve([catppuccin, nightfox]);
+    await settle();
+  });
+  expect(done).toBe(true);
+  expect(result.current.list).toEqual({ kind: "ready", extensions: [catppuccin, nightfox] });
+
+  await act(async () => result.current.refresh());
+  expect(result.current.list).toEqual({ kind: "ready", extensions: [catppuccin, nightfox] });
+});
+
+it("shows the newest refresh when an earlier one answers after it", async () => {
+  const first = deferred<CatalogExtension[] | "unavailable">();
+  const second = deferred<CatalogExtension[] | "unavailable">();
+  const search = jest
+    .fn<ThemeCatalog["search"]>()
+    .mockResolvedValueOnce([catppuccin])
+    .mockReturnValueOnce(first.promise)
+    .mockReturnValueOnce(second.promise);
+  const { result } = await render({ search, themes: jest.fn<ThemeCatalog["themes"]>() });
+  await act(settle);
+
+  await act(async () => {
+    void result.current.refresh();
+    void result.current.refresh();
+  });
+  await act(async () => {
+    second.resolve([catppuccin, nightfox]);
+    await settle();
+  });
+  await act(async () => {
+    first.resolve([]);
+    await settle();
+  });
+  expect(result.current.list).toEqual({ kind: "ready", extensions: [catppuccin, nightfox] });
+});
+
 it("gets every theme in an extension, which then shows Remove, and Remove takes them away", async () => {
   const answer = deferred<TerminalTheme[] | "unavailable" | "no-themes">();
   const themes = jest.fn<ThemeCatalog["themes"]>().mockReturnValue(answer.promise);

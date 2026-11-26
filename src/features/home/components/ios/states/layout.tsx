@@ -1,5 +1,13 @@
 import { ScrollView, Text, VStack } from "@expo/ui/swift-ui";
-import { font, foregroundStyle, frame, padding } from "@expo/ui/swift-ui/modifiers";
+import {
+  containerRelativeFrame,
+  font,
+  foregroundStyle,
+  frame,
+  padding,
+  refreshable,
+  scrollDismissesKeyboard,
+} from "@expo/ui/swift-ui/modifiers";
 import type { ReactNode } from "react";
 import type { ColorValue } from "react-native";
 
@@ -14,26 +22,49 @@ const FILL = Number.POSITIVE_INFINITY;
 
 /**
  * Fills the screen and centers its content above the bottom toolbar. At accessibility text sizes
- * the content can be taller than the screen, so it scrolls from the top instead.
+ * the content can be taller than the screen, so it scrolls from the top instead. With `onRefresh`
+ * it pulls to refresh, so it scrolls at every size and fills the screen it scrolls in.
  */
 export function Centered({
   children,
   extraBottom = 0,
+  onRefresh,
 }: {
   children: ReactNode;
   extraBottom?: number;
+  onRefresh?: () => Promise<void>;
 }) {
   const largeText = useLargeText();
   const bottom = BOTTOM_INSET + extraBottom;
+  // A pull while searching keeps the keyboard until the drag moves it, as the Workspace list does.
+  const refresh =
+    onRefresh === undefined
+      ? []
+      : [refreshable(onRefresh), scrollDismissesKeyboard("interactively")];
 
   if (largeText) {
     return (
-      <ScrollView>
+      <ScrollView modifiers={refresh}>
         <VStack
           spacing={0}
           modifiers={[
             padding({ top: LARGE_TEXT_TOP, leading: 40, trailing: 40, bottom }),
             frame({ maxWidth: FILL }),
+          ]}
+        >
+          {children}
+        </VStack>
+      </ScrollView>
+    );
+  }
+  if (onRefresh !== undefined) {
+    return (
+      <ScrollView modifiers={refresh}>
+        <VStack
+          spacing={0}
+          modifiers={[
+            padding({ leading: 40, trailing: 40, bottom }),
+            containerRelativeFrame({ axes: "both" }),
           ]}
         >
           {children}

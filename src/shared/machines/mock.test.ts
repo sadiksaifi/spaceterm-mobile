@@ -62,7 +62,7 @@ describe("the mock client", () => {
       const client = createMockClient([{ ...mac, workspaces: [workspace] }], { latency: 500 });
       const workspaces = () => client.getSnapshot().machines[0]?.workspaces;
 
-      const killed = client.killWorkspace("mac", "w1");
+      const killed = client.killWorkspace("mac", workspace);
       await vi.advanceTimersByTimeAsync(499);
       expect(workspaces()).toHaveLength(1);
       await vi.advanceTimersByTimeAsync(1);
@@ -124,13 +124,13 @@ describe("the mock client", () => {
   it("refuses every other command when asked to, so Try Again succeeds", async () => {
     const client = createMockClient([{ ...mac, workspaces: [workspace] }], { refuse: true });
 
-    expect(await client.renameWorkspace("mac", "w1", "web")).toEqual({ kind: "failed" });
+    expect(await client.renameWorkspace("mac", workspace, "web")).toEqual({ kind: "failed" });
     expect(client.getSnapshot().machines[0]?.workspaces?.[0]?.name).toBe("app");
-    expect(await client.renameWorkspace("mac", "w1", "web")).toEqual({ kind: "done" });
+    expect(await client.renameWorkspace("mac", workspace, "web")).toEqual({ kind: "done" });
     expect(client.getSnapshot().machines[0]?.workspaces?.[0]?.name).toBe("web");
 
-    expect(await client.killWorkspace("mac", "w1")).toEqual({ kind: "failed" });
-    expect(await client.killWorkspace("mac", "w1")).toEqual({ kind: "done" });
+    expect(await client.killWorkspace("mac", workspace)).toEqual({ kind: "failed" });
+    expect(await client.killWorkspace("mac", workspace)).toEqual({ kind: "done" });
     expect(client.getSnapshot().machines[0]?.workspaces).toEqual([]);
 
     expect(await client.createWorkspace("mac", "~/Projects/app")).toEqual({ kind: "failed" });
@@ -144,8 +144,10 @@ describe("the mock client", () => {
 
     expect(await client.listDirectory("gone", "~/")).toMatchObject({ kind: "unavailable" });
     expect(await client.createWorkspace("gone", "~/")).toEqual({ kind: "failed" });
-    expect(await client.killWorkspace("mac", "w2")).toEqual({ kind: "failed" });
-    expect(await client.renameWorkspace("gone", "w1", "web")).toEqual({ kind: "failed" });
+    expect(await client.killWorkspace("mac", { ...workspace, id: "w2" })).toEqual({
+      kind: "failed",
+    });
+    expect(await client.renameWorkspace("gone", workspace, "web")).toEqual({ kind: "failed" });
   });
 
   it("disconnects at once, and reconnects when the Machine answers Connect", async () => {

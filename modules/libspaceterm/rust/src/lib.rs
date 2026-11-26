@@ -572,6 +572,23 @@ impl Machines {
             return WorktreeCreation::Failed;
         };
         let root = PathBuf::from(root);
+        let branch = worktrees::branch(branch);
+        // A Create of this branch whose answer was lost may have made the Worktree, which the
+        // Location check would then find not empty. It goes again instead, as it would anyway
+        // before any other edit, and its answer is this one's.
+        if let Some(pending) = self.pending(&machine_id)
+            && let Mutation::Worktree(worktree::Operation::Create {
+                workspace: listed,
+                root: from,
+                branch: checked_out,
+                ..
+            }) = &pending
+            && *listed == workspace
+            && *from == root
+            && *checked_out == branch
+        {
+            return worktrees::creation(self.outcome(&machine_id, pending));
+        }
         // The Machine expands the Location and checks it is missing or empty.
         let path = match self.read_worktree(
             &machine_id,
@@ -590,7 +607,7 @@ impl Machines {
                 workspace,
                 root,
                 path,
-                branch: worktrees::branch(branch),
+                branch,
                 control: CreateControl::Unclaimed,
             }),
         ))
@@ -670,6 +687,13 @@ impl Machines {
         let route = self.known(machine_id).ok()?;
         let machine = self.connections.core(&route)?;
         self.edits.submit(route, &machine, mutation)
+    }
+
+    /// The edit to a connected Machine whose answer was lost, if any.
+    fn pending(&self, machine_id: &str) -> Option<Mutation> {
+        let route = self.known(machine_id).ok()?;
+        let machine = self.connections.core(&route)?;
+        self.edits.pending(route, &machine)
     }
 
     /// Asks a connected Machine for Worktree facts and waits for the answer, `None` without one.

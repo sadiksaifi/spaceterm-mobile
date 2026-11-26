@@ -79,6 +79,21 @@ impl Edits {
         }
     }
 
+    /// The edit whose answer was lost, which the next edit to `machine` sends again first.
+    pub(crate) fn pending(
+        &self,
+        route: DirectRouteId,
+        machine: &PairedMachine,
+    ) -> Option<Mutation> {
+        let slot = self.slot(route)?;
+        let mut slot = slot.lock().ok()?;
+        let editor = self.editor(&mut slot, route, machine)?;
+        editor
+            .journal()
+            .pending()
+            .map(|pending| pending.mutation.clone())
+    }
+
     /// Settles a failed edit, which stays in the journal: a refusal does not show the Machine
     /// left it undone, since Core can refuse after it applied one. The next edit sends it again
     /// first.

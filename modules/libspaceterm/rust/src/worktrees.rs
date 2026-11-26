@@ -109,6 +109,15 @@ pub(crate) fn location(template: &str, home: &str, root: &str, branch: &str) -> 
     })
 }
 
+/// Whether the Machine placed a Worktree at `path` for the Location the person typed. The Machine
+/// takes `~/` as its home, which this device does not know, so the rest must end `path`.
+pub(crate) fn same_location(path: &Path, location: &str) -> bool {
+    match location.strip_prefix("~/") {
+        Some(rest) => path.is_absolute() && path.ends_with(rest),
+        None => path == Path::new(location),
+    }
+}
+
 pub(crate) fn branch(branch: NewWorktreeBranch) -> Branch {
     match branch {
         NewWorktreeBranch::New {
@@ -153,6 +162,15 @@ mod tests {
 
     fn names(names: &[&str]) -> Vec<String> {
         names.iter().map(|name| (*name).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_location_matches_the_path_the_machine_expanded_it_to() {
+        let path = Path::new("/home/me/wt/api-topic");
+        assert!(same_location(path, "~/wt/api-topic"));
+        assert!(same_location(path, "/home/me/wt/api-topic"));
+        assert!(!same_location(path, "~/wt/api-other"));
+        assert!(!same_location(path, "/work/api-topic"));
     }
 
     #[test]

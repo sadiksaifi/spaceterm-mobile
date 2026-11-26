@@ -573,21 +573,23 @@ impl Machines {
         };
         let root = PathBuf::from(root);
         let branch = worktrees::branch(branch);
-        // A Create of this branch whose answer was lost may have made the Worktree, which the
-        // Location check would then find not empty. It goes again instead, as it would anyway
-        // before any other edit, and its answer is this one's.
-        if let Some(pending) = self.pending(&machine_id)
-            && let Mutation::Worktree(worktree::Operation::Create {
+        // A Create of this branch at this Location whose answer was lost may have made the
+        // Worktree, which the Location check would then find not empty. It goes again instead,
+        // as it would anyway before any other edit, and its answer is this one's.
+        let resumed = self.resume(&machine_id, |pending| {
+            matches!(pending, Mutation::Worktree(worktree::Operation::Create {
                 workspace: listed,
                 root: from,
+                path,
                 branch: checked_out,
                 ..
-            }) = &pending
-            && *listed == workspace
-            && *from == root
-            && *checked_out == branch
-        {
-            return worktrees::creation(self.outcome(&machine_id, pending));
+            }) if *listed == workspace
+                && *from == root
+                && *checked_out == branch
+                && worktrees::same_location(path, &location))
+        });
+        if let Some(outcome) = resumed {
+            return worktrees::creation(outcome);
         }
         // The Machine expands the Location and checks it is missing or empty.
         let path = match self.read_worktree(
@@ -689,11 +691,15 @@ impl Machines {
         self.edits.submit(route, &machine, mutation)
     }
 
-    /// The edit to a connected Machine whose answer was lost, if any.
-    fn pending(&self, machine_id: &str) -> Option<Mutation> {
+    /// Sends again the edit to a connected Machine whose answer was lost, if `matches` takes it.
+    fn resume(
+        &self,
+        machine_id: &str,
+        matches: impl FnOnce(&Mutation) -> bool,
+    ) -> Option<Option<Outcome>> {
         let route = self.known(machine_id).ok()?;
         let machine = self.connections.core(&route)?;
-        self.edits.pending(route, &machine)
+        self.edits.resume(route, &machine, matches)
     }
 
     /// Asks a connected Machine for Worktree facts and waits for the answer, `None` without one.

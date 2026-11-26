@@ -79,19 +79,39 @@ impl Edits {
         }
     }
 
-    /// The edit whose answer was lost, which the next edit to `machine` sends again first.
-    pub(crate) fn pending(
+    /// Sends again the edit whose answer was lost, when `matches` takes it for the one the person
+    /// asks for now, and answers with its outcome. `None` when no such edit waits, and nothing is
+    /// sent.
+    pub(crate) fn resume(
         &self,
         route: DirectRouteId,
         machine: &PairedMachine,
-    ) -> Option<Mutation> {
+        matches: impl FnOnce(&Mutation) -> bool,
+    ) -> Option<Option<Outcome>> {
         let slot = self.slot(route)?;
         let mut slot = slot.lock().ok()?;
         let editor = self.editor(&mut slot, route, machine)?;
-        editor
+        if !editor
             .journal()
             .pending()
-            .map(|pending| pending.mutation.clone())
+            .is_some_and(|pending| matches(&pending.mutation))
+        {
+            return None;
+        }
+        Some(match editor.retry(Instant::now() + EDIT_WAIT) {
+            Ok(Some(outcome)) => {
+                let _ = editor.presented(outcome.sequence);
+                Some(outcome.outcome)
+            }
+            Ok(None) => None,
+            // The sequence can no longer run it, so it never ran; see `submit`.
+            Err(EditError::Request(RequestError::Refused(Refusal::Stale))) => {
+                *slot = None;
+                self.abandon(route, machine);
+                None
+            }
+            Err(error) => self.failed(&mut slot, error),
+        })
     }
 
     /// Settles a failed edit, which stays in the journal: a refusal does not show the Machine

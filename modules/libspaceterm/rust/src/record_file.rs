@@ -4,7 +4,7 @@ use spaceterm_client::direct::DirectError;
 use spaceterm_client::records::{Document, Durability, RecordFile, SaveError};
 use std::fs::{self, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 pub(crate) const FILE: &str = "direct-device-connections.json";
@@ -49,68 +49,68 @@ impl PrivateRecordFile {
     fn path(&self) -> PathBuf {
         self.directory.join(FILE)
     }
+}
 
-    fn current(&self) -> std::io::Result<Option<Vec<u8>>> {
-        let file = match File::open(self.path()) {
-            Ok(file) => file,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let mut bytes = Vec::new();
-        file.take(MAX_BYTES + 1).read_to_end(&mut bytes)?;
-        if bytes.len() as u64 > MAX_BYTES {
-            return Err(ErrorKind::FileTooLarge.into());
-        }
-        Ok(Some(bytes))
+/// Reads a private file of at most `MAX_BYTES`; `None` when there is none.
+pub(crate) fn read_private(path: &Path) -> std::io::Result<Option<Vec<u8>>> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let mut bytes = Vec::new();
+    file.take(MAX_BYTES + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err(ErrorKind::FileTooLarge.into());
     }
+    Ok(Some(bytes))
+}
 
-    /// Writes beside the file, then renames over it.
-    fn publish(&self, bytes: &[u8]) -> Publication {
-        match self.stage(bytes) {
-            Err(_) => Publication::NotPublished,
-            Ok(staged) => {
-                if fs::rename(&staged, self.path()).is_err() {
-                    let _ = fs::remove_file(&staged);
-                    return Publication::Unknown;
-                }
-                let synchronized = File::open(&self.directory)
-                    .and_then(|dir| dir.sync_all())
-                    .is_ok();
-                Publication::Published { synchronized }
+/// Publishes `bytes` as the private file `name` in `directory`: writes beside it, then renames
+/// over it.
+pub(crate) fn publish_private(directory: &Path, name: &str, bytes: &[u8]) -> Publication {
+    match stage(directory, name, bytes) {
+        Err(_) => Publication::NotPublished,
+        Ok(staged) => {
+            if fs::rename(&staged, directory.join(name)).is_err() {
+                let _ = fs::remove_file(&staged);
+                return Publication::Unknown;
             }
+            let synchronized = File::open(directory).and_then(|dir| dir.sync_all()).is_ok();
+            Publication::Published { synchronized }
         }
-    }
-
-    /// Writes `bytes` to a new private file beside the published one and returns its path.
-    /// The directory must exist: the platform creates it with the backup policy records need.
-    fn stage(&self, bytes: &[u8]) -> std::io::Result<PathBuf> {
-        let mut nonce = [0u8; 8];
-        getrandom::fill(&mut nonce).map_err(|_| std::io::Error::other("no randomness"))?;
-        let staged = self
-            .directory
-            .join(format!(".{FILE}.{}", hex(&nonce)));
-        let result = (|| {
-            let mut options = OpenOptions::new();
-            options.write(true).create_new(true);
-            #[cfg(unix)]
-            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-            let mut file = options.open(&staged)?;
-            file.write_all(bytes)?;
-            file.sync_all()
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&staged);
-        }
-        result.map(|()| staged)
     }
 }
 
-enum Publication {
+/// Writes `bytes` to a new private file beside `name` and returns its path. The directory must
+/// exist: the platform creates it with the backup policy these files need.
+fn stage(directory: &Path, name: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
+    let mut nonce = [0u8; 8];
+    getrandom::fill(&mut nonce).map_err(|_| std::io::Error::other("no randomness"))?;
+    let staged = directory.join(format!(".{name}.{}", hex(&nonce)));
+    let result = (|| {
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options.open(&staged)?;
+        file.write_all(bytes)?;
+        file.sync_all()
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&staged);
+    }
+    result.map(|()| staged)
+}
+
+pub(crate) enum Publication {
     /// The published file is as it was.
     NotPublished,
     /// The rename failed, and a failed rename can still have replaced the file.
     Unknown,
-    Published { synchronized: bool },
+    Published {
+        synchronized: bool,
+    },
 }
 
 impl RecordFile for PrivateRecordFile {
@@ -123,7 +123,9 @@ impl RecordFile for PrivateRecordFile {
             .lock()
             .map_err(|_| DirectError::StorageUnavailable)?;
         authority.blocked = true;
-        let Some(bytes) = self.current().map_err(|_| DirectError::StorageUnavailable)? else {
+        let Some(bytes) =
+            read_private(&self.path()).map_err(|_| DirectError::StorageUnavailable)?
+        else {
             *authority = WriteAuthority::default();
             return Ok(());
         };
@@ -142,11 +144,11 @@ impl RecordFile for PrivateRecordFile {
             return Err(SaveError::PublicationIndeterminate);
         }
         // Publish only over the file this adapter last saw.
-        let current = self.current().map_err(|_| SaveError::NotPublished)?;
+        let current = read_private(&self.path()).map_err(|_| SaveError::NotPublished)?;
         if current.as_deref().map(digest) != authority.observed {
             return Err(SaveError::NotPublished);
         }
-        match self.publish(bytes) {
+        match publish_private(&self.directory, FILE, bytes) {
             Publication::Published { synchronized } => {
                 authority.observed = Some(digest(bytes));
                 authority.order = order_of(bytes);
@@ -201,7 +203,10 @@ mod tests {
         let dir = directory();
         let records = PrivateRecords::new(Arc::new(PrivateRecordFile::new(dir.clone())));
         records.load().unwrap();
-        assert_eq!(records.save(&Document::default()), Ok(Durability::Synchronized));
+        assert_eq!(
+            records.save(&Document::default()),
+            Ok(Durability::Synchronized)
+        );
 
         let reopened = PrivateRecordFile::new(dir.clone());
         assert!(reopened.exists());
@@ -218,7 +223,10 @@ mod tests {
         records.save(&Document::default()).unwrap();
         fs::write(dir.join(FILE), b"{\"changed\":true}").unwrap();
 
-        assert_eq!(records.save(&Document::default()), Err(SaveError::NotPublished));
+        assert_eq!(
+            records.save(&Document::default()),
+            Err(SaveError::NotPublished)
+        );
         assert_eq!(fs::read(dir.join(FILE)).unwrap(), b"{\"changed\":true}");
         let _ = fs::remove_dir_all(dir);
     }
@@ -233,9 +241,15 @@ mod tests {
         records.save(&Document::default()).unwrap();
 
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o500)).unwrap();
-        assert_eq!(records.save(&Document::default()), Err(SaveError::NotPublished));
+        assert_eq!(
+            records.save(&Document::default()),
+            Err(SaveError::NotPublished)
+        );
         fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
-        assert_eq!(records.save(&Document::default()), Ok(Durability::Synchronized));
+        assert_eq!(
+            records.save(&Document::default()),
+            Ok(Durability::Synchronized)
+        );
         let _ = fs::remove_dir_all(dir);
     }
 

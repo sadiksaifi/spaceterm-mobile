@@ -21,6 +21,7 @@ import uniffi.spaceterm_mobile.JoinState
 import uniffi.spaceterm_mobile.Machines
 import uniffi.spaceterm_mobile.MachinesException
 import uniffi.spaceterm_mobile.PairedMachine
+import uniffi.spaceterm_mobile.WorkspaceSummary
 
 class LibspacetermModule : Module() {
   private val changesLock = Any()
@@ -103,6 +104,15 @@ class LibspacetermModule : Module() {
 
     AsyncFunction("unpair") { machineId: String ->
       changeMachine { unpair(machineId) }
+    }
+
+    // Each waits for the Machine's answer, off the main thread.
+    AsyncFunction("renameWorkspace") { machineId: String, workspaceId: String, name: String ->
+      machines().renameWorkspace(machineId, workspaceId, name)
+    }
+
+    AsyncFunction("killWorkspace") { machineId: String, workspaceId: String ->
+      machines().killWorkspace(machineId, workspaceId)
     }
 
     OnStartObserving("onChange") { startObserving() }
@@ -226,5 +236,14 @@ private fun PairedMachine.toMap() = mapOf(
     Connection.CONNECTING -> "connecting"
     Connection.DISCONNECTED -> "disconnected"
     Connection.UNAVAILABLE -> "unavailable"
-  }
+  },
+  "workspaces" to workspaces?.map { it.toMap() }
+)
+
+private fun WorkspaceSummary.toMap() = mapOf(
+  "id" to id,
+  "name" to name,
+  "directory" to directory,
+  "branch" to branch,
+  "terminalSessions" to terminalSessions.toInt()
 )

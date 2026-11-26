@@ -126,6 +126,7 @@ public class LibspacetermModule: Module {
           "name": machine.name,
           "address": machine.address,
           "connection": connection(machine.connection),
+          "workspaces": machine.workspaces.map { $0.map(workspace) } as Any? ?? NSNull(),
         ]
       }
     }
@@ -140,6 +141,15 @@ public class LibspacetermModule: Module {
 
     AsyncFunction("unpair") { (machineId: String) -> Bool in
       (try? shared.unpair(machineId: machineId)) != nil
+    }
+
+    // Each waits for the Machine's answer, off the main thread.
+    AsyncFunction("renameWorkspace") { (machineId: String, workspaceId: String, name: String) -> Bool in
+      shared.renameWorkspace(machineId: machineId, workspaceId: workspaceId, name: name)
+    }
+
+    AsyncFunction("killWorkspace") { (machineId: String, workspaceId: String) -> Bool in
+      shared.killWorkspace(machineId: machineId, workspaceId: workspaceId)
     }
   }
 
@@ -187,6 +197,16 @@ private func invited(_ kind: String, _ machine: InvitedMachine) -> [String: Any]
     "machineId": machine.machineId,
     "machineName": machine.machineName,
     "address": machine.address,
+  ]
+}
+
+private func workspace(_ workspace: WorkspaceSummary) -> [String: Any] {
+  [
+    "id": workspace.id,
+    "name": workspace.name,
+    "directory": workspace.directory,
+    "branch": workspace.branch as Any? ?? NSNull(),
+    "terminalSessions": Int(workspace.terminalSessions),
   ]
 }
 

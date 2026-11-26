@@ -1,12 +1,20 @@
-//! The libspaceterm surface the mobile app uses: Invitation Links, pairing, and the Machines
-//! this device has paired. Each platform supplies its secret storage; everything else is here.
+//! The libspaceterm surface the mobile app uses: Invitation Links, pairing, the Machines this
+//! device has paired, and their Workspaces. Each platform supplies its secret storage; everything
+//! else is here.
 uniffi::setup_scaffolding!();
 
+mod edits;
+mod inventories;
 mod record_file;
+mod workspaces;
 
+use edits::Edits;
+use inventories::Inventories;
 use record_file::{PrivateRecordFile, hex};
 use spaceterm_client::direct::{DirectError, Endpoint, Invitation, default_port};
+use spaceterm_client::hierarchy::{CloseTarget, Inventory, Mutation};
 use spaceterm_client::pane::control::ClientName;
+use spaceterm_client::protocol::InventoryRevision;
 use spaceterm_client::records::PrivateRecords;
 use spaceterm_client::{
     CredentialError, CredentialStore, DeviceName, DirectConnections, DirectRouteId,
@@ -15,6 +23,7 @@ use spaceterm_client::{
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use workspaces::{WorkspaceSummary, summaries};
 use zeroize::Zeroizing;
 
 /// The build identity of released SpaceTerm. An Invitation Link names the identity of the Core
@@ -53,11 +62,15 @@ pub struct InvitedMachine {
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum InvitationReading {
-    Invitation { machine: InvitedMachine },
+    Invitation {
+        machine: InvitedMachine,
+    },
     /// Not an Invitation Link, one for another edition of SpaceTerm, or one that has expired.
     Unusable,
     /// A link for a Machine this device has paired already.
-    AlreadyPaired { machine: InvitedMachine },
+    AlreadyPaired {
+        machine: InvitedMachine,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
@@ -65,10 +78,14 @@ pub enum JoinState {
     /// Reaching the Machine, before it shows a Comparison Code.
     Reaching,
     /// The six digits the Machine shows too, waiting for approval there.
-    Comparing { code: String },
+    Comparing {
+        code: String,
+    },
     /// The Machine did not answer. The join waits until `retry_join` or `cancel_join`.
     Paused,
-    Paired { machine_id: String },
+    Paired {
+        machine_id: String,
+    },
     /// The Machine declined, or the Comparison Code expired.
     Declined,
     /// The Machine could not be reached, or pairing failed on this device.
@@ -91,6 +108,8 @@ pub struct PairedMachine {
     pub name: String,
     pub address: String,
     pub connection: Connection,
+    /// The Machine's Workspaces while it is connected and has sent them, `None` otherwise.
+    pub workspaces: Option<Vec<WorkspaceSummary>>,
 }
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -111,26 +130,31 @@ pub struct Machines {
     connections: DirectConnections,
     records: Arc<PrivateRecordFile>,
     device_name: String,
+    inventories: Arc<Inventories>,
+    edits: Arc<Edits>,
 }
 
-/// One listener's view of changes to the paired Machines and joins.
+/// One listener's view of changes to the paired Machines, their Workspaces, and joins.
 #[derive(uniffi::Object)]
 pub struct Changes {
     connections: DirectConnections,
+    /// Changes to the Machines and joins, which a thread forwards to `receiver`.
+    routes: async_channel::Receiver<()>,
     receiver: async_channel::Receiver<()>,
 }
 
 #[uniffi::export]
 impl Changes {
-    /// Blocks until something about the paired Machines or a join changes. Returns `false` once
-    /// `stop` has run, so a waiting thread can end.
+    /// Blocks until something about the paired Machines, their Workspaces, or a join changes.
+    /// Returns `false` once `stop` has run, so a waiting thread can end.
     pub fn next(&self) -> bool {
         self.receiver.recv_blocking().is_ok()
     }
 
     /// Wakes and ends `next`. Later changes reach this listener no more.
     pub fn stop(&self) {
-        self.connections.close_subscription(&self.receiver);
+        self.connections.close_subscription(&self.routes);
+        self.receiver.close();
     }
 }
 
@@ -141,7 +165,8 @@ impl Machines {
     /// this device. Open one per process: two would write the same file.
     #[uniffi::constructor]
     pub fn new(directory: String, device_name: String, secrets: Arc<dyn SecretStore>) -> Arc<Self> {
-        let records = Arc::new(PrivateRecordFile::new(PathBuf::from(directory)));
+        let directory = PathBuf::from(directory);
+        let records = Arc::new(PrivateRecordFile::new(directory.clone()));
         if !records.exists() {
             let _ = secrets.clear();
         }
@@ -156,11 +181,16 @@ impl Machines {
             Arc::new(|| None),
             None,
         );
+        let edits = Arc::new(Edits::new(directory));
+        let forgotten = Arc::clone(&edits);
+        connections.on_route_removed(Arc::new(move |route| forgotten.forget(route)));
         connections.resume_retained();
         Arc::new(Self {
             connections,
             records,
             device_name,
+            inventories: Arc::new(Inventories::new()),
+            edits,
         })
     }
 
@@ -185,10 +215,19 @@ impl Machines {
 
     /// Starts pairing with the Machine of `link`, at `network_address` when it is given. Returns
     /// the join to follow with `join_state`.
-    pub fn join(&self, link: String, network_address: Option<String>) -> Result<String, MachinesError> {
+    pub fn join(
+        &self,
+        link: String,
+        network_address: Option<String>,
+    ) -> Result<String, MachinesError> {
         let invitation = usable(&link).ok_or(MachinesError::UnusableInvitation)?;
         let endpoint = network_address
-            .map(|address| Endpoint::parse(address.trim(), default_port(&invitation.machine_pin().build)))
+            .map(|address| {
+                Endpoint::parse(
+                    address.trim(),
+                    default_port(&invitation.machine_pin().build),
+                )
+            })
             .transpose()
             .map_err(|_| MachinesError::InvalidAddress)?;
         let name = ClientName::for_computer(Some(&self.device_name), None);
@@ -251,11 +290,19 @@ impl Machines {
             .filter_map(|id| {
                 let status = statuses.iter().find(|(route, _)| route == id)?.1;
                 let route = self.connections.route(id)?;
+                let connection = connection_of(status);
+                let workspaces = match connection {
+                    Connection::Connected => self
+                        .inventory(id)
+                        .map(|revision| summaries(&revision.inventory)),
+                    _ => None,
+                };
                 Some(PairedMachine {
                     id: hex(id),
                     name: route.label,
                     address: address_of(&route.endpoint),
-                    connection: connection_of(status),
+                    connection,
+                    workspaces,
                 })
             })
             .collect()
@@ -278,16 +325,88 @@ impl Machines {
             .map_err(|_| MachinesError::Unavailable)
     }
 
+    /// Renames a Workspace. Returns whether the Machine renamed it.
+    pub fn rename_workspace(&self, machine_id: String, workspace_id: String, name: String) -> bool {
+        self.edit(&machine_id, |inventory| {
+            let id = decode(&workspace_id)?;
+            let workspace = inventory.workspaces.iter().find(|w| w.id == id)?;
+            Some(Mutation::RenameWorkspace {
+                workspace: id,
+                version: workspace.name_version,
+                name,
+            })
+        })
+    }
+
+    /// Ends a Workspace and every Terminal Session in it. Returns whether the Machine ended it.
+    pub fn kill_workspace(&self, machine_id: String, workspace_id: String) -> bool {
+        self.edit(&machine_id, |inventory| {
+            let target = CloseTarget::KillWorkspace {
+                workspace: decode(&workspace_id)?,
+            };
+            let confirmation = inventory.close_confirmation(target)?;
+            Some(Mutation::Close {
+                target,
+                confirmation,
+            })
+        })
+    }
+
     /// A new listener for changes, such as one per JavaScript runtime.
     pub fn changes(&self) -> Arc<Changes> {
+        let routes = self.connections.subscribe();
+        let (forward, receiver) = self.inventories.listen();
+        self.inventories.follow(&self.connections);
+        let connections = self.connections.clone();
+        let inventories = Arc::clone(&self.inventories);
+        let changes = routes.clone();
+        // A connected Machine's revisions are followed before listeners read the change.
+        std::thread::Builder::new()
+            .name("libspaceterm routes".to_owned())
+            .spawn(move || {
+                while changes.recv_blocking().is_ok() {
+                    inventories.follow(&connections);
+                    let _ = forward.try_send(());
+                }
+                forward.close();
+            })
+            .ok();
         Arc::new(Changes {
-            receiver: self.connections.subscribe(),
             connections: self.connections.clone(),
+            routes,
+            receiver,
         })
     }
 }
 
 impl Machines {
+    /// The Inventory a connected Machine sent last, `None` before its first.
+    fn inventory(&self, id: &DirectRouteId) -> Option<Arc<InventoryRevision>> {
+        let link = self.connections.core(id)?.work().live_link()?;
+        Some(link.inventory()?.1)
+    }
+
+    /// Sends the edit `mutation` makes of the Machine's current Inventory, `None` when the edit
+    /// no longer applies, and waits for its answer.
+    fn edit(
+        &self,
+        machine_id: &str,
+        mutation: impl FnOnce(&Inventory) -> Option<Mutation>,
+    ) -> bool {
+        let Ok(route) = self.known(machine_id) else {
+            return false;
+        };
+        let Some(machine) = self.connections.core(&route) else {
+            return false;
+        };
+        let Some(mutation) = self
+            .inventory(&route)
+            .and_then(|revision| mutation(&revision.inventory))
+        else {
+            return false;
+        };
+        self.edits.submit(route, &machine, mutation)
+    }
     fn known(&self, machine_id: &str) -> Result<DirectRouteId, MachinesError> {
         decode(machine_id)
             .filter(|id| self.connections.route(id).is_some())

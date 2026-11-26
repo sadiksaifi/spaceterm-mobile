@@ -14,18 +14,21 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/** Changes `key`'s grid state from outside its screen, as New Worktree does once it opens a Tab. */
+export function changeGridState(key: string, change: (state: GridState) => GridState) {
+  const before = states.get(key) ?? NO_GRID_STATE;
+  const after = change(before);
+  if (after === before) return;
+  states.set(key, after);
+  listeners.forEach((listener) => listener());
+}
+
 export function useGridState(
   key: string,
 ): [GridState, (change: (state: GridState) => GridState) => void] {
   const state = useSyncExternalStore(subscribe, () => states.get(key) ?? NO_GRID_STATE);
   const update = useCallback(
-    (change: (state: GridState) => GridState) => {
-      const before = states.get(key) ?? NO_GRID_STATE;
-      const after = change(before);
-      if (after === before) return;
-      states.set(key, after);
-      listeners.forEach((listener) => listener());
-    },
+    (change: (state: GridState) => GridState) => changeGridState(key, change),
     [key],
   );
   return [state, update];

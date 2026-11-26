@@ -11,8 +11,6 @@ use std::time::{Duration, Instant};
 
 /// How long an edit waits for the Machine before it counts as failed.
 const EDIT_WAIT: Duration = Duration::from_secs(10);
-/// How long an edit waits for a list that offers a fresh sequence.
-const FRESH_WAIT: Duration = Duration::from_secs(2);
 
 type Slot = Arc<Mutex<Option<(PairedMachine, WorkspaceEditor)>>>;
 
@@ -69,15 +67,6 @@ impl Edits {
         let Some(editor) = self.editor(&mut slot, route, machine) else {
             return false;
         };
-        // The wait takes at most half of what is left, so the edit keeps time to be sent.
-        if let Some(last) = editor.journal().last() {
-            let left = deadline.saturating_duration_since(Instant::now());
-            await_other_sequence(
-                machine,
-                last.sequence,
-                Instant::now() + FRESH_WAIT.min(left / 2),
-            );
-        }
         match editor.submit(mutation, deadline) {
             Ok(outcome) => {
                 // The person sees every answer when it arrives, so none waits to be presented.
@@ -162,27 +151,6 @@ impl Edits {
             directory: self.directory.clone(),
             name: journal_name(&route),
         }
-    }
-}
-
-/// Waits until `machine`'s connection offers a sequence other than `settled`, or `until`. A
-/// connection made while an edit settled can still offer that edit's sequence, which Core would
-/// refuse as stale; a newer list usually follows at once. The edit goes on either way, as Core
-/// can offer that sequence again after its Workspaces start over.
-fn await_other_sequence(machine: &PairedMachine, settled: u64, until: Instant) {
-    let Some(link) = machine.work().live_link() else {
-        return;
-    };
-    let mut seen = 0;
-    // A list can arrive on every turn, so the clock ends the wait, not the lists.
-    while Instant::now() < until {
-        let Ok(Some((revision, inventory))) = link.next_inventory_by(seen, until) else {
-            return;
-        };
-        if inventory.next_sequence != settled {
-            return;
-        }
-        seen = revision;
     }
 }
 

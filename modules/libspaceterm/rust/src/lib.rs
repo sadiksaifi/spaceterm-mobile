@@ -492,13 +492,18 @@ impl Machines {
         seen: String,
         asked: bool,
     ) -> bool {
-        let (Some(workspace), Some(tab), Some(confirmation)) = (
+        let (Some(workspace), Some(tab), Some(mut confirmation)) = (
             decode(&workspace_id),
             decode(&tab_id),
             read_confirmation(&seen, asked),
         ) else {
             return false;
         };
+        // A Machine before work 1.5 cannot close only what is idle; it checks only that the
+        // Terminal Sessions are the same.
+        if confirmation.is_close_if_idle() && !self.supports(&machine_id, Capability::CloseIfIdle) {
+            confirmation.own_controls = None;
+        }
         let target = match pane_id {
             None => CloseTarget::Tab { workspace, tab },
             Some(pane) => {

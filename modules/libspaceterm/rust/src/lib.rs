@@ -559,12 +559,13 @@ impl Machines {
     }
 
     /// Creates a Worktree of the repository whose Main Worktree is `root` at `location`, which can
-    /// start with `~/`, and opens one Tab in it.
+    /// start with `~/` for the Machine's `home`, and opens one Tab in it.
     pub fn create_worktree(
         &self,
         machine_id: String,
         workspace_id: String,
         root: String,
+        home: String,
         location: String,
         branch: NewWorktreeBranch,
     ) -> WorktreeCreation {
@@ -586,7 +587,7 @@ impl Machines {
             }) if *listed == workspace
                 && *from == root
                 && *checked_out == branch
-                && worktrees::same_location(path, &location))
+                && worktrees::same_location(path, &home, &location))
         });
         if let Some(outcome) = resumed {
             return worktrees::creation(outcome);

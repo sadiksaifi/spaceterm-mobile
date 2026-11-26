@@ -163,7 +163,7 @@ class LibspacetermModule : Module() {
       machines().worktreeLocation(template, home, root, branch)
     }
 
-    AsyncFunction("createWorktree") Coroutine { machineId: String, workspaceId: String, root: String, location: String, kind: String, name: String, base: String ->
+    AsyncFunction("createWorktree") Coroutine { machineId: String, workspaceId: String, root: String, home: String, location: String, kind: String, name: String, base: String ->
       val branch = when (kind) {
         "existing" -> NewWorktreeBranch.Existing(name)
         "remote" -> NewWorktreeBranch.Remote(base, name)
@@ -171,7 +171,7 @@ class LibspacetermModule : Module() {
         else -> NewWorktreeBranch.New(name, base, false)
       }
       withContext(Dispatchers.IO) {
-        when (val creation = machines().createWorktree(machineId, workspaceId, root, location, branch)) {
+        when (val creation = machines().createWorktree(machineId, workspaceId, root, home, location, branch)) {
           is WorktreeCreation.Created -> mapOf("kind" to "created", "tab" to creation.tab)
           WorktreeCreation.InvalidName -> mapOf("kind" to "invalid-name")
           WorktreeCreation.BranchExists -> mapOf("kind" to "branch-exists")

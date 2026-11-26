@@ -211,14 +211,14 @@ export function createNativeClient(
     worktreeContext: (machineId, repository) => native.worktreeContext(machineId, repository.root),
     worktreeLocation: ({ template, home, root }, branch) =>
       native.worktreeLocation(template, home, root, branch),
-    createWorktree: (machineId, { id }, { root }, { branch, location }) => {
+    createWorktree: (machineId, { id }, { root, home }, { branch, location }) => {
       const [kind, name, base] =
         branch.kind === "new"
           ? ([branch.baseIsRemote ? "new-from-remote" : "new", branch.name, branch.base] as const)
           : branch.kind === "existing"
             ? (["existing", branch.name, ""] as const)
             : (["remote", branch.name, branch.remote] as const);
-      return native.createWorktree(machineId, id, root, location, kind, name, base);
+      return native.createWorktree(machineId, id, root, home, location, kind, name, base);
     },
     restartCore: async () => ({ kind: "failed" }),
     disconnect: (machineId) => {

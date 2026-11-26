@@ -595,6 +595,7 @@ describe("a Workspace's Tabs through libspaceterm", () => {
       "m1",
       "w1",
       root,
+      "/Users/you",
       "~/.worktrees/api/topic",
       "remote",
       "topic",

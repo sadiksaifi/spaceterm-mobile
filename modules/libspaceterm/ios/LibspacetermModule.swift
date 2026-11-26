@@ -205,7 +205,8 @@ public class LibspacetermModule: Module {
     }
 
     AsyncFunction("createWorktree") {
-      (machineId: String, workspaceId: String, root: String, location: String, kind: String,
+      (machineId: String, workspaceId: String, root: String, home: String, location: String,
+        kind: String,
         name: String, base: String) -> [String: Any] in
       let branch: NewWorktreeBranch
       switch kind {
@@ -215,7 +216,7 @@ public class LibspacetermModule: Module {
       default: branch = .new(name: name, base: base, baseIsRemote: false)
       }
       switch shared.createWorktree(
-        machineId: machineId, workspaceId: workspaceId, root: root, location: location,
+        machineId: machineId, workspaceId: workspaceId, root: root, home: home, location: location,
         branch: branch)
       {
       case .created(let tab): return ["kind": "created", "tab": tab]

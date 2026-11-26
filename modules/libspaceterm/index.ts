@@ -178,12 +178,14 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   worktreeLocation(template: string, home: string, root: string, branch: string): string | null;
   /**
    * `kind` is `new` or `new-from-remote` with `base` the branch to start from, `existing`, or
-   * `remote` with `base` the remote branch to track.
+   * `remote` with `base` the remote branch to track. `home` is the Machine's, from
+   * `worktreeContext`, which places a Location that starts with `~/`.
    */
   createWorktree(
     machineId: string,
     workspaceId: string,
     root: string,
+    home: string,
     location: string,
     kind: "new" | "new-from-remote" | "existing" | "remote",
     name: string,

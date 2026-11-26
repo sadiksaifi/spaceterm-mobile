@@ -20,7 +20,7 @@ use spaceterm_client::hierarchy::{
     Axis, CloseTarget, CreateControl, Id, Mutation, Outcome, TabPosition,
 };
 use spaceterm_client::pane::control::ClientName;
-use spaceterm_client::protocol::capability::Capability;
+use spaceterm_client::protocol::capability::{Capability, Unavailable};
 use spaceterm_client::protocol::preview;
 use spaceterm_client::protocol::{InventoryRevision, Operation, ReplyBody};
 use spaceterm_client::records::PrivateRecords;
@@ -354,13 +354,11 @@ impl Machines {
                     Connection::Connected => self.inventory(id).map(|revision| {
                         let core = self.connections.core(id);
                         let client = core.as_ref().map(|core| core.paired().client);
-                        let reorders = core.as_ref().is_some_and(|core| {
-                            core.work()
-                                .capabilities()
-                                .check(Capability::ReorderTab)
-                                .is_ok()
+                        let fixed_order = core.as_ref().is_some_and(|core| {
+                            core.work().capabilities().check(Capability::ReorderTab)
+                                == Err(Unavailable::CoreTooOld)
                         });
-                        summaries(&revision.inventory, client, reorders)
+                        summaries(&revision.inventory, client, !fixed_order)
                     }),
                     _ => None,
                 };
@@ -545,8 +543,8 @@ impl Machines {
             return false;
         };
         // A Machine before work 1.5 cannot close only what is idle; it checks only that the
-        // Terminal Sessions are the same.
-        if confirmation.is_close_if_idle() && !self.supports(&machine_id, Capability::CloseIfIdle) {
+        // Terminal Sessions are the same. A Machine not known to be older keeps the guard.
+        if confirmation.is_close_if_idle() && self.too_old(&machine_id, Capability::CloseIfIdle) {
             confirmation.own_controls = None;
         }
         let target = match pane_id {
@@ -799,6 +797,16 @@ impl Machines {
         let route = self.known(machine_id).ok()?;
         let machine = self.connections.core(&route)?;
         self.edits.resume(route, &machine, matches)
+    }
+
+    /// The Machine's work protocol, as last admitted, is known to predate `capability`.
+    fn too_old(&self, machine_id: &str, capability: Capability) -> bool {
+        self.known(machine_id)
+            .ok()
+            .and_then(|route| self.connections.core(&route))
+            .is_some_and(|machine| {
+                machine.work().capabilities().check(capability) == Err(Unavailable::CoreTooOld)
+            })
     }
 
     /// The connected Machine's work protocol has `capability`.

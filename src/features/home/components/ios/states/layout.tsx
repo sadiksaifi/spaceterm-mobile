@@ -6,6 +6,7 @@ import {
   frame,
   padding,
   refreshable,
+  scrollDismissesKeyboard,
 } from "@expo/ui/swift-ui/modifiers";
 import type { ReactNode } from "react";
 import type { ColorValue } from "react-native";
@@ -35,7 +36,11 @@ export function Centered({
 }) {
   const largeText = useLargeText();
   const bottom = BOTTOM_INSET + extraBottom;
-  const refresh = onRefresh === undefined ? [] : [refreshable(onRefresh)];
+  // A pull while searching keeps the keyboard until the drag moves it, as the Workspace list does.
+  const refresh =
+    onRefresh === undefined
+      ? []
+      : [refreshable(onRefresh), scrollDismissesKeyboard("interactively")];
 
   if (largeText) {
     return (

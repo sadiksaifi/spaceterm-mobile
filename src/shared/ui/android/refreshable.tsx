@@ -1,6 +1,13 @@
 import { PullToRefreshBox } from "@expo/ui/jetpack-compose";
-import { fillMaxSize, type ModifierConfig } from "@expo/ui/jetpack-compose/modifiers";
+import {
+  fillMaxSize,
+  fillMaxWidth,
+  wrapContentWidth,
+  type ModifierConfig,
+} from "@expo/ui/jetpack-compose/modifiers";
 import { useState, type ReactNode } from "react";
+
+const CENTERED = [fillMaxWidth(), wrapContentWidth("centerHorizontally")];
 
 /**
  * Pull to refresh around one scrolling list. The indicator shows until `onRefresh` settles.
@@ -21,6 +28,9 @@ export function Refreshable({
   return (
     <PullToRefreshBox
       isRefreshing={refreshing}
+      // @expo/ui draws Material's indicator without its top-center placement, so it would sit at
+      // the start edge.
+      indicator={{ modifiers: CENTERED }}
       onRefresh={() => {
         if (refreshing) return;
         setRefreshing(true);

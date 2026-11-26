@@ -1,5 +1,7 @@
 import { cased } from "@/shared/text";
 
+import type { PairingView } from "./use-pairing";
+
 export const text = {
   title: "Add Machine",
   cancel: "Cancel",
@@ -39,6 +41,37 @@ export const text = {
   declined: "The request was declined or the Comparison Code expired.",
   unreachable: (machine: string) => `Make sure ${machine} is on and SpaceTerm Core is running.`,
   tryAgain: cased("Try Again", "Try again"),
+  /** This device has no room for another pairing, as cancelled pairings still hold some. */
+  unfinished: "This device has too many unfinished pairings.",
+  /**
+   * This device has no room, and no cancelled pairing holds any: paired Machines do, and Machines
+   * unpaired while away, until they answer.
+   */
+  noRoom:
+    "This device has no room for another Machine. Unpair one in Settings, or wait for Machines you unpaired to answer.",
+  stopUnfinished: cased("Stop Unfinished Pairings", "Stop unfinished pairings"),
+  stopTitle: (count: number) =>
+    count === 1
+      ? cased("Stop the Unfinished Pairing?", "Stop the unfinished pairing?")
+      : cased(`Stop ${count} Unfinished Pairings?`, `Stop ${count} unfinished pairings?`),
+  stopBody:
+    "This device stops waiting for those Machines to cancel. A Machine that approved this device may still list it until you unpair it there.",
+  stop: "Stop",
   paired: (machine: string) => `Paired with ${machine}`,
   done: "Done",
 };
+
+/** Why a pairing failed, under "Couldn’t Pair". */
+export function failedBody(
+  pairing: Extract<PairingView, { kind: "declined" | "unreachable" | "full" }>,
+  machine: string,
+): string {
+  switch (pairing.kind) {
+    case "declined":
+      return text.declined;
+    case "unreachable":
+      return text.unreachable(machine);
+    case "full":
+      return pairing.unfinished > 0 ? text.unfinished : text.noRoom;
+  }
+}

@@ -18,7 +18,7 @@ use spaceterm_client::protocol::InventoryRevision;
 use spaceterm_client::records::PrivateRecords;
 use spaceterm_client::{
     CredentialError, CredentialStore, DeviceName, DirectConnections, DirectRouteId,
-    DirectRouteStatus, Interaction, JoinStatus,
+    DirectRouteStatus, Interaction, JoinId, JoinStatus, UnpairKey,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -30,6 +30,9 @@ use zeroize::Zeroizing;
 /// that made it; this app pairs only with released Cores.
 const IDENTITY: &str = "spaceterm";
 const ENDPOINT_SCHEME: &str = "quic://";
+/// The pairings this device can hold, counting unpairs and cancelled pairings that wait for their
+/// Machine: libspaceterm's `records::CAPACITY`, which it does not export.
+const ROOM: usize = 128;
 
 /// The platform's secret storage: the Keychain on iOS, the Android Keystore on Android. Each
 /// pairing keeps one immutable secret under its own key. Calls come from background threads.
@@ -90,6 +93,12 @@ pub enum JoinState {
     Declined,
     /// The Machine could not be reached, or pairing failed on this device.
     Unreachable,
+    /// This device has no room for another pairing. `unfinished` of the pairings it holds are
+    /// cancelled ones still waiting for their Machine to answer; `stop_unfinished_pairings` frees
+    /// their room.
+    Full {
+        unfinished: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -254,7 +263,9 @@ impl Machines {
     }
 
     pub fn join_state(&self, join: String) -> JoinState {
-        let Some(status) = decode(&join).and_then(|id| self.connections.join_status(id)) else {
+        let Some((id, status)) =
+            decode(&join).and_then(|id| Some((id, self.connections.join_status(id)?)))
+        else {
             return JoinState::Unreachable;
         };
         match status {
@@ -269,6 +280,9 @@ impl Machines {
             }
             JoinStatus::Rejected | JoinStatus::Expired => JoinState::Declined,
             JoinStatus::Retryable { .. } => JoinState::Paused,
+            JoinStatus::Failed(DirectError::Capacity) => {
+                self.full(id).unwrap_or(JoinState::Unreachable)
+            }
             JoinStatus::PublicationUnconfirmed | JoinStatus::Failed(_) => JoinState::Unreachable,
         }
     }
@@ -283,6 +297,19 @@ impl Machines {
         if let Some(id) = decode(&join) {
             let _ = self.connections.cancel_join(id);
         }
+    }
+
+    /// Stops waiting for the Machines of cancelled pairings to answer, which frees the room each
+    /// holds. Returns whether every one stopped. A Machine that approved this device may still
+    /// list it, as this does not ask the Machine to revoke it. Call only after the person confirms.
+    pub fn stop_unfinished_pairings(&self) -> bool {
+        // Every one is tried, so one that fails still frees the room of the others.
+        let keys = self.unfinished();
+        let stopped = keys
+            .iter()
+            .filter(|key| self.connections.abandon_enrollment_cleanup(**key).is_ok())
+            .count();
+        stopped == keys.len()
     }
 
     /// The paired Machines, in the order they were paired.
@@ -403,6 +430,32 @@ impl Machines {
 }
 
 impl Machines {
+    /// `Full` when `join` found no room for another pairing on this device. A Machine with too many
+    /// pairings waiting for approval refuses with the same error, and freeing room here would not
+    /// help it. A join that reached the Machine holds room of its own, under its own id, until
+    /// libspaceterm cleans it up.
+    fn full(&self, join: JoinId) -> Option<JoinState> {
+        let pending = self.connections.pending_unpairs();
+        let reached = pending.iter().any(|p| p.key == join);
+        if reached || self.connections.routes().len() + pending.len() < ROOM {
+            return None;
+        }
+        let unfinished = pending.iter().filter(|p| p.enrollment_cleanup).count();
+        Some(JoinState::Full {
+            unfinished: u32::try_from(unfinished).unwrap_or(u32::MAX),
+        })
+    }
+
+    /// The cancelled pairings that still wait for their Machine to answer.
+    fn unfinished(&self) -> Vec<UnpairKey> {
+        self.connections
+            .pending_unpairs()
+            .into_iter()
+            .filter(|pending| pending.enrollment_cleanup)
+            .map(|pending| pending.key)
+            .collect()
+    }
+
     /// The Inventory a connected Machine sent last, `None` before its first.
     fn inventory(&self, id: &DirectRouteId) -> Option<Arc<InventoryRevision>> {
         let link = self.connections.core(id)?.work().live_link()?;

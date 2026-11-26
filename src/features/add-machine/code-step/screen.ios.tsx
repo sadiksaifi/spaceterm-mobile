@@ -1,5 +1,5 @@
 import { Host } from "@expo/ui";
-import { HStack, ProgressView, ScrollView, Text, VStack } from "@expo/ui/swift-ui";
+import { Alert, Button, HStack, ProgressView, ScrollView, Text, VStack } from "@expo/ui/swift-ui";
 import {
   accessibilityElement,
   accessibilityLabel,
@@ -13,7 +13,7 @@ import {
   padding,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useWindowDimensions } from "react-native";
 
 import { useColors } from "@/shared/theme/colors";
@@ -21,7 +21,7 @@ import { secondary } from "@/shared/ui/ios/modifiers";
 import { ActionButton, StateBody, StateIcon, StateTitle } from "@/shared/ui/ios/state";
 import { useLargeText } from "@/shared/ui/large-text";
 
-import { text } from "../text";
+import { failedBody, text } from "../text";
 import type ScreenContract from "./screen";
 import type { CodeStepProps } from "./screen";
 
@@ -35,10 +35,12 @@ export default function CodeStepScreen({
   machineName,
   pairing,
   onTryAgain,
+  onStopUnfinished,
   onClose,
 }: CodeStepProps) {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
+  const [askingStop, setAskingStop] = useState(false);
 
   return (
     <>
@@ -135,13 +137,43 @@ export default function CodeStepScreen({
           <Ended>
             <StateIcon systemName="xmark.circle" />
             <StateTitle>{text.couldNotPair(machineName)}</StateTitle>
-            <StateBody>
-              {pairing.kind === "declined" ? text.declined : text.unreachable(machineName)}
-            </StateBody>
-            <VStack spacing={10} modifiers={[padding({ top: 20 })]}>
-              <ActionButton label={text.tryAgain} onPress={onTryAgain} prominent />
-              <ActionButton label={text.cancel} onPress={onClose} />
-            </VStack>
+            <StateBody>{failedBody(pairing, machineName)}</StateBody>
+            <Alert
+              title={pairing.kind === "full" ? text.stopTitle(pairing.unfinished) : ""}
+              isPresented={askingStop}
+              onIsPresentedChange={setAskingStop}
+            >
+              <Alert.Trigger>
+                <VStack spacing={10} modifiers={[padding({ top: 20 })]}>
+                  {pairing.kind !== "full" ? (
+                    <ActionButton label={text.tryAgain} onPress={onTryAgain} prominent />
+                  ) : (
+                    pairing.unfinished > 0 && (
+                      <ActionButton
+                        label={text.stopUnfinished}
+                        onPress={() => setAskingStop(true)}
+                        prominent
+                      />
+                    )
+                  )}
+                  <ActionButton label={text.cancel} onPress={onClose} />
+                </VStack>
+              </Alert.Trigger>
+              <Alert.Actions>
+                <Button label={text.cancel} role="cancel" onPress={() => setAskingStop(false)} />
+                <Button
+                  label={text.stop}
+                  role="destructive"
+                  onPress={() => {
+                    setAskingStop(false);
+                    onStopUnfinished();
+                  }}
+                />
+              </Alert.Actions>
+              <Alert.Message>
+                <Text>{text.stopBody}</Text>
+              </Alert.Message>
+            </Alert>
           </Ended>
         )}
       </Host>

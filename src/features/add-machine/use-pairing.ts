@@ -11,18 +11,21 @@ export type PairingView =
   | { kind: "comparing"; code: string }
   | { kind: "paired" }
   | { kind: "declined" }
-  | { kind: "unreachable" };
+  | { kind: "unreachable" }
+  /** This device has no room for another pairing; `unfinished` cancelled pairings hold some. */
+  | { kind: "full"; unfinished: number };
 
 /**
  * Pairs with the Machine of `request` while `showing`. Leaving the step, or covering it with
  * another, before the Machine answers ends the pairing, so a later approval pairs nothing. Shown
  * again, the step starts a new pairing. `end` ends it at once, for Cancel: the step may close only
- * after an approval arrives.
+ * after an approval arrives. `stopUnfinished` stops the unfinished pairings that fill this device,
+ * once the person confirms it, then pairs again with the same link while the step still shows.
  */
 export function usePairing(
   request: PairingRequest,
   showing: boolean,
-): { view: PairingView; end: () => void } {
+): { view: PairingView; end: () => void; stopUnfinished: () => void } {
   const client = useMachineClient();
   // Each time the step shows is a round with a pairing of its own; a view is kept with its round.
   const [shown, setShown] = useState({ showing, round: 0 });
@@ -45,7 +48,7 @@ export function usePairing(
         signal: leaving.signal,
       })
       .then((started) => {
-        if (started.kind === "unreachable") {
+        if (started.kind !== "comparing") {
           if (!left) setView(started);
           return;
         }
@@ -71,7 +74,31 @@ export function usePairing(
   }, [client, request, showing, round]);
 
   const end = useCallback(() => ending.current(), []);
+  const latest = useRef(shown);
+  useEffect(() => {
+    latest.current = shown;
+  }, [shown]);
+  /** The round whose unfinished pairings were stopped; each round stops them once. */
+  const stopped = useRef<number | null>(null);
+  const stopUnfinished = useCallback(() => {
+    const asked = latest.current.round;
+    // A second tap on the confirmation can arrive before the step shows that it waits.
+    if (stopped.current === asked) return;
+    stopped.current = asked;
+    setAnswer({ round: asked, view: { kind: "reaching" } });
+    // A pairing that did not stop still holds its room, which the next pairing reports.
+    void client.stopUnfinishedPairings().then(() => {
+      const now = latest.current;
+      if (now.showing && now.round === asked) {
+        setShown({ showing: true, round: asked + 1 });
+      }
+    });
+  }, [client]);
   // Covered, the step keeps what it showed, as when it closes. Shown again, it waits for the new
   // pairing's code.
-  return { view: answer?.round === round ? answer.view : { kind: "reaching" }, end };
+  return {
+    view: answer?.round === round ? answer.view : { kind: "reaching" },
+    end,
+    stopUnfinished,
+  };
 }

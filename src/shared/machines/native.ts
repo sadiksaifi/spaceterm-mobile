@@ -14,6 +14,7 @@ import type {
   MachinesSnapshot,
   Pairing,
   PairingOutcome,
+  PairingStart,
   Workspace,
 } from "./model";
 
@@ -26,6 +27,7 @@ export type NativeMachines = Pick<
   | "joinState"
   | "retryJoin"
   | "cancelJoin"
+  | "stopUnfinishedPairings"
   | "paired"
   | "connect"
   | "disconnect"
@@ -208,6 +210,7 @@ export function createNativeClient(
       kept.delete(machineId);
       void native.unpair(machineId).then(refresh);
     },
+    stopUnfinishedPairings: () => native.stopUnfinishedPairings(),
     readInvitation: (link) => {
       const reading = native.readInvitation(link);
       if (reading.kind === "unusable") return reading;
@@ -225,7 +228,7 @@ export function createNativeClient(
       if (start.kind !== "joining") return { kind: "unreachable" };
       const { join } = start;
 
-      return new Promise<Pairing | { kind: "unreachable" }>((started) => {
+      return new Promise<PairingStart>((started) => {
         let retries = 0;
         let retry: ReturnType<typeof setTimeout> | undefined;
         let comparing = false;
@@ -294,6 +297,13 @@ export function createNativeClient(
             case "declined":
             case "unreachable":
               end(state);
+              return true;
+            // libspaceterm looks for room before it reaches the Machine, so no code showed.
+            case "full":
+              stop();
+              if (comparing) settleOutcome?.({ kind: "unreachable" });
+              started({ kind: "full", unfinished: state.unfinished });
+              refresh();
               return true;
           }
         };

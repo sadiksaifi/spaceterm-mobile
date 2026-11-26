@@ -22,12 +22,12 @@ function Pairing({ request }: { request: PairingRequest }) {
   const flow = useAddMachineFlow();
   const router = useRouter();
   // A link from another app can open the Invitation Link step over this one.
-  const { view: pairing, end } = usePairing(request, useIsFocused());
+  const { view: pairing, end, stopUnfinished } = usePairing(request, useIsFocused());
   const { kind } = pairing;
   const { cameraBeneath, close } = flow;
 
   // After a failed pairing, Back and the iOS swipe go to the camera, not the step before.
-  const failed = kind === "declined" || kind === "unreachable";
+  const failed = kind === "declined" || kind === "unreachable" || kind === "full";
   useEffect(() => {
     if (failed) cameraBeneath();
   }, [failed, cameraBeneath]);
@@ -53,6 +53,7 @@ function Pairing({ request }: { request: PairingRequest }) {
         router.back();
       }}
       onTryAgain={flow.restart}
+      onStopUnfinished={stopUnfinished}
       onClose={() => {
         end();
         close();

@@ -66,6 +66,7 @@ class LibspacetermModule : Module() {
         JoinState.Paused -> mapOf("kind" to "paused")
         JoinState.Declined -> mapOf("kind" to "declined")
         JoinState.Unreachable -> mapOf("kind" to "unreachable")
+        is JoinState.Full -> mapOf("kind" to "full", "unfinished" to state.unfinished.toInt())
       }
     }
 
@@ -96,6 +97,8 @@ class LibspacetermModule : Module() {
     AsyncFunction("cancelJoin") { join: String ->
       machines().cancelJoin(join)
     }
+
+    AsyncFunction("stopUnfinishedPairings") { -> machines().stopUnfinishedPairings() }
 
     AsyncFunction("connect") { machineId: String ->
       changeMachine { connect(machineId) }
@@ -183,7 +186,7 @@ class LibspacetermModule : Module() {
     for (join in started) {
       when (machines.joinState(join)) {
         JoinState.Reaching, is JoinState.Comparing, JoinState.Paused -> machines.cancelJoin(join)
-        is JoinState.Paired, JoinState.Declined, JoinState.Unreachable -> Unit
+        is JoinState.Paired, JoinState.Declined, JoinState.Unreachable, is JoinState.Full -> Unit
       }
     }
   }

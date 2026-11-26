@@ -43,7 +43,8 @@ function defaultClient(): MachineClient {
 
 /**
  * The pairing a flag value fakes: Mac mini approves, declines, or never answers; no link can be
- * used; or every link is for MacBook Pro, which the `machines` scenario has paired already.
+ * used; this device has no room until its unfinished pairings stop; or every link is for MacBook
+ * Pro, which the `machines` scenario has paired already.
  */
 function pairingToFake(flag: string | undefined): MockPairing | undefined {
   const mini = {
@@ -57,6 +58,7 @@ function pairingToFake(flag: string | undefined): MockPairing | undefined {
     case "decline":
     case "unreachable":
     case "unusable":
+    case "full":
       return { ...mini, answer: flag };
     case "already-paired":
       return { ...mini, machine: macbook, address: "macbook-pro.local", answer: "approve" };

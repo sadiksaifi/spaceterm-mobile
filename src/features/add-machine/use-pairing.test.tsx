@@ -59,6 +59,80 @@ it("shows the Comparison Code, then Paired once the Machine approves", async () 
   expect(result.current.view).toEqual({ kind: "paired" });
 });
 
+it("shows that this device has no room, and how many unfinished pairings hold it", async () => {
+  const client: MachineClient = {
+    ...createMockClient([]),
+    pair: async () => ({ kind: "full", unfinished: 3 }),
+  };
+  const { result } = await render(client);
+  await act(async () => {});
+  expect(result.current.view).toEqual({ kind: "full", unfinished: 3 });
+});
+
+/** A device with no room until its unfinished pairings stop, when the test calls `stopped`. */
+function full() {
+  let stopped: (all: boolean) => void = () => {};
+  const stopUnfinishedPairings = jest.fn(
+    () => new Promise<boolean>((resolve) => (stopped = resolve)),
+  );
+  const pair = jest
+    .fn<MachineClient["pair"]>()
+    .mockResolvedValueOnce({ kind: "full", unfinished: 1 })
+    .mockResolvedValue({
+      kind: "comparing",
+      code: "482 915",
+      outcome: new Promise<PairingOutcome>(() => {}),
+      cancel: () => {},
+    });
+  const client: MachineClient = { ...createMockClient([]), pair, stopUnfinishedPairings };
+  return { client, pair, stopUnfinishedPairings, stopped: (all = true) => stopped(all) };
+}
+
+it("stops the unfinished pairings, then pairs again with the same link", async () => {
+  const { client, pair, stopUnfinishedPairings, stopped } = full();
+  const { result } = await render(client);
+  await act(async () => {});
+  expect(result.current.view).toEqual({ kind: "full", unfinished: 1 });
+
+  // Two quick taps on the dialog's Stop both arrive before the step shows that it waits.
+  await act(async () => {
+    result.current.stopUnfinished();
+    result.current.stopUnfinished();
+  });
+  expect(result.current.view).toEqual({ kind: "reaching" });
+  await act(async () => stopped());
+  expect(result.current.view).toEqual({ kind: "comparing", code: "482 915" });
+  expect(stopUnfinishedPairings).toHaveBeenCalledTimes(1);
+  expect(pair).toHaveBeenCalledTimes(2);
+  expect(pair).toHaveBeenLastCalledWith(request.link, request.networkAddress, expect.anything());
+});
+
+it("stops once per pairing, even for a tap that arrives after the stop finished", async () => {
+  const { client, stopUnfinishedPairings, stopped } = full();
+  const { result } = await render(client);
+  await act(async () => {});
+  const stop = result.current.stopUnfinished;
+
+  await act(async () => {
+    stop();
+    stopped();
+    await Promise.resolve();
+    stop();
+  });
+  expect(stopUnfinishedPairings).toHaveBeenCalledTimes(1);
+});
+
+it("pairs nothing after the unfinished pairings stop once the person has left", async () => {
+  const { client, pair, stopped } = full();
+  const { result, rerender } = await render(client);
+  await act(async () => {});
+  await act(async () => result.current.stopUnfinished());
+  await act(async () => rerender({ showing: false }));
+
+  await act(async () => stopped());
+  expect(pair).toHaveBeenCalledTimes(1);
+});
+
 it("ends the pairing when the person leaves before the Machine approves", async () => {
   const { client, cancel, reach } = machine();
   const { unmount } = await render(client);

@@ -1,7 +1,9 @@
 //! Workspace edits, each pairing's through one journal so a lost answer is never applied twice.
 use crate::record_file::{Publication, hex, publish_private, read_private};
+use spaceterm_client::connection::link::RequestError;
 use spaceterm_client::hierarchy::{Mutation, Outcome, RetainedOutcome};
-use spaceterm_client::workspace::{EditError, JournalStore, WorkspaceEditor};
+use spaceterm_client::protocol::Refusal;
+use spaceterm_client::workspace::{ClientJournal, EditError, JournalStore, WorkspaceEditor};
 use spaceterm_client::{CoreError, DirectRouteId, PairedMachine};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -59,8 +61,16 @@ impl Edits {
                     }
                 }
                 Ok(None) => {}
-                // It stays until the Machine answers it. Nothing here drops an edit once sent, so
-                // no later edit can take its sequence while it may still run.
+                // Core answers Stale only when the sequence can no longer run this edit: another
+                // edit holds it, or Core's Workspaces started over. A queued edit is answered
+                // Pending, never Stale. So the journal lets this one go and nothing is sent again.
+                Err(EditError::Request(RequestError::Refused(Refusal::Stale))) => {
+                    *slot = None;
+                    if !self.abandon(route, machine) {
+                        return false;
+                    }
+                }
+                // Anything else leaves it to be sent again, as it may still run.
                 Err(error) => return self.failed(&mut slot, error),
             }
         }
@@ -144,6 +154,19 @@ impl Edits {
             *slot = Some((machine.clone(), editor));
         }
         slot.as_mut().map(|(_, editor)| editor)
+    }
+
+    /// Drops the pending edit from the journal, which no editor holds now.
+    fn abandon(&self, route: DirectRouteId, machine: &PairedMachine) -> bool {
+        // This app acts as no agent, so its Client Identity is the pairing's own.
+        let paired = machine.paired();
+        ClientJournal::open(
+            Box::new(self.journal(route)),
+            paired.pin.core,
+            paired.client,
+        )
+        .and_then(|mut journal| journal.abandon())
+        .is_ok()
     }
 
     fn journal(&self, route: DirectRouteId) -> JournalFile {

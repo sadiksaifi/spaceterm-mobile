@@ -67,6 +67,11 @@ impl Edits {
         let Some(editor) = self.editor(&mut slot, route, machine) else {
             return false;
         };
+        if let Some(last) = editor.journal().last()
+            && !offers_after(machine, last.sequence, deadline)
+        {
+            return false;
+        }
         match editor.submit(mutation, deadline) {
             Ok(outcome) => {
                 // The person sees every answer when it arrives, so none waits to be presented.
@@ -150,6 +155,28 @@ impl Edits {
         JournalFile {
             directory: self.directory.clone(),
             name: journal_name(&route),
+        }
+    }
+}
+
+/// Whether `machine`'s connection offers a sequence other than `settled`, waiting until
+/// `deadline`. A connection made while an edit settled can still offer that edit's sequence; a
+/// new edit journaled under it would be refused as stale on every try. Only that one sequence
+/// waits, so a Machine whose sequences started over still takes edits.
+fn offers_after(machine: &PairedMachine, settled: u64, deadline: Instant) -> bool {
+    let Some(link) = machine.work().live_link() else {
+        return false;
+    };
+    let mut seen = 0;
+    loop {
+        match link.next_inventory_by(seen, deadline) {
+            Ok(Some((revision, inventory))) => {
+                if inventory.next_sequence != settled {
+                    return true;
+                }
+                seen = revision;
+            }
+            _ => return false,
         }
     }
 }

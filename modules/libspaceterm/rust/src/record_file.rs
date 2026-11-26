@@ -139,11 +139,19 @@ impl RecordFile for PrivateRecordFile {
             return Ok(());
         };
         accept(&bytes)?;
+        // What a read finds counts as durable only once the file and the directory entry that
+        // names it are on disk: a write whose sync failed can still show from cache.
+        let path = self.path();
+        let synchronized = File::open(&path)
+            .and_then(|file| file.sync_all())
+            .and_then(|()| File::open(path.parent().unwrap_or(&path)))
+            .and_then(|directory| directory.sync_all())
+            .is_ok();
         *authority = WriteAuthority {
             observed: Some(digest(&bytes)),
             blocked: false,
             order: order_of(&bytes),
-            synchronized: true,
+            synchronized,
         };
         Ok(())
     }

@@ -29,8 +29,9 @@ const app = ({ config }: ConfigContext): ExpoConfig => ({
       monochromeImage: "./assets/brand/android/adaptive/monochrome.png",
     },
     predictiveBackGestureEnabled: false,
-    // Android 17 lets an app reach a Machine on the local network only with this permission.
-    permissions: ["android.permission.ACCESS_LOCAL_NETWORK"],
+    // Android 17 grants local network access to apps that target SDK 36 and don't declare
+    // ACCESS_LOCAL_NETWORK. Declaring it makes it a runtime permission the person can deny.
+    // Declare it once the target SDK is 37, where Android 17 requires it.
   },
   plugins: [
     "expo-router",

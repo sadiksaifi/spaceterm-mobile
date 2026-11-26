@@ -1,8 +1,11 @@
 package expo.modules.libspaceterm
 
 import android.content.Context
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import androidx.annotation.RequiresApi
 import expo.modules.interfaces.permissions.PermissionsStatus
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.Exceptions
@@ -71,16 +74,19 @@ class LibspacetermModule : Module() {
     }
 
     AsyncFunction("allowLocalNetwork") { promise: Promise ->
-      // Android 17 refuses this app's traffic to private addresses without the permission.
+      // Android 17 refuses traffic to private addresses from an app that declares the permission
+      // without holding it. An app that targets SDK 36 and leaves it undeclared is granted it, so the
+      // app asks only when it declares it. A debug build declares it through React Native.
       val permissions = appContext.permissions
-      if (Build.VERSION.SDK_INT < ANDROID_17 || permissions == null) {
-        promise.resolve(permissions != null || Build.VERSION.SDK_INT < ANDROID_17)
-        return@AsyncFunction
+      when {
+        Build.VERSION.SDK_INT < ANDROID_17 -> promise.resolve(true)
+        permissions == null -> promise.resolve(false)
+        !declaresLocalNetwork() -> promise.resolve(true)
+        else -> permissions.askForPermissions(
+          { result -> promise.resolve(result[LOCAL_NETWORK]?.status == PermissionsStatus.GRANTED) },
+          LOCAL_NETWORK
+        )
       }
-      permissions.askForPermissions(
-        { result -> promise.resolve(result[LOCAL_NETWORK]?.status == PermissionsStatus.GRANTED) },
-        LOCAL_NETWORK
-      )
     }
 
     AsyncFunction("cancelJoin") { join: String ->
@@ -110,6 +116,17 @@ class LibspacetermModule : Module() {
   private fun machines(): Machines {
     val context = appContext.reactContext?.applicationContext ?: throw Exceptions.ReactContextLost()
     return processMachines(context)
+  }
+
+  /** Android 17 lists a permission it grants implicitly among the requested ones, flagged implicit. */
+  @RequiresApi(ANDROID_17)
+  private fun declaresLocalNetwork(): Boolean {
+    val context = appContext.reactContext ?: return false
+    val flags = PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
+    val info = context.packageManager.getPackageInfo(context.packageName, flags)
+    val index = info.requestedPermissions?.indexOf(LOCAL_NETWORK) ?: -1
+    if (index < 0) return false
+    return info.requestedPermissionsFlags!![index] and PackageInfo.REQUESTED_PERMISSION_IMPLICIT == 0
   }
 
   private inline fun changeMachine(change: Machines.() -> Unit): Boolean = try {

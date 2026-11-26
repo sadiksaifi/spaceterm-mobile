@@ -3,18 +3,13 @@ import { openBrowserAsync } from "expo-web-browser";
 
 import { linkStepHref, pastedInvitationLink } from "@/features/add-machine/flow";
 import { newWorkspaceHref } from "@/features/new-workspace/entry";
+import { workspaceHref } from "@/features/workspace/entry";
 import { useMachineClient, useMachines } from "@/shared/machines/client";
 import { reachUnconnected } from "@/shared/machines/reach";
 
 import HomeScreen from "./screen";
 
 const DESKTOP_PROJECT_URL = "https://github.com/sadiksaifi/spaceterm";
-
-/**
- * The screen these controls open does not exist yet: the Tabs of a Workspace. Each control works
- * and stays on Home until its screen is built.
- */
-const stayOnHome = () => {};
 
 /** Home as a route: what this device knows about its Machines, and what Home can lead to. */
 export default function HomeRoute() {
@@ -32,8 +27,13 @@ export default function HomeRoute() {
       }}
       renameWorkspace={client.renameWorkspace}
       killWorkspace={client.killWorkspace}
-      onOpenWorkspace={stayOnHome}
-      onNewTab={stayOnHome}
+      onOpenWorkspace={(machineId, workspaceId) =>
+        router.navigate(workspaceHref(machineId, workspaceId))
+      }
+      // New Tab opens the Workspace, which opens the Tab once its Tabs show.
+      onNewTab={(machineId, workspaceId) =>
+        router.navigate(workspaceHref(machineId, workspaceId, true))
+      }
       onAddMachine={() => router.navigate("/add-machine")}
       onScanQrCode={() => router.navigate("/add-machine")}
       // The clipboard is read first, so the iOS paste prompt shows over Home.

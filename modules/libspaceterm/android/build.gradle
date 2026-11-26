@@ -1,0 +1,32 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.libspaceterm'
+version = '0.1.0'
+
+if (!file('generated/kotlin/uniffi/spaceterm_mobile/spaceterm_mobile.kt').isFile() ||
+    !file('generated/jniLibs/arm64-v8a/libspaceterm_mobile.so').isFile()) {
+  throw new GradleException('Libspaceterm Android bindings or library are missing. Run `mise run libspaceterm:android` from the repository root.')
+}
+
+android {
+  namespace "expo.modules.libspaceterm"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+  sourceSets {
+    main {
+      java.srcDir 'generated/kotlin'
+      jniLibs.srcDir 'generated/jniLibs'
+    }
+  }
+}
+
+dependencies {
+  // UniFFI 0.33 requires JNA 5.12.0 or newer. 5.19.1 is the latest compatible 5.x Android AAR.
+  implementation 'net.java.dev.jna:jna:5.19.1@aar'
+}

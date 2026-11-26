@@ -22,9 +22,10 @@ const expoUi = composeVersions(
   join(dirname(require.resolve("@expo/ui/package.json")), "android/build.gradle"),
 );
 
-const modules = readdirSync(import.meta.dirname).filter((name) =>
-  existsSync(join(import.meta.dirname, name, "android/build.gradle")),
-);
+const modules = readdirSync(import.meta.dirname).filter((name) => {
+  const gradle = join(import.meta.dirname, name, "android/build.gradle");
+  return existsSync(gradle) && readFileSync(gradle, "utf8").includes("androidx.compose");
+});
 
 it.each(modules)("%s compiles against the Compose versions Expo UI uses", (module) => {
   const ours = composeVersions(join(import.meta.dirname, module, "android/build.gradle"));

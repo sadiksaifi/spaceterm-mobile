@@ -14,6 +14,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: "com.peblon.spaceterm.mobile",
     icon: "./assets/brand/apple/SpaceTerm.icon",
+    infoPlist: {
+      NSLocalNetworkUsageDescription: "SpaceTerm connects to your Machines on the local network.",
+    },
   },
   android: {
     package: "com.peblon.spaceterm.mobile",
@@ -23,6 +26,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       monochromeImage: "./assets/brand/android/adaptive/monochrome.png",
     },
     predictiveBackGestureEnabled: false,
+    // Android 17 lets an app reach a Machine on the local network only with this permission.
+    permissions: ["android.permission.ACCESS_LOCAL_NETWORK"],
   },
   plugins: [
     "expo-router",
@@ -34,7 +39,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         recordAudioAndroid: false,
       },
     ],
-    ["expo-build-properties", { ios: { deploymentTarget: "26.0" } }],
+    [
+      "expo-build-properties",
+      {
+        ios: { deploymentTarget: "26.0" },
+        // libspaceterm ships for arm64 only, the ABI of current phones and Apple silicon emulators.
+        android: { buildArchs: ["arm64-v8a"] },
+      },
+    ],
     [
       "expo-splash-screen",
       {

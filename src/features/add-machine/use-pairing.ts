@@ -19,12 +19,12 @@ export type PairingView =
  * Pairs with the Machine of `request` while `showing`. Leaving the step, or covering it with
  * another, before the Machine answers ends the pairing, so a later approval pairs nothing. Shown
  * again, the step starts a new pairing. `end` ends it at once, for Cancel: the step may close only
- * after an approval arrives.
+ * after an approval arrives. `again` starts a new pairing with the same link.
  */
 export function usePairing(
   request: PairingRequest,
   showing: boolean,
-): { view: PairingView; end: () => void } {
+): { view: PairingView; end: () => void; again: () => void } {
   const client = useMachineClient();
   // Each time the step shows is a round with a pairing of its own; a view is kept with its round.
   const [shown, setShown] = useState({ showing, round: 0 });
@@ -73,7 +73,11 @@ export function usePairing(
   }, [client, request, showing, round]);
 
   const end = useCallback(() => ending.current(), []);
+  const again = useCallback(
+    () => setShown((current) => ({ ...current, round: current.round + 1 })),
+    [],
+  );
   // Covered, the step keeps what it showed, as when it closes. Shown again, it waits for the new
   // pairing's code.
-  return { view: answer?.round === round ? answer.view : { kind: "reaching" }, end };
+  return { view: answer?.round === round ? answer.view : { kind: "reaching" }, end, again };
 }

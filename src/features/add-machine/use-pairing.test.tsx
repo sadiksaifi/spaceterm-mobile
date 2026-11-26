@@ -69,6 +69,26 @@ it("shows that this device has no room, and how many unfinished pairings hold it
   expect(result.current.view).toEqual({ kind: "full", unfinished: 3 });
 });
 
+it("pairs again with the same link when asked", async () => {
+  const pair = jest
+    .fn<MachineClient["pair"]>()
+    .mockResolvedValueOnce({ kind: "full", unfinished: 1 })
+    .mockResolvedValueOnce({
+      kind: "comparing",
+      code: "482 915",
+      outcome: new Promise<PairingOutcome>(() => {}),
+      cancel: () => {},
+    });
+  const { result } = await render({ ...createMockClient([]), pair });
+  await act(async () => {});
+  expect(result.current.view).toEqual({ kind: "full", unfinished: 1 });
+
+  await act(async () => result.current.again());
+  expect(result.current.view).toEqual({ kind: "comparing", code: "482 915" });
+  expect(pair).toHaveBeenCalledTimes(2);
+  expect(pair).toHaveBeenLastCalledWith(request.link, request.networkAddress, expect.anything());
+});
+
 it("ends the pairing when the person leaves before the Machine approves", async () => {
   const { client, cancel, reach } = machine();
   const { unmount } = await render(client);

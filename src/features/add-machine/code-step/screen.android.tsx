@@ -20,10 +20,12 @@ import {
   size,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
+import { useState } from "react";
 import { useWindowDimensions } from "react-native";
 
 import { heading } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
+import { ConfirmDialog } from "@/shared/ui/android/confirm-dialog";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 import {
   Centered,
@@ -33,7 +35,7 @@ import {
   StateTitle,
 } from "@/shared/ui/android/state";
 
-import { text } from "../text";
+import { failedBody, text } from "../text";
 import type ScreenContract from "./screen";
 import type { CodeStepProps } from "./screen";
 
@@ -49,11 +51,13 @@ export default function CodeStepScreen({
   pairing,
   onBack,
   onTryAgain,
+  onStopUnfinished,
   onClose,
 }: CodeStepProps) {
   const colors = useColors();
   const material = useMaterialColors();
   const { fontScale } = useWindowDimensions();
+  const [askingStop, setAskingStop] = useState(false);
 
   return (
     <>
@@ -154,17 +158,36 @@ export default function CodeStepScreen({
             <Centered bottom={120}>
               <StateTile icon={cancelIcon} failed />
               <StateTitle>{text.couldNotPair(machineName)}</StateTitle>
-              <StateBody>
-                {pairing.kind === "declined" ? text.declined : text.unreachable(machineName)}
-              </StateBody>
+              <StateBody>{failedBody(pairing, machineName)}</StateBody>
               <StateActions>
-                <Button onClick={onTryAgain}>
-                  <Text>{text.tryAgain}</Text>
-                </Button>
+                {pairing.kind !== "full" ? (
+                  <Button onClick={onTryAgain}>
+                    <Text>{text.tryAgain}</Text>
+                  </Button>
+                ) : (
+                  pairing.unfinished > 0 && (
+                    <Button onClick={() => setAskingStop(true)}>
+                      <Text>{text.stopUnfinished}</Text>
+                    </Button>
+                  )
+                )}
                 <TextButton onClick={onClose}>
                   <Text>{text.cancel}</Text>
                 </TextButton>
               </StateActions>
+              {pairing.kind === "full" && askingStop && (
+                <ConfirmDialog
+                  title={text.stopTitle(pairing.unfinished)}
+                  body={text.stopBody}
+                  cancel={text.cancel}
+                  action={text.stop}
+                  onCancel={() => setAskingStop(false)}
+                  onConfirm={() => {
+                    setAskingStop(false);
+                    onStopUnfinished();
+                  }}
+                />
+              )}
             </Centered>
           )}
         </Column>

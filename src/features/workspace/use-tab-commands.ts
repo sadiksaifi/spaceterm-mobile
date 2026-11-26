@@ -66,12 +66,12 @@ export type TabCommands = {
 const PENDING = "";
 
 type Local = {
-  /** The Workspace these belong to; another Workspace starts with none. */
-  key: string;
   alert: TabAlert | null;
   failure: TabFailure | null;
   panes: string | null;
 };
+
+const NO_LOCAL: Local = { alert: null, failure: null, panes: null };
 
 /**
  * The commands of a Workspace's grid of Tabs and its Panes sheet. Closing asks first when a Pane
@@ -92,8 +92,18 @@ export function useTabCommands({
 }): TabCommands {
   const key = `${machineId}/${workspace.id}`;
   const [state, updateGrid] = useGridState(key);
-  const [stored, setLocal] = useState<Local>({ key, alert: null, failure: null, panes: null });
-  const local = stored.key === key ? stored : { key, alert: null, failure: null, panes: null };
+  // Each Workspace's own, so one that answers after the person moved on keeps its failure.
+  const [stored, setStored] = useState<Readonly<Record<string, Local>>>({});
+  const local = stored[key] ?? NO_LOCAL;
+  // Leaving a Workspace closes its alert and Panes sheet; its failure stays for Try Again.
+  useEffect(
+    () => () =>
+      setStored((all) => {
+        const left = all[key];
+        return left ? { ...all, [key]: { ...NO_LOCAL, failure: left.failure } } : all;
+      }),
+    [key],
+  );
   // The commands under way, as of the last event rather than the last render. The screen stays
   // mounted when it changes Workspace, so each id names its Workspace.
   const inFlight = useRef(new Set<string>());
@@ -108,8 +118,9 @@ export function useTabCommands({
     if (arrived) updateGrid((grid) => ({ ...grid, expecting: null }));
   }, [arrived, updateGrid]);
 
-  const change = (next: (local: Local) => Local) =>
-    setLocal((current) => next(current.key === key ? current : local));
+  const changeIn = (of: string, next: (local: Local) => Local) =>
+    setStored((all) => ({ ...all, [of]: next(all[of] ?? NO_LOCAL) }));
+  const change = (next: (local: Local) => Local) => changeIn(key, next);
 
   const run = <T extends CommandResult | NewTabResult>(
     failure: TabFailure,
@@ -127,9 +138,7 @@ export function useTabCommands({
     void send().then((result) => {
       inFlight.current.delete(id);
       after?.(result);
-      if (result.kind === "failed") {
-        setLocal((current) => (current.key === key ? { ...current, failure } : current));
-      }
+      if (result.kind === "failed") changeIn(key, (current) => ({ ...current, failure }));
     });
   };
 

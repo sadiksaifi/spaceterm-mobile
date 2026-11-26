@@ -201,6 +201,24 @@ describe("New Tab", () => {
     expect(newTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), fix);
   });
 
+  it("keeps a Workspace's New Tab failure for when the person comes back to it", async () => {
+    let failFirst: (result: NewTabResult) => void = () => {};
+    const newTab = jest
+      .fn<TabClient["newTab"]>()
+      .mockImplementationOnce(() => new Promise<NewTabResult>((resolve) => (failFirst = resolve)))
+      .mockImplementation(() => new Promise<NewTabResult>(() => {}));
+    const { result, rerender } = await render({ newTab });
+
+    await act(async () => result.current.newTab());
+    await rerender({ listed: workspace([idle], "other") });
+    await act(async () => result.current.newTab());
+    await act(async () => failFirst({ kind: "failed" }));
+    expect(result.current.failure).toBeNull();
+
+    await rerender({ listed: workspace([idle, busy]) });
+    expect(result.current.failure).toMatchObject({ command: "new-tab" });
+  });
+
   it("opens a Tab in another Workspace while one Workspace's New Tab is on its way", async () => {
     const newTab = jest.fn<TabClient["newTab"]>(() => new Promise<NewTabResult>(() => {}));
     const { result, rerender } = await render({ newTab });

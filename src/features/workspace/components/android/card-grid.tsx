@@ -34,6 +34,7 @@ import { useWindowDimensions, type ColorValue } from "react-native";
 import type { PaneScreen } from "@/shared/machines/model";
 import type { TerminalColors } from "@/shared/preferences/model";
 import { useColors } from "@/shared/theme/colors";
+import { hiddenFromAccessibility } from "@/modules/compose-modifiers";
 
 import type { Control } from "@/features/home/actions";
 
@@ -315,7 +316,15 @@ function PaneSnapshot({
       }),
     ]) ?? [];
   return (
-    <Box modifiers={[fillMaxSize(), clip(Shapes.Rectangle), background(terminal.background)]}>
+    // The card's name speaks for it; TalkBack does not read the screen's text.
+    <Box
+      modifiers={[
+        fillMaxSize(),
+        clip(Shapes.Rectangle),
+        background(terminal.background),
+        hiddenFromAccessibility(),
+      ]}
+    >
       {lines.length > 0 && (
         <Text
           softWrap={false}

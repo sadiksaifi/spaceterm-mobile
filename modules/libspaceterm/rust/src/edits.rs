@@ -11,6 +11,8 @@ use std::time::{Duration, Instant};
 
 /// How long an edit waits for the Machine before it counts as failed.
 const EDIT_WAIT: Duration = Duration::from_secs(10);
+/// How long an edit waits for a list that offers a fresh sequence.
+const FRESH_WAIT: Duration = Duration::from_secs(2);
 
 type Slot = Arc<Mutex<Option<(PairedMachine, WorkspaceEditor)>>>;
 
@@ -67,10 +69,12 @@ impl Edits {
         let Some(editor) = self.editor(&mut slot, route, machine) else {
             return false;
         };
-        if let Some(last) = editor.journal().last()
-            && !offers_after(machine, last.sequence, deadline)
-        {
-            return false;
+        if let Some(last) = editor.journal().last() {
+            await_other_sequence(
+                machine,
+                last.sequence,
+                deadline.min(Instant::now() + FRESH_WAIT),
+            );
         }
         match editor.submit(mutation, deadline) {
             Ok(outcome) => {
@@ -159,25 +163,20 @@ impl Edits {
     }
 }
 
-/// Whether `machine`'s connection offers a sequence other than `settled`, waiting until
-/// `deadline`. A connection made while an edit settled can still offer that edit's sequence; a
-/// new edit journaled under it would be refused as stale on every try. Only that one sequence
-/// waits, so a Machine whose sequences started over still takes edits.
-fn offers_after(machine: &PairedMachine, settled: u64, deadline: Instant) -> bool {
+/// Waits until `machine`'s connection offers a sequence other than `settled`, or `until`. A
+/// connection made while an edit settled can still offer that edit's sequence, which Core would
+/// refuse as stale; a newer list usually follows at once. The edit goes on either way, as Core
+/// can offer that sequence again after its Workspaces start over.
+fn await_other_sequence(machine: &PairedMachine, settled: u64, until: Instant) {
     let Some(link) = machine.work().live_link() else {
-        return false;
+        return;
     };
     let mut seen = 0;
-    loop {
-        match link.next_inventory_by(seen, deadline) {
-            Ok(Some((revision, inventory))) => {
-                if inventory.next_sequence != settled {
-                    return true;
-                }
-                seen = revision;
-            }
-            _ => return false,
+    while let Ok(Some((revision, inventory))) = link.next_inventory_by(seen, until) {
+        if inventory.next_sequence != settled {
+            return;
         }
+        seen = revision;
     }
 }
 

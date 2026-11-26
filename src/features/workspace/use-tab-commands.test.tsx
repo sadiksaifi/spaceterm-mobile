@@ -255,21 +255,26 @@ describe("moving a Tab", () => {
     );
   });
 
-  it("offers Try Again when the Machine refuses, which moves past the Tab beside it then", async () => {
+  it("offers Try Again when the Machine refuses, which sends the same move", async () => {
     const moveTab = jest.fn<TabClient["moveTab"]>(refused);
-    const other = tab("other");
     const { result, rerender } = await render({ moveTab }, [idle, busy]);
     await act(async () => result.current.moveTab(busy, -1));
-    expect(result.current.failure).toEqual({ command: "move-tab", tab: busy, direction: -1 });
+    expect(result.current.failure).toEqual({
+      command: "move-tab",
+      tab: busy,
+      beside: idle,
+      side: "before",
+    });
 
-    await rerender({ listed: workspace([idle, other, busy]) });
+    // The Machine made the move, but its answer was lost.
+    await rerender({ listed: workspace([busy, idle]) });
     moveTab.mockImplementationOnce(done);
     await act(async () => result.current.retry(result.current.failure!));
     expect(moveTab).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.anything(),
       busy,
-      other,
+      idle,
       "before",
     );
     expect(result.current.failure).toBeNull();

@@ -38,8 +38,11 @@ export type TabFailure =
   /** `worktree`: the active Worktree then, where Try Again opens the Tab while it is listed. */
   | { command: "new-tab"; worktree: Worktree | null }
   | { command: "new-pane"; tab: Tab }
-  /** `direction`: left is -1. Try Again moves past the Tab beside it then. */
-  | { command: "move-tab"; tab: Tab; direction: -1 | 1 }
+  /**
+   * Try Again sends the same move, which the Machine may have made with its answer lost, so the
+   * Tab never moves twice.
+   */
+  | { command: "move-tab"; tab: Tab; beside: Tab; side: "before" | "after" }
   /** Picking a Worktree with no Tab opens one there; this is that Tab not opening. */
   | { command: "switch"; worktree: Worktree };
 
@@ -190,12 +193,13 @@ export function useTabCommands({
   const newPane = (tab: Tab) =>
     run({ command: "new-pane", tab }, () => client.newPane(machineId, workspace, tab));
 
+  const sendMove = (tab: Tab, beside: Tab, side: "before" | "after") =>
+    run({ command: "move-tab", tab, beside, side }, () =>
+      client.moveTab(machineId, workspace, tab, beside, side),
+    );
   const moveTab = (tab: Tab, direction: -1 | 1) => {
     const beside = movePast(grid, tab, direction);
-    if (beside === null) return;
-    run({ command: "move-tab", tab, direction }, () =>
-      client.moveTab(machineId, workspace, tab, beside, direction === -1 ? "before" : "after"),
-    );
+    if (beside !== null) sendMove(tab, beside, direction === -1 ? "before" : "after");
   };
 
   const pickWorktree = (worktree: Worktree) => {
@@ -271,7 +275,8 @@ export function useTabCommands({
         }
         case "move-tab": {
           const tab = listedTab(shown.tab.id);
-          return tab && moveTab(tab, shown.direction);
+          const beside = listedTab(shown.beside.id);
+          return tab && beside && sendMove(tab, beside, shown.side);
         }
         case "switch":
           return pickWorktree(shown.worktree);

@@ -59,9 +59,15 @@ describe("New Worktree", () => {
   });
 
   it("keeps a Location the Machine found not empty off until it changes", () => {
-    expect(
-      form({ newBranch: { ...EMPTY_FORM.newBranch, name: "x" }, notEmpty: true }),
-    ).toMatchObject({ problem: "not-empty", request: null });
+    const named = (name: string) => ({ ...EMPTY_FORM.newBranch, name });
+    const location = form({ newBranch: named("x") }).view.location;
+
+    expect(form({ newBranch: named("x"), notEmpty: location })).toMatchObject({
+      problem: "not-empty",
+      request: null,
+    });
+    expect(form({ newBranch: named("y"), notEmpty: location })).toMatchObject({ problem: null });
+    expect(form({ kind: "existing", notEmpty: location }).problem).toBeNull();
   });
 
   it("lists for Existing Branch only branches no Worktree has checked out", () => {

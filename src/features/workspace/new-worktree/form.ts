@@ -12,8 +12,8 @@ export type FormState = {
   newBranch: { name: string; startFrom: string | null; location: string | null };
   existing: { branch: string | null; location: string | null };
   remote: { remote: string | null; local: string | null; location: string | null };
-  /** The Machine found the Location not empty, until the Location changes. */
-  notEmpty: boolean;
+  /** The Location the Machine found not empty. The form says so while it shows that Location. */
+  notEmpty: string | null;
 };
 
 export const EMPTY_FORM: FormState = {
@@ -21,7 +21,7 @@ export const EMPTY_FORM: FormState = {
   newBranch: { name: "", startFrom: null, location: null },
   existing: { branch: null, location: null },
   remote: { remote: null, local: null, location: null },
-  notEmpty: false,
+  notEmpty: null,
 };
 
 export type FormProblem = "invalid-name" | "branch-exists" | "not-empty";
@@ -62,8 +62,9 @@ export function worktreeForm(
           ? "branch-exists"
           : null;
   const confirmable = (problem: FormProblem | null, where: string) =>
-    problem === null && !state.notEmpty && where.trim() !== "";
-  const notEmpty = state.notEmpty ? ("not-empty" as const) : null;
+    problem === null && where.trim() !== "";
+  const notEmpty = (where: string) =>
+    state.notEmpty !== null && where.trim() === state.notEmpty ? ("not-empty" as const) : null;
 
   switch (state.kind) {
     case "new": {
@@ -71,7 +72,7 @@ export function worktreeForm(
       const options = [...context.local, ...context.remote];
       const startFrom = pick(picked ?? context.startFrom, options);
       const where = placed(state.newBranch.location, name.trim());
-      const problem = nameProblem(name.trim()) ?? notEmpty;
+      const problem = nameProblem(name.trim()) ?? notEmpty(where);
       const base = startFrom.value;
       return {
         view: { kind: "new", name, startFrom, location: where },
@@ -96,9 +97,9 @@ export function worktreeForm(
       const where = placed(state.existing.location, branch.value ?? "");
       return {
         view: { kind: "existing", branch, location: where },
-        problem: notEmpty,
+        problem: notEmpty(where),
         request:
-          branch.value !== null && confirmable(notEmpty, where)
+          branch.value !== null && confirmable(notEmpty(where), where)
             ? { branch: { kind: "existing", name: branch.value }, location: where.trim() }
             : null,
       };
@@ -107,7 +108,7 @@ export function worktreeForm(
       const remote = pick(state.remote.remote, context.remote);
       const local = state.remote.local ?? (remote.value === null ? "" : localName(remote.value));
       const where = placed(state.remote.location, local.trim());
-      const problem = nameProblem(local.trim()) ?? notEmpty;
+      const problem = nameProblem(local.trim()) ?? notEmpty(where);
       return {
         view: { kind: "remote", remote, local, location: where },
         problem,

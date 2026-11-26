@@ -29,7 +29,7 @@ const WORKSPACE: Workspace = {
 let machines = 0;
 
 async function render(
-  creations: WorktreeCreation[],
+  creations: (WorktreeCreation | Promise<WorktreeCreation>)[],
   contexts: (WorktreeContext | null)[] = [CONTEXT],
 ) {
   const machineId = `mac-${(machines += 1)}`;
@@ -37,7 +37,7 @@ async function render(
   const client: NewWorktreeClient = {
     worktreeContext: async () => contexts.shift() ?? null,
     worktreeLocation: (_, branch) => `~/wt/${branch}`,
-    createWorktree: async () => creations.shift() ?? { kind: "failed" },
+    createWorktree: async () => (await creations.shift()) ?? { kind: "failed" },
   };
   const hook = await renderHook(() =>
     useNewWorktree({ client, machineId, workspace: WORKSPACE, onCreated }),
@@ -54,6 +54,21 @@ describe("useNewWorktree", () => {
     expect(onCreated).toHaveBeenCalledTimes(1);
     const grid = await renderHook(() => useGridState(`${machineId}/w`));
     expect(grid.result.current[0]).toMatchObject({ picked: null, expecting: "t9", used: ["t9"] });
+  });
+
+  it("opens the new Worktree's Tab but leaves the screen alone when the form closed first", async () => {
+    let answer: (creation: WorktreeCreation) => void = () => {};
+    const created = new Promise<WorktreeCreation>((resolve) => (answer = resolve));
+    const { result, machineId, onCreated, unmount } = await render([created]);
+    await act(async () => result.current.setName("topic"));
+    await act(async () => result.current.create());
+
+    await unmount();
+    await act(async () => answer({ kind: "created", tab: "t9" }));
+
+    expect(onCreated).not.toHaveBeenCalled();
+    const grid = await renderHook(() => useGridState(`${machineId}/w`));
+    expect(grid.result.current[0]).toMatchObject({ expecting: "t9", used: ["t9"] });
   });
 
   it("says a Location is not empty until the Location changes", async () => {

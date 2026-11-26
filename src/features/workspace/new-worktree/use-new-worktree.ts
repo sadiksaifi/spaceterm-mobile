@@ -52,6 +52,14 @@ export function useNewWorktree({
   const [failure, setFailure] = useState<NewWorktreeFailure | null>(null);
   const [attempt, setAttempt] = useState(0);
   const sending = useRef(false);
+  // A Create answered after the form closed must not close whatever screen shows then.
+  const open = useRef(true);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
   const { repository } = workspace;
 
   useEffect(() => {
@@ -75,15 +83,6 @@ export function useNewWorktree({
       : worktreeForm(of, context, (branch) => client.worktreeLocation(context, branch));
   const form = formOf(state);
 
-  /** Applies `change`. A change of the Location shown clears a Location found not empty. */
-  const edit = (change: (state: FormState) => FormState) =>
-    setState((current) => {
-      const next = change(current);
-      if (next === current) return current;
-      const moved = formOf(next)?.view.location !== formOf(current)?.view.location;
-      return moved ? { ...next, notEmpty: false } : next;
-    });
-
   const create = () => {
     const request = form?.request;
     if (context === null || request == null || sending.current) return;
@@ -101,9 +100,10 @@ export function useNewWorktree({
             expecting: result.tab,
             used: [result.tab, ...grid.used],
           }));
-          return onCreated();
+          if (open.current) onCreated();
+          return;
         case "not-empty":
-          return setState((current) => ({ ...current, notEmpty: true }));
+          return setState((current) => ({ ...current, notEmpty: request.location }));
         default:
           return setFailure("create");
       }
@@ -117,7 +117,7 @@ export function useNewWorktree({
     failure,
     setKind: (kind) => setState((current) => ({ ...current, kind })),
     setName: (typed) =>
-      edit((current) =>
+      setState((current) =>
         current.kind === "remote"
           ? typed === localShown(formOf(current))
             ? current
@@ -125,7 +125,7 @@ export function useNewWorktree({
           : { ...current, newBranch: { ...current.newBranch, name: typed } },
       ),
     setLocation: (typed) =>
-      edit((current) => {
+      setState((current) => {
         if (typed === formOf(current)?.view.location) return current;
         switch (current.kind) {
           case "new":
@@ -137,7 +137,7 @@ export function useNewWorktree({
         }
       }),
     pick: (branch) =>
-      edit((current) => {
+      setState((current) => {
         switch (current.kind) {
           case "new":
             return { ...current, newBranch: { ...current.newBranch, startFrom: branch } };

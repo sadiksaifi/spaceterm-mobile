@@ -8,6 +8,7 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { useState, type ReactNode } from "react";
 import { useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { Tab } from "@/shared/machines/model";
 
@@ -39,13 +40,20 @@ export function PanesSheet({
   alertsView: (children: ReactNode) => ReactNode;
 }) {
   const width = useWindowDimensions().width - 2 * SHEET_INSET;
+  // The sheet keeps the bottom safe area clear below its content by itself.
+  const { bottom } = useSafeAreaInsets();
   // As tall as its Panes, up to the full height.
   // The Tab whose sheet the person pulled to the full height; it stays there for that Tab.
   const [fullFor, setFullFor] = useState<string | null>(null);
   const full = tab !== null && fullFor === tab.id;
   const fit =
     tab &&
-    PADDING_TOP + HEADER + SPACING + cardGridHeight(tab.panes.length, width) + PADDING_BOTTOM;
+    PADDING_TOP +
+      HEADER +
+      SPACING +
+      cardGridHeight(tab.panes.length, width) +
+      PADDING_BOTTOM -
+      bottom;
   return (
     <BottomSheet
       isPresented={tab !== null}

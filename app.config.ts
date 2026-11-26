@@ -1,6 +1,9 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import { withXcodeProject } from "expo/config-plugins";
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
+export default (context: ConfigContext): ExpoConfig => withArm64Only(app(context));
+
+const app = ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "SpaceTerm",
   slug: "SpaceTerm",
@@ -43,7 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-build-properties",
       {
         ios: { deploymentTarget: "26.0" },
-        // libspaceterm ships for arm64 only, the ABI of current phones and Apple silicon emulators.
+        // SpaceTerm supports arm64 only, on both platforms: libspaceterm ships no other ABI.
         android: { buildArchs: ["arm64-v8a"] },
       },
     ],
@@ -65,3 +68,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     reactCompiler: true,
   },
 });
+
+/** Builds the iOS app for arm64 only. Xcode otherwise adds x86_64 to Release simulator builds. */
+const withArm64Only = (config: ExpoConfig) =>
+  withXcodeProject(config, (config) => {
+    config.modResults.updateBuildProperty("ARCHS", "arm64");
+    return config;
+  });

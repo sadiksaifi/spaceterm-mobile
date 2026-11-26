@@ -1,9 +1,7 @@
 //! Workspace edits, each pairing's through one journal so a lost answer is never applied twice.
 use crate::record_file::{Publication, hex, publish_private, read_private};
 use spaceterm_client::hierarchy::{Mutation, Outcome, RetainedOutcome};
-use spaceterm_client::workspace::{
-    ClientJournal, EditError, EditProgress, JournalStore, WorkspaceEditor,
-};
+use spaceterm_client::workspace::{ClientJournal, EditError, JournalStore, WorkspaceEditor};
 use spaceterm_client::{CoreError, DirectRouteId, PairedMachine};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -48,36 +46,29 @@ impl Edits {
             return false;
         };
         if let Some(pending) = editor.journal().pending().cloned() {
-            if pending.mutation == mutation {
-                // Try Again of an edit whose answer was lost: it goes again under its own
-                // sequence, so the Machine applies it at most once, whether it ran already or
-                // never arrived.
-                match editor.retry(deadline) {
-                    Ok(Some(outcome)) => {
-                        let _ = editor.presented(outcome.sequence);
+            // An edit whose answer was lost goes first, again under its own sequence, so the
+            // Machine applies it at most once: it may have run already, be queued there, or never
+            // have arrived. Its name version or Kill confirmation keeps it from acting on a
+            // Workspace that changed since the person saw it.
+            match editor.retry(deadline) {
+                Ok(Some(outcome)) => {
+                    let _ = editor.presented(outcome.sequence);
+                    // Try Again of that same edit: its answer is this one's.
+                    if pending.mutation == mutation {
                         return accepted(&outcome);
                     }
-                    Ok(None) => {}
-                    Err(error) => return self.failed(&mut slot, error),
                 }
-            } else {
-                // Another edit. The person was told the lost one failed, so it is never sent
-                // again: the Machine only says what became of it.
-                match editor.resolve(deadline) {
-                    Ok(Some(EditProgress::Outcome { outcome, .. })) => {
-                        let _ = editor.presented(outcome.sequence);
+                Ok(None) => {}
+                // The Machine's answer does not fit this edit, as when its sequence went to
+                // another edit, so this one can never run there. The journal lets it go, or no
+                // later edit could be admitted. Nothing is sent again.
+                Err(EditError::Core(CoreError::Protocol)) => {
+                    *slot = None;
+                    if !self.abandon(route, machine) {
+                        return false;
                     }
-                    Ok(_) => {}
-                    // The Machine holds no outcome for it, so the journal lets it go. One still
-                    // in flight there can run yet, but this device never sends it again.
-                    Err(EditError::Unconfirmed) => {
-                        *slot = None;
-                        if !self.abandon(route, machine) {
-                            return false;
-                        }
-                    }
-                    Err(error) => return self.failed(&mut slot, error),
                 }
+                Err(error) => return self.failed(&mut slot, error),
             }
         }
         let Some(editor) = self.editor(&mut slot, route, machine) else {
@@ -94,8 +85,8 @@ impl Edits {
     }
 
     /// Settles a failed edit, which stays in the journal: a refusal does not show the Machine
-    /// left it undone, since Core can refuse after it applied one. Try Again sends it again; any
-    /// other edit first asks what became of it.
+    /// left it undone, since Core can refuse after it applied one. The next edit sends it again
+    /// first.
     fn failed(
         &self,
         slot: &mut Option<(PairedMachine, WorkspaceEditor)>,

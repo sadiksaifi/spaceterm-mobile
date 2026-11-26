@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useCallback, useRef } from "react";
 
 import { useMachineClient, useMachines } from "@/shared/machines/client";
 import type { Workspace } from "@/shared/machines/model";
@@ -34,12 +34,15 @@ export default function NewWorktreeRoute() {
     onCreated: close,
   });
 
-  // The form closes when its Workspace goes, or its Machine stops answering.
-  useEffect(() => {
-    if (!usable) close();
-    // `close` is new each render; the form closes once `usable` turns false.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usable]);
+  // The form closes when its Workspace goes, or its Machine stops answering, or as soon as it is
+  // on screen again if that happened under another screen.
+  useFocusEffect(
+    useCallback(() => {
+      if (!usable) close();
+      // `close` is new each render; what matters is `usable` while the form is on screen.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [usable]),
+  );
 
   return (
     <NewWorktreeScreen

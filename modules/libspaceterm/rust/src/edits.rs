@@ -1,9 +1,8 @@
 //! Workspace edits, each pairing's through one journal so a lost answer is never applied twice.
 use crate::record_file::{Publication, hex, publish_private, read_private};
+use spaceterm_client::connection::link::RequestError;
 use spaceterm_client::hierarchy::{Mutation, Outcome, RetainedOutcome};
-use spaceterm_client::workspace::{
-    ClientJournal, EditError, EditProgress, JournalStore, WorkspaceEditor,
-};
+use spaceterm_client::workspace::{ClientJournal, EditError, JournalStore, WorkspaceEditor};
 use spaceterm_client::{CoreError, DirectRouteId, PairedMachine};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -48,29 +47,19 @@ impl Edits {
             return false;
         };
         if let Some(pending) = editor.journal().pending().cloned() {
-            // An earlier edit whose answer was lost. It is asked about, never sent again: the
-            // person was told it failed, so it must not run now behind another command.
-            match editor.resolve(deadline) {
-                Ok(Some(EditProgress::Outcome { outcome, .. })) => {
-                    let _ = editor.presented(outcome.sequence);
-                    if pending.mutation == mutation {
-                        return accepted(&outcome);
+            // An earlier edit whose answer was lost goes first, with its own sequence, so the
+            // Machine applies it at most once: it may have run already, or still be queued there.
+            match editor.retry(deadline) {
+                Ok(outcome) => {
+                    if let Some(outcome) = outcome {
+                        let _ = editor.presented(outcome.sequence);
+                        // Try Again of that same edit: its answer is this one's.
+                        if pending.mutation == mutation {
+                            return accepted(&outcome);
+                        }
                     }
                 }
-                Ok(_) => {}
-                // The Machine has no record of it before the deadline, so it never ran.
-                Err(EditError::Unconfirmed) if Instant::now() < deadline => {
-                    *slot = None;
-                    if !self.abandon(route, machine) {
-                        return false;
-                    }
-                }
-                Err(error) => {
-                    if lost_storage(error) {
-                        *slot = None;
-                    }
-                    return false;
-                }
+                Err(error) => return self.failed(&mut slot, route, machine, error),
             }
         }
         let Some(editor) = self.editor(&mut slot, route, machine) else {
@@ -82,13 +71,28 @@ impl Edits {
                 let _ = editor.presented(outcome.sequence);
                 accepted(&outcome)
             }
-            Err(error) => {
-                if lost_storage(error) {
-                    *slot = None;
-                }
-                false
-            }
+            Err(error) => self.failed(&mut slot, route, machine, error),
         }
+    }
+
+    /// Settles a failed edit. One the Machine refused never runs, so the journal drops it; one
+    /// whose answer was lost stays for the next edit to send again.
+    fn failed(
+        &self,
+        slot: &mut Option<(PairedMachine, WorkspaceEditor)>,
+        route: DirectRouteId,
+        machine: &PairedMachine,
+        error: EditError,
+    ) -> bool {
+        match error {
+            EditError::Request(RequestError::Refused(_)) => {
+                *slot = None;
+                self.abandon(route, machine);
+            }
+            EditError::Core(CoreError::StorageUnavailable) => *slot = None,
+            _ => {}
+        }
+        false
     }
 
     /// Forgets a pairing's edits once its Saved Connection is gone, after any edit under way.
@@ -151,11 +155,6 @@ impl Edits {
 
 fn accepted(outcome: &RetainedOutcome) -> bool {
     matches!(outcome.outcome, Outcome::Accepted { .. })
-}
-
-/// A journal whose storage may have failed must be opened again before its next edit.
-fn lost_storage(error: EditError) -> bool {
-    matches!(error, EditError::Core(CoreError::StorageUnavailable))
 }
 
 fn journal_name(route: &DirectRouteId) -> String {

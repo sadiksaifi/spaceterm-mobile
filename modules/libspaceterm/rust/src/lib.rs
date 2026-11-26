@@ -187,7 +187,7 @@ impl Machines {
         // libspaceterm reports a removal even when saving it failed. A pairing still saved keeps
         // its journal, as it comes back on the next start.
         connections.on_route_removed(Arc::new(move |route| {
-            if !saved.order().contains(route) {
+            if saved.durably_without(route) {
                 forgotten.forget(route);
             }
         }));

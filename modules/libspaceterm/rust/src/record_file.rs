@@ -19,6 +19,8 @@ struct WriteAuthority {
     blocked: bool,
     /// The Saved Connections in the order they were paired, as the last published file lists them.
     order: Vec<DirectRouteId>,
+    /// Whether that file is known to be on disk, its directory entry included.
+    synchronized: bool,
 }
 
 pub(crate) struct PrivateRecordFile {
@@ -36,6 +38,13 @@ impl PrivateRecordFile {
 
     pub(crate) fn exists(&self) -> bool {
         self.path().exists()
+    }
+
+    /// Whether the file on disk no longer lists `route`: a crash cannot bring it back.
+    pub(crate) fn durably_without(&self, route: &DirectRouteId) -> bool {
+        self.authority
+            .lock()
+            .is_ok_and(|authority| authority.synchronized && !authority.order.contains(route))
     }
 
     /// Saved Connection routes in the order they were paired.
@@ -134,6 +143,7 @@ impl RecordFile for PrivateRecordFile {
             observed: Some(digest(&bytes)),
             blocked: false,
             order: order_of(&bytes),
+            synchronized: true,
         };
         Ok(())
     }
@@ -152,6 +162,7 @@ impl RecordFile for PrivateRecordFile {
             Publication::Published { synchronized } => {
                 authority.observed = Some(digest(bytes));
                 authority.order = order_of(bytes);
+                authority.synchronized = synchronized;
                 Ok(if synchronized {
                     Durability::Synchronized
                 } else {

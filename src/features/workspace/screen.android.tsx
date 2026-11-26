@@ -62,6 +62,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const [sheet, setSheet] = useState(false);
   const bottom = insets.bottom + BAR_MARGIN;
   const connected = view.kind === "tabs";
+  const panes = connected ? commands.panes : null;
 
   // Android reports a refused command in a snackbar above the bar, which leaves the grid usable.
   const failure: TabFailure | RowFailure | null = commands.failure ?? alerts.failure;
@@ -144,7 +145,9 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
               </Box>
             )}
           </Column>
-          <SnackbarSlot {...snackbar} bottom={bottom + BAR_HEIGHT + 8} />
+          {!sheet && panes === null && (
+            <SnackbarSlot {...snackbar} bottom={bottom + BAR_HEIGHT + 8} />
+          )}
           <Box modifiers={[align("bottomCenter"), padding(0, 0, 0, bottom)]}>
             <WorkspaceBar
               rows={rows}
@@ -163,9 +166,18 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
               alerts={alerts}
               onSwitch={props.onSwitch}
               onNewWorkspace={props.onNewWorkspace}
+              snackbar={
+                panes === null && <SnackbarSlot {...snackbar} bottom={insets.bottom + 16} />
+              }
             />
           )}
-          {connected && commands.panes && <PanesSheet tab={commands.panes} commands={commands} />}
+          {panes !== null && (
+            <PanesSheet
+              tab={panes}
+              commands={commands}
+              snackbar={<SnackbarSlot {...snackbar} bottom={insets.bottom + 16} />}
+            />
+          )}
           <TabDialogs commands={commands} />
           <RowAlertsView alerts={alerts} />
         </Box>

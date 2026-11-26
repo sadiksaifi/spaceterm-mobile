@@ -32,7 +32,7 @@ import {
   verticalScroll,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { rowCommands, type Control } from "@/features/home/actions";
@@ -64,6 +64,7 @@ export function WorkspacesSheet({
   alerts,
   onSwitch,
   onNewWorkspace,
+  snackbar,
 }: {
   onClose: () => void;
   rows: readonly WorkspaceRow[];
@@ -71,6 +72,8 @@ export function WorkspacesSheet({
   alerts: RowAlerts;
   onSwitch: (row: WorkspaceRow) => void;
   onNewWorkspace: (() => void) | undefined;
+  /** The screen's snackbar, which shows here while the sheet covers the screen. */
+  snackbar: ReactNode;
 }) {
   const material = useMaterialColors();
   const colors = useColors();
@@ -85,80 +88,87 @@ export function WorkspacesSheet({
 
   return (
     <ModalBottomSheet onDismissRequest={onClose} containerColor={material.surfaceContainerLow}>
-      <Column modifiers={[fillMaxWidth(), padding(16, 0, 16, insets.bottom + 16)]}>
-        <Row
-          verticalAlignment="center"
-          horizontalArrangement={{ spacedBy: 16 }}
-          modifiers={[fillMaxWidth(), padding(0, 8, 0, 12)]}
-        >
-          <Surface
-            color={material.surfaceContainerHigh}
-            modifiers={[weight(1), height(FIELD_HEIGHT), clip(Shapes.RoundedCorner(FIELD_HEIGHT))]}
+      <Box modifiers={[fillMaxWidth()]}>
+        <Column modifiers={[fillMaxWidth(), padding(16, 0, 16, insets.bottom + 16)]}>
+          <Row
+            verticalAlignment="center"
+            horizontalArrangement={{ spacedBy: 16 }}
+            modifiers={[fillMaxWidth(), padding(0, 8, 0, 12)]}
           >
-            <Row
-              verticalAlignment="center"
-              horizontalArrangement={{ spacedBy: 16 }}
-              modifiers={[fillMaxSize(), padding(16, 0, 16, 0)]}
+            <Surface
+              color={material.surfaceContainerHigh}
+              modifiers={[
+                weight(1),
+                height(FIELD_HEIGHT),
+                clip(Shapes.RoundedCorner(FIELD_HEIGHT)),
+              ]}
             >
-              <Icon source={searchIcon} tint={colors.secondaryText} />
-              <BasicTextField
-                value={field}
-                singleLine
-                onValueChange={setQuery}
-                textStyle={{ color: colors.text, fontSize: 16 }}
-                cursorColor={material.primary}
-                keyboardOptions={{ autoCorrectEnabled: false }}
-                modifiers={[weight(1)]}
+              <Row
+                verticalAlignment="center"
+                horizontalArrangement={{ spacedBy: 16 }}
+                modifiers={[fillMaxSize(), padding(16, 0, 16, 0)]}
               >
-                <BasicTextField.DecorationBox>
-                  <Box>
-                    <BasicTextField.Placeholder>
-                      <Text style={{ typography: "bodyLarge" }} color={colors.secondaryText}>
-                        {text.searchWorkspaces}
-                      </Text>
-                    </BasicTextField.Placeholder>
-                    <BasicTextField.InnerTextField />
-                  </Box>
-                </BasicTextField.DecorationBox>
-              </BasicTextField>
-            </Row>
-          </Surface>
-          <FloatingActionButton
-            onClick={
-              onNewWorkspace &&
-              (() => {
-                onClose();
-                onNewWorkspace();
-              })
-            }
-            containerColor={material.primaryContainer}
-            modifiers={[
-              size(FIELD_HEIGHT, FIELD_HEIGHT),
-              clip(Shapes.Circle),
-              ...(onNewWorkspace ? [] : [alpha(UNAVAILABLE)]),
-            ]}
-          >
-            <FloatingActionButton.Icon>
-              <Icon source={addIcon} contentDescription={text.newWorkspace} />
-            </FloatingActionButton.Icon>
-          </FloatingActionButton>
-        </Row>
-        <Column modifiers={[fillMaxWidth(), verticalScroll()]}>
-          {shown.map((row) => (
-            <SheetRow
-              key={row.key}
-              row={row}
-              checked={row.key === selected}
-              commands={rowCommands(row, alerts.handlers, alerts.underway.get(row.key) ?? null)}
-              closedAlerts={alerts.closed}
-              onPick={() => {
-                onClose();
-                onSwitch(row);
-              }}
-            />
-          ))}
+                <Icon source={searchIcon} tint={colors.secondaryText} />
+                <BasicTextField
+                  value={field}
+                  singleLine
+                  onValueChange={setQuery}
+                  textStyle={{ color: colors.text, fontSize: 16 }}
+                  cursorColor={material.primary}
+                  keyboardOptions={{ autoCorrectEnabled: false }}
+                  modifiers={[weight(1)]}
+                >
+                  <BasicTextField.DecorationBox>
+                    <Box>
+                      <BasicTextField.Placeholder>
+                        <Text style={{ typography: "bodyLarge" }} color={colors.secondaryText}>
+                          {text.searchWorkspaces}
+                        </Text>
+                      </BasicTextField.Placeholder>
+                      <BasicTextField.InnerTextField />
+                    </Box>
+                  </BasicTextField.DecorationBox>
+                </BasicTextField>
+              </Row>
+            </Surface>
+            <FloatingActionButton
+              onClick={
+                onNewWorkspace &&
+                (() => {
+                  onClose();
+                  onNewWorkspace();
+                })
+              }
+              containerColor={material.primaryContainer}
+              modifiers={[
+                size(FIELD_HEIGHT, FIELD_HEIGHT),
+                clip(Shapes.Circle),
+                ...(onNewWorkspace ? [] : [alpha(UNAVAILABLE)]),
+              ]}
+            >
+              <FloatingActionButton.Icon>
+                <Icon source={addIcon} contentDescription={text.newWorkspace} />
+              </FloatingActionButton.Icon>
+            </FloatingActionButton>
+          </Row>
+          <Column modifiers={[fillMaxWidth(), verticalScroll()]}>
+            {shown.map((row) => (
+              <SheetRow
+                key={row.key}
+                row={row}
+                checked={row.key === selected}
+                commands={rowCommands(row, alerts.handlers, alerts.underway.get(row.key) ?? null)}
+                closedAlerts={alerts.closed}
+                onPick={() => {
+                  onClose();
+                  onSwitch(row);
+                }}
+              />
+            ))}
+          </Column>
         </Column>
-      </Column>
+        {snackbar}
+      </Box>
     </ModalBottomSheet>
   );
 }

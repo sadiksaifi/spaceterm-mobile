@@ -82,8 +82,8 @@ impl PrivateRecordFile {
     }
 
     /// Writes `bytes` to a new private file beside the published one and returns its path.
+    /// The directory must exist: the platform creates it with the backup policy records need.
     fn stage(&self, bytes: &[u8]) -> std::io::Result<PathBuf> {
-        fs::create_dir_all(&self.directory)?;
         let mut nonce = [0u8; 8];
         getrandom::fill(&mut nonce).map_err(|_| std::io::Error::other("no randomness"))?;
         let staged = self
@@ -191,7 +191,9 @@ mod tests {
     fn directory() -> PathBuf {
         let mut nonce = [0u8; 8];
         getrandom::fill(&mut nonce).unwrap();
-        std::env::temp_dir().join(format!("spaceterm-mobile-test-{}", hex(&nonce)))
+        let dir = std::env::temp_dir().join(format!("spaceterm-mobile-test-{}", hex(&nonce)));
+        fs::create_dir_all(&dir).unwrap();
+        dir
     }
 
     #[test]
@@ -240,7 +242,6 @@ mod tests {
     #[test]
     fn a_failed_read_grants_no_write_authority() {
         let dir = directory();
-        fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(FILE), b"not saved connections").unwrap();
         let records = PrivateRecords::new(Arc::new(PrivateRecordFile::new(dir.clone())));
 

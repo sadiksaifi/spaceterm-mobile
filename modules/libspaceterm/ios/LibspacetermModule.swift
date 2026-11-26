@@ -28,6 +28,8 @@ private func deviceName() -> String {
 
 public class LibspacetermModule: Module {
   private var changes: Changes?
+  private var joins = Set<String>()
+  private let joinsLock = NSLock()
 
   public func definition() -> ModuleDefinition {
     Name("Libspaceterm")
@@ -44,6 +46,7 @@ public class LibspacetermModule: Module {
 
     OnDestroy {
       self.stopListening()
+      self.endUnfinishedJoins()
     }
 
     Function("readInvitation") { (link: String) -> [String: Any] in
@@ -59,7 +62,9 @@ public class LibspacetermModule: Module {
 
     Function("join") { (link: String, networkAddress: String?) -> [String: Any] in
       do {
-        return ["kind": "joining", "join": try shared.join(link: link, networkAddress: networkAddress)]
+        let join = try shared.join(link: link, networkAddress: networkAddress)
+        self.joinsLock.withLock { _ = self.joins.insert(join) }
+        return ["kind": "joining", "join": join]
       } catch MachinesError.UnusableInvitation {
         return ["kind": "unusable"]
       } catch MachinesError.InvalidAddress {
@@ -136,6 +141,23 @@ public class LibspacetermModule: Module {
     thread.start()
     // A change before the subscription reached no one, so JavaScript reads everything once now.
     sendEvent("onChange")
+  }
+
+  /// A join this runtime started ends with it, so no pairing completes that nobody saw.
+  private func endUnfinishedJoins() {
+    let started = joinsLock.withLock {
+      let started = joins
+      joins.removeAll()
+      return started
+    }
+    for join in started {
+      switch shared.joinState(join: join) {
+      case .reaching, .comparing, .paused:
+        shared.cancelJoin(join: join)
+      case .paired, .declined, .unreachable:
+        break
+      }
+    }
   }
 
   private func stopListening() {

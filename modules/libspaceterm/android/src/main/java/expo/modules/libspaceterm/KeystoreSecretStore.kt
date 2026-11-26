@@ -3,6 +3,8 @@ package expo.modules.libspaceterm
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.system.Os
+import android.system.OsConstants
 import android.util.AtomicFile
 import java.io.File
 import java.io.FileNotFoundException
@@ -59,6 +61,7 @@ internal class KeystoreSecretStore(context: Context) : SecretStore {
     file.finishWrite(output)
     // AtomicFile reports commit errors via logging. Check the bytes before confirming the insert.
     check(file.readFully().contentEquals(stored))
+    syncDirectory()
   }
 
   @Synchronized
@@ -66,6 +69,17 @@ internal class KeystoreSecretStore(context: Context) : SecretStore {
     val file = secretFile(key)
     AtomicFile(file).delete()
     check(!file.exists() && !File(directory, "$key.bak").exists() && !File(directory, "$key.new").exists())
+    syncDirectory()
+  }
+
+  /** Makes the latest rename or deletion in the directory survive a sudden reset. */
+  private fun syncDirectory() {
+    val descriptor = Os.open(directory.path, OsConstants.O_RDONLY, 0)
+    try {
+      Os.fsync(descriptor)
+    } finally {
+      Os.close(descriptor)
+    }
   }
 
   @Synchronized

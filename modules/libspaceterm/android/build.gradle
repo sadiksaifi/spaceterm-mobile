@@ -11,6 +11,13 @@ if (!file('generated/kotlin/uniffi/spaceterm_mobile/spaceterm_mobile.kt').isFile
   throw new GradleException('Libspaceterm Android bindings or library are missing. Run `mise run libspaceterm:android` from the repository root.')
 }
 
+// SpaceTerm supports arm64 only. Expo CLI sets the selected device's ABI for a debug build, and an
+// x86_64 build would otherwise ship without libspaceterm.
+def architectures = findProperty('reactNativeArchitectures')?.toString()
+if (architectures != null && architectures.split(',').any { it.trim() != 'arm64-v8a' }) {
+  throw new GradleException("SpaceTerm supports arm64-v8a only, not ${architectures}. Use an arm64 device or emulator.")
+}
+
 android {
   namespace "expo.modules.libspaceterm"
   defaultConfig {

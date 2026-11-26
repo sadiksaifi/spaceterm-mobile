@@ -225,12 +225,12 @@ impl Machines {
         }
     }
 
-    /// Ends a join. A join the Machine approved meanwhile is unpaired again.
     /// Tries a paused join again. Returns `false` when the join is not paused or has expired.
     pub fn retry_join(&self, join: String) -> bool {
         decode(&join).is_some_and(|id| self.connections.retry_join(id).is_ok())
     }
 
+    /// Ends a join. A join the Machine approved meanwhile is unpaired again.
     pub fn cancel_join(&self, join: String) {
         if let Some(id) = decode(&join) {
             let _ = self.connections.cancel_join(id);

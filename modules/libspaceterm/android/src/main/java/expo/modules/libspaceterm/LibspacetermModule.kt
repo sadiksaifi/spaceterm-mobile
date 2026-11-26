@@ -22,6 +22,7 @@ import uniffi.spaceterm_mobile.PairedMachine
 class LibspacetermModule : Module() {
   private val changesLock = Any()
   private var changes: Changes? = null
+  private val joins = mutableSetOf<String>()
 
   override fun definition() = ModuleDefinition {
     Name("Libspaceterm")
@@ -37,7 +38,9 @@ class LibspacetermModule : Module() {
 
     Function("join") { link: String, networkAddress: String? ->
       try {
-        mapOf("kind" to "joining", "join" to machines().join(link, networkAddress))
+        val join = machines().join(link, networkAddress)
+        synchronized(joins) { joins.add(join) }
+        mapOf("kind" to "joining", "join" to join)
       } catch (error: MachinesException) {
         val kind = when (error) {
           is MachinesException.UnusableInvitation -> "unusable"
@@ -98,7 +101,10 @@ class LibspacetermModule : Module() {
 
     OnStartObserving("onChange") { startObserving() }
     OnStopObserving("onChange") { stopObserving() }
-    OnDestroy { stopObserving() }
+    OnDestroy {
+      stopObserving()
+      endUnfinishedJoins()
+    }
   }
 
   private fun machines(): Machines {
@@ -138,6 +144,18 @@ class LibspacetermModule : Module() {
     }
   }
 
+  /** A join this runtime started ends with it, so no pairing completes that nobody saw. */
+  private fun endUnfinishedJoins() {
+    val started = synchronized(joins) { joins.toList().also { joins.clear() } }
+    val machines = processMachinesOrNull() ?: return
+    for (join in started) {
+      when (machines.joinState(join)) {
+        JoinState.Reaching, is JoinState.Comparing, JoinState.Paused -> machines.cancelJoin(join)
+        is JoinState.Paired, JoinState.Declined, JoinState.Unreachable -> Unit
+      }
+    }
+  }
+
   private fun stopObserving() {
     synchronized(changesLock) {
       val listener = changes ?: return
@@ -152,6 +170,9 @@ class LibspacetermModule : Module() {
 
     // A JS runtime reload creates another Expo module instance in the same process.
     private var machines: Machines? = null
+
+    @Synchronized
+    fun processMachinesOrNull(): Machines? = machines
 
     @Synchronized
     fun processMachines(context: Context): Machines {

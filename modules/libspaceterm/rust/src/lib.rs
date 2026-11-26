@@ -18,7 +18,7 @@ use spaceterm_client::protocol::InventoryRevision;
 use spaceterm_client::records::PrivateRecords;
 use spaceterm_client::{
     CredentialError, CredentialStore, DeviceName, DirectConnections, DirectRouteId,
-    DirectRouteStatus, Interaction, JoinStatus, UnpairKey,
+    DirectRouteStatus, Interaction, JoinId, JoinStatus, UnpairKey,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -263,7 +263,9 @@ impl Machines {
     }
 
     pub fn join_state(&self, join: String) -> JoinState {
-        let Some(status) = decode(&join).and_then(|id| self.connections.join_status(id)) else {
+        let Some((id, status)) =
+            decode(&join).and_then(|id| Some((id, self.connections.join_status(id)?)))
+        else {
             return JoinState::Unreachable;
         };
         match status {
@@ -279,7 +281,7 @@ impl Machines {
             JoinStatus::Rejected | JoinStatus::Expired => JoinState::Declined,
             JoinStatus::Retryable { .. } => JoinState::Paused,
             JoinStatus::Failed(DirectError::Capacity) => {
-                self.full().unwrap_or(JoinState::Unreachable)
+                self.full(id).unwrap_or(JoinState::Unreachable)
             }
             JoinStatus::PublicationUnconfirmed | JoinStatus::Failed(_) => JoinState::Unreachable,
         }
@@ -428,11 +430,14 @@ impl Machines {
 }
 
 impl Machines {
-    /// `Full` when this device has no room for another pairing. A Machine with too many pairings
-    /// waiting for approval refuses with the same error, and freeing room here would not help it.
-    fn full(&self) -> Option<JoinState> {
+    /// `Full` when `join` found no room for another pairing on this device. A Machine with too many
+    /// pairings waiting for approval refuses with the same error, and freeing room here would not
+    /// help it. A join that reached the Machine holds room of its own, under its own id, until
+    /// libspaceterm cleans it up.
+    fn full(&self, join: JoinId) -> Option<JoinState> {
         let pending = self.connections.pending_unpairs();
-        if self.connections.routes().len() + pending.len() < ROOM {
+        let reached = pending.iter().any(|p| p.key == join);
+        if reached || self.connections.routes().len() + pending.len() < ROOM {
             return None;
         }
         let unfinished = pending.iter().filter(|p| p.enrollment_cleanup).count();

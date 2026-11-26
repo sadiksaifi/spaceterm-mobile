@@ -6,7 +6,7 @@ import {
   presentationDetents,
   presentationDragIndicator,
 } from "@expo/ui/swift-ui/modifiers";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useWindowDimensions } from "react-native";
 
 import type { Tab } from "@/shared/machines/model";
@@ -40,17 +40,29 @@ export function PanesSheet({
 }) {
   const width = useWindowDimensions().width - 2 * SHEET_INSET;
   // As tall as its Panes, up to the full height.
+  // The Tab whose sheet the person pulled to the full height; it stays there for that Tab.
+  const [fullFor, setFullFor] = useState<string | null>(null);
+  const full = tab !== null && fullFor === tab.id;
   const fit =
     tab &&
     PADDING_TOP + HEADER + SPACING + cardGridHeight(tab.panes.length, width) + PADDING_BOTTOM;
   return (
     <BottomSheet
       isPresented={tab !== null}
-      onIsPresentedChange={(presented) => !presented && commands.closePanes()}
+      onIsPresentedChange={(presented) => {
+        if (presented) return;
+        setFullFor(null);
+        commands.closePanes();
+      }}
     >
       <Group
         modifiers={[
-          presentationDetents(fit ? [{ height: fit }, "large"] : ["large"]),
+          presentationDetents(fit ? [{ height: fit }, "large"] : ["large"], {
+            // Selected explicitly, so a grid that grows a row takes the new height.
+            selection: full || !fit ? "large" : { height: fit },
+            onSelectionChange: (detent) =>
+              setFullFor(detent === "large" ? (tab?.id ?? null) : null),
+          }),
           presentationDragIndicator("visible"),
         ]}
       >

@@ -260,7 +260,7 @@ export function createMockClient(
         : { kind: "already-paired", invitation };
     },
 
-    pair: (link) => {
+    pair: (link, _networkAddress, { signal } = {}) => {
       const reading: InvitationReading = client.readInvitation(link);
       if (
         pairing === undefined ||
@@ -286,12 +286,11 @@ export function createMockClient(
           resolve({ kind: "paired", machine: { id, name } });
         }, pairing.wait);
       });
-      return answer<Pairing>({
-        kind: "comparing",
-        code: pairing.code,
-        outcome,
-        cancel: () => clearTimeout(timer),
-      });
+      const cancel = () => clearTimeout(timer);
+      // Aborting ends the pairing even before the answer arrives with `cancel`.
+      signal?.addEventListener("abort", cancel, { once: true });
+      if (signal?.aborted) cancel();
+      return answer<Pairing>({ kind: "comparing", code: pairing.code, outcome, cancel });
     },
   };
   return client;

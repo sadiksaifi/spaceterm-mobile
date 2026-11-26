@@ -33,24 +33,31 @@ export function usePairing(request: PairingRequest, showing: boolean): PairingVi
     const setView = (view: PairingView) => setAnswer({ round, view });
     let left = false;
     let cancel: (() => void) | undefined;
-    void client.pair(request.link, request.networkAddress).then((started) => {
-      if (started.kind === "unreachable") {
-        if (!left) setView(started);
-        return;
-      }
-      if (left) {
-        started.cancel();
-        return;
-      }
-      cancel = started.cancel;
-      setView({ kind: "comparing", code: started.code });
-      void started.outcome.then((outcome) => {
-        cancel = undefined;
-        if (!left) setView(outcome.kind === "paired" ? { kind: "paired" } : outcome);
+    // Ends a pairing that is still reaching the Machine, before there is a `cancel`.
+    const leaving = new AbortController();
+    void client
+      .pair(request.link, request.networkAddress, {
+        signal: leaving.signal,
+      })
+      .then((started) => {
+        if (started.kind === "unreachable") {
+          if (!left) setView(started);
+          return;
+        }
+        if (left) {
+          started.cancel();
+          return;
+        }
+        cancel = started.cancel;
+        setView({ kind: "comparing", code: started.code });
+        void started.outcome.then((outcome) => {
+          cancel = undefined;
+          if (!left) setView(outcome.kind === "paired" ? { kind: "paired" } : outcome);
+        });
       });
-    });
     return () => {
       left = true;
+      leaving.abort();
       cancel?.();
     };
   }, [client, request, showing, round]);

@@ -2,6 +2,7 @@ import { createContext, use, useState, useSyncExternalStore, type ReactNode } fr
 
 import { createMockClient, type MockPairing } from "./mock";
 import type { MachineClient, MachinesSnapshot } from "./model";
+import { createNativeClient } from "./native";
 import { macbook, macMini, scenarios, type Scenario } from "./seed";
 
 /** How long a mock answer takes, so loading states show. */
@@ -18,18 +19,22 @@ const mockPairing = __DEV__ ? pairingToFake(process.env.EXPO_PUBLIC_MOCK_PAIRING
 export const FAKE_SCAN = mockPairing === undefined ? null : "spaceterm://pair/mock-invitation";
 
 /**
- * The client this build talks to. Until pairing exists, a development build can pair the mock
- * Machines of a scenario: set `EXPO_PUBLIC_MOCK_DATA` to a name from `seed.ts`, or `off` for
- * none. `EXPO_PUBLIC_MOCK_FAILURES=on` makes those Machines refuse every other command.
- * `EXPO_PUBLIC_MOCK_PAIRING` fakes how Add Machine goes, with or without a scenario. A release
- * build always starts with no Machines and can pair none (DESIGN.md, "Real data only").
+ * The client this build talks to. A release build pairs real Machines. A development build pairs
+ * real Machines too, unless it fakes them: `EXPO_PUBLIC_MOCK_DATA` names a scenario from
+ * `seed.ts` to start with its mock Machines paired, and `EXPO_PUBLIC_MOCK_PAIRING` fakes how Add
+ * Machine goes. `EXPO_PUBLIC_MOCK_FAILURES=on` makes the mock Machines refuse every other command.
  */
 function defaultClient(): MachineClient {
-  if (!__DEV__) return createMockClient([]);
-  const scenario = process.env.EXPO_PUBLIC_MOCK_DATA;
+  const scenario = __DEV__ ? process.env.EXPO_PUBLIC_MOCK_DATA : undefined;
   const seed =
-    scenario !== undefined && scenario in scenarios ? scenarios[scenario as Scenario] : [];
-  return createMockClient(seed, {
+    scenario !== undefined && scenario in scenarios ? scenarios[scenario as Scenario] : undefined;
+  if (seed === undefined && mockPairing === undefined) {
+    // Required here, so a test that supplies its own client never loads the native module.
+    const { default: native } =
+      require("@/modules/libspaceterm") as typeof import("@/modules/libspaceterm");
+    return createNativeClient(native);
+  }
+  return createMockClient(seed ?? [], {
     latency: MOCK_LATENCY,
     refuse: process.env.EXPO_PUBLIC_MOCK_FAILURES === "on",
     pairing: mockPairing,

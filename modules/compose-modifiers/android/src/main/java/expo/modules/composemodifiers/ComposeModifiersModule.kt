@@ -1,6 +1,10 @@
 package expo.modules.composemodifiers
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
@@ -9,16 +13,23 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 import expo.modules.kotlin.records.recordFromMap
 import expo.modules.kotlin.types.OptimizedRecord
+import expo.modules.ui.ModifierEventDispatcher
 import expo.modules.ui.ModifierRegistry
+import kotlin.math.abs
 
 @OptimizedRecord
 data class MaxWidthFractionParams(@Field val fraction: Float = 1f) : Record
+
+@OptimizedRecord
+data class HorizontalSwipeParams(@Field val distance: Float = 32f) : Record
 
 @OptimizedRecord
 data class RadioSelectedParams(@Field val selected: Boolean = false) : Record
@@ -29,6 +40,24 @@ fun maxWidthFraction(fraction: Float): Modifier =
     val maxWidth = (constraints.maxWidth * fraction).toInt().coerceAtLeast(constraints.minWidth)
     val placeable = measurable.measure(constraints.copy(maxWidth = maxWidth))
     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+  }
+
+/**
+ * Reports a sideways drag of at least `distance` pixels, once the finger lifts, as "left" or
+ * "right". The drag takes the gesture from the clickable views inside, so they do not also get a
+ * tap; a tap or a touch and hold still reaches them.
+ */
+fun horizontalSwipe(distance: Float, onSwipe: (String) -> Unit): Modifier =
+  Modifier.pointerInput(distance) {
+    var total = 0f
+    detectHorizontalDragGestures(
+      onDragStart = { total = 0f },
+      onDragEnd = { if (abs(total) >= distance) onSwipe(if (total < 0) "left" else "right") },
+      onDragCancel = { total = 0f },
+    ) { change, amount ->
+      change.consume()
+      total += amount
+    }
   }
 
 /** Modifiers Expo UI leaves out. */
@@ -53,6 +82,15 @@ class ComposeModifiersModule : Module() {
         Modifier.clearAndSetSemantics {}
       }
       ModifierRegistry.register("disabled") { _, _, _, _ -> Modifier.semantics { disabled() } }
+      ModifierRegistry.register("horizontalSwipe") { map, _, converterContext, eventDispatcher ->
+        val distance = recordFromMap<HorizontalSwipeParams>(map, converterContext).distance
+        val pixels = with(LocalDensity.current) { distance.dp.toPx() }
+        // The drag outlives recompositions, so it reads the dispatcher of the latest one.
+        val dispatch: ModifierEventDispatcher by rememberUpdatedState(eventDispatcher)
+        horizontalSwipe(pixels) { direction ->
+          dispatch("horizontalSwipe", mapOf("direction" to direction))
+        }
+      }
     }
 
     OnDestroy {
@@ -61,6 +99,7 @@ class ComposeModifiersModule : Module() {
       ModifierRegistry.unregister("radioSelected")
       ModifierRegistry.unregister("hiddenFromAccessibility")
       ModifierRegistry.unregister("disabled")
+      ModifierRegistry.unregister("horizontalSwipe")
     }
   }
 }

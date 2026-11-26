@@ -33,6 +33,7 @@ android {
 dependencies {
   implementation 'com.facebook.react:react-android'
   // ../../compose-versions.test.ts fails when this differs from @expo/ui's build.gradle.
+  implementation 'androidx.compose.foundation:foundation-android:1.12.1'
   implementation 'androidx.compose.ui:ui-android:1.12.1'
   if (findProject(':expo-ui') != null) {
     implementation project(':expo-ui')

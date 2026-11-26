@@ -13,31 +13,31 @@ import {
 } from "@expo/ui/jetpack-compose";
 import {
   alpha,
-  animated,
   clip,
   combinedClickable,
   defaultMinSize,
   fillMaxHeight,
-  graphicsLayer,
+  offset,
   height,
   horizontalScroll,
   onSizeChanged,
   padding,
   Shapes,
   size,
-  tween,
   width,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { useState } from "react";
 import { useWindowDimensions } from "react-native";
 
 import { rowCommands, type Control } from "@/features/home/actions";
+import { horizontalSwipe } from "@/modules/compose-modifiers";
 import type { WorkspaceRow } from "@/features/home/model";
 import type { RowAlerts } from "@/features/home/row-alerts";
 import { useColors } from "@/shared/theme/colors";
 
 import { barLayout } from "../../model";
 import { text } from "../../text";
+import { SWIPE_DISTANCE, swipedTo } from "../../use-bar-swipe";
 
 /** The bar's metrics from the mockups. */
 export const BAR_HEIGHT = 56;
@@ -49,15 +49,14 @@ const INSET = 8;
 const PADDING = 20;
 /** A FloatingActionButton has no disabled state; an unavailable one takes Material's disabled opacity. */
 const UNAVAILABLE = 0.38;
-const MOVE = tween({ durationMillis: 250, easing: "fastOutSlowIn" });
 const MENU_CORNER = 16;
 const MENU_ELEVATION = 3;
 const MENU_WIDTH = 196;
 
 /**
  * Workspaces at the left, the Workspaces Home lists in the middle, New Workspace at the right as
- * the floating action button. The middle is never scrolled by hand: a swipe along it changes
- * Workspace, through the screen, and it moves by itself to keep the selected Workspace in view.
+ * the floating action button. The middle is never scrolled by hand: a swipe along the bar changes
+ * Workspace, and the middle moves by itself to keep the selected Workspace in view.
  */
 export function WorkspaceBar({
   rows,
@@ -94,7 +93,13 @@ export function WorkspaceBar({
     <Row
       verticalAlignment="center"
       horizontalArrangement={{ spacedBy: GAP }}
-      modifiers={[padding(SIDE, 0, SIDE, 0)]}
+      modifiers={[
+        padding(SIDE, 0, SIDE, 0),
+        horizontalSwipe(SWIPE_DISTANCE, (direction) => {
+          const next = swipedTo(rows, selected, direction);
+          if (next !== undefined) onSwitch(next);
+        }),
+      ]}
     >
       <Surface
         color={material.surfaceContainerHigh}
@@ -200,13 +205,7 @@ function Pill({
   );
 
   return (
-    <Box
-      modifiers={[
-        width(pillWidth),
-        fillMaxHeight(),
-        graphicsLayer({ translationX: animated(x, MOVE) }),
-      ]}
-    >
+    <Box modifiers={[width(pillWidth), fillMaxHeight(), offset(x, 0)]}>
       <DropdownMenu
         expanded={held}
         onDismissRequest={() => setHeld(false)}

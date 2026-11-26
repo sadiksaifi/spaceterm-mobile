@@ -4,20 +4,33 @@ import UIKit
 /// One `Machines` per process. A development reload makes a new module, and two `Machines` would
 /// write the same Saved Connections file.
 private let shared: Machines = {
-  let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-  var directory = support.appendingPathComponent("connections", isDirectory: true)
-  try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-  // Saved Connections are useless without their secrets, which never leave this device.
-  var values = URLResourceValues()
-  values.isExcludedFromBackup = true
-  try? directory.setResourceValues(values)
+  _ = keepConnectionsOutOfBackup()
   let service = "\(Bundle.main.bundleIdentifier ?? "spaceterm").pairing"
   return Machines(
-    directory: directory.path,
+    directory: connections.path,
     deviceName: deviceName(),
     secrets: KeychainSecretStore(service: service)
   )
 }()
+
+private let connections = FileManager.default
+  .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+  .appendingPathComponent("connections", isDirectory: true)
+
+/// Saved Connections are useless without their secrets, which never leave this device, so they stay
+/// out of backups. Returns `false` when the directory can't be made or excluded.
+private func keepConnectionsOutOfBackup() -> Bool {
+  var directory = connections
+  var values = URLResourceValues()
+  values.isExcludedFromBackup = true
+  do {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try directory.setResourceValues(values)
+    return true
+  } catch {
+    return false
+  }
+}
 
 private func deviceName() -> String {
   if Thread.isMainThread {
@@ -61,6 +74,8 @@ public class LibspacetermModule: Module {
     }
 
     Function("join") { (link: String, networkAddress: String?) -> [String: Any] in
+      // A pairing saves the Machine's name and address, which must not reach a backup.
+      guard keepConnectionsOutOfBackup() else { return ["kind": "unavailable"] }
       do {
         let join = try shared.join(link: link, networkAddress: networkAddress)
         self.joinsLock.withLock { _ = self.joins.insert(join) }

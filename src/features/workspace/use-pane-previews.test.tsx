@@ -56,4 +56,23 @@ describe("Pane previews", () => {
     });
     expect(panePreviews).toHaveBeenCalledTimes(2);
   });
+
+  it("starts a read only once the one under way answers", async () => {
+    let answer: (screens: Record<string, PaneScreen>) => void = () => {};
+    const panePreviews = jest.fn<MachineClient["panePreviews"]>();
+    panePreviews
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+      .mockResolvedValue({ c: screen("c1") });
+    const { result, rerender } = await renderHook(
+      ({ panes }: { panes: string[] }) => usePanePreviews({ panePreviews }, "mac", panes, true),
+      { initialProps: { panes: ["a"] } },
+    );
+
+    await rerender({ panes: ["c"] });
+    expect(panePreviews).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer({ a: screen("a1") }));
+    expect(panePreviews).toHaveBeenLastCalledWith("mac", ["c"]);
+    expect(result.current).toEqual({ c: screen("c1") });
+  });
 });

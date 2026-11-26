@@ -31,7 +31,7 @@ use spaceterm_client::{
 use spaceterm_protocol::worktree::{self, Read, ReadReply};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tabs::read_confirmation;
 use workspaces::{Seen, WorkspaceSummary, summaries};
 use worktrees::{NewWorktreeBranch, WorktreeContext, WorktreeCreation};
@@ -587,16 +587,19 @@ impl Machines {
                 ids.push(pane);
             }
         }
-        // Every request goes out before the first answer is awaited.
+        // Every request goes out before the first answer is awaited, and all share one wait.
+        let deadline = Instant::now() + PREVIEW_WAIT;
         let pending: Vec<_> = ids
             .chunks(preview::MAX_PANES)
             .filter_map(|chunk| link.read_pane_previews(chunk.to_vec()).ok())
             .collect();
         pending
             .into_iter()
-            .filter_map(|reply| match reply.wait_for(PREVIEW_WAIT)? {
-                Ok(ReplyBody::PanePreviews(previews)) => Some(previews),
-                _ => None,
+            .filter_map(|reply| {
+                match reply.wait_for(deadline.saturating_duration_since(Instant::now()))? {
+                    Ok(ReplyBody::PanePreviews(previews)) => Some(previews),
+                    _ => None,
+                }
             })
             .flat_map(previews::screens)
             .collect()

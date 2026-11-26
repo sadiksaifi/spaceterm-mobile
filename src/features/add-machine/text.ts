@@ -43,9 +43,12 @@ export const text = {
   tryAgain: cased("Try Again", "Try again"),
   /** This device has no room for another pairing, as cancelled pairings still hold some. */
   unfinished: "This device has too many unfinished pairings.",
-  /** This device has no room, and every pairing it holds is a paired Machine. */
+  /**
+   * This device has no room, and no cancelled pairing holds any: paired Machines do, and Machines
+   * unpaired while away, until they answer.
+   */
   noRoom:
-    "This device has paired as many Machines as it can. Unpair one in Settings to add another.",
+    "This device has no room for another Machine. Unpair one in Settings, or wait for Machines you unpaired to answer.",
   stopUnfinished: cased("Stop Unfinished Pairings", "Stop unfinished pairings"),
   stopTitle: (count: number) =>
     count === 1

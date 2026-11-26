@@ -38,12 +38,9 @@ const UNREACHABLE_PRIORITY: readonly UnreachableState[] = [
   "not-connected",
 ];
 
-export function homeView(snapshot: MachinesSnapshot, query = ""): HomeView {
-  const { machines } = snapshot;
-  if (machines.length === 0) return { kind: "no-machines" };
-
-  const anyConnected = machines.some((machine) => machine.connection === "connected");
-  const rows = machines.flatMap((machine) =>
+/** Every Workspace this device knows, Machine by Machine in the order they were paired. */
+export function workspaceRows({ machines }: MachinesSnapshot): readonly WorkspaceRow[] {
+  return machines.flatMap((machine) =>
     (machine.workspaces ?? []).map((workspace): WorkspaceRow => ({
       key: `${machine.id}/${workspace.id}`,
       machineId: machine.id,
@@ -52,6 +49,14 @@ export function homeView(snapshot: MachinesSnapshot, query = ""): HomeView {
       connection: machine.connection,
     })),
   );
+}
+
+export function homeView(snapshot: MachinesSnapshot, query = ""): HomeView {
+  const { machines } = snapshot;
+  if (machines.length === 0) return { kind: "no-machines" };
+
+  const anyConnected = machines.some((machine) => machine.connection === "connected");
+  const rows = workspaceRows(snapshot);
 
   if (rows.length === 0 && !anyConnected) {
     if (snapshot.starting) return { kind: "loading" };

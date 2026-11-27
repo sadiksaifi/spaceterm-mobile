@@ -42,7 +42,7 @@ final class PillBarProps: UIBaseViewProps {
 /**
  * Pills in a glass capsule, one of them highlighted, between optional round buttons. The pills
  * share the width when every name fits its share; otherwise each takes its name's width and the
- * row scrolls. A tap moves the highlight to a pill. Under a finger the highlight lifts into a
+ * row scrolls. A long name is cut short so that, at rest, the pills beside any pill still show. A tap moves the highlight to a pill. Under a finger the highlight lifts into a
  * glass lens and the capsule takes the buttons' room. A drag moves the lens with the finger over
  * the row, and a finger near either side of the capsule scrolls the row toward that side. The lens
  * takes the width of the name under it, and the pill under it is picked and centered when the
@@ -67,6 +67,8 @@ struct PillBarView: ExpoSwiftUI.View {
   private static let gap: CGFloat = 12
   private static let motion = Animation.spring(response: 0.34, dampingFraction: 0.78)
   private static let row = "pills"
+  /** How much of the pills beside the widest pill shows at rest, on each side of it. */
+  private static let peek: CGFloat = 44
   /** Near this distance from either side of the capsule, a held finger scrolls the row. */
   private static let edge: CGFloat = 44
   /** How fast the row scrolls with the finger at the capsule's side, in points a second. */
@@ -82,6 +84,8 @@ struct PillBarView: ExpoSwiftUI.View {
   @GestureState(resetTransaction: Transaction(animation: PillBarView.motion))
   private var touch: Touch?
   @State private var width: CGFloat = 0
+  /** The row's width at rest, before a held capsule takes the buttons' room. */
+  @State private var rest: CGFloat = 0
   /** The row's left edge on screen. */
   @State private var left: CGFloat = 0
   /** How far a held finger near a side scrolled the row. */
@@ -209,7 +213,7 @@ struct PillBarView: ExpoSwiftUI.View {
   private var capsule: some View {
     ScrollViewReader { proxy in
       ScrollView(.horizontal) {
-        PillsLayout(width: width) {
+        PillsLayout(width: width, widest: widest) {
           ForEach(props.pills, id: \.key) { pill in
             pillView(pill)
           }
@@ -226,11 +230,14 @@ struct PillBarView: ExpoSwiftUI.View {
         .padding(.vertical, Self.inset)
       }
       .scrollIndicators(.hidden)
+      // Room at both ends while held, so the grown lens over an end pill stays inside the capsule.
+      .contentMargins(.horizontal, touch == nil ? 0 : margin, for: .scrollContent)
       // Room at both ends while held, so the row can bring any pill under the lens.
       .scrollPosition($position)
       .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
         width = frame.width
         left = frame.minX
+        if touch == nil { rest = frame.width }
       }
       .onScrollGeometryChange(for: Past.self) { geometry in
         // Half a point of slack, so rounding never fades an edge with nothing past it.
@@ -407,7 +414,7 @@ struct PillBarView: ExpoSwiftUI.View {
       return nil
     }
     let offset = min(max(row.base + scrolled, 0), row.end)
-    let middle = min(max(offset + touch.now - left, first.1.midX), last.1.midX)
+    let middle = min(max(offset - margin + touch.now - left, first.1.midX), last.1.midX)
     // The pills whose middles are either side of `middle`, and how far it is from one to the other.
     let after = placed.firstIndex { $0.1.midX >= middle } ?? placed.count - 1
     let (key, frame) = placed[max(after - 1, 0)]
@@ -422,11 +429,22 @@ struct PillBarView: ExpoSwiftUI.View {
   }
 
   /** The row's scroll offset that keeps the resting pill where `touch` came down, and the
-   * furthest the row scrolls. */
+   * furthest the row scrolls. The offset counts the held margin at the start of the row. */
   private func row(for touch: Touch) -> (base: CGFloat, end: CGFloat)? {
     guard let start = frames[resting] else { return nil }
-    let end = max((frames.values.map(\.maxX).max() ?? 0) - width, 0)
-    return (start.midX - (touch.start - left), end)
+    let end = max((frames.values.map(\.maxX).max() ?? 0) + 2 * margin - width, 0)
+    return (start.midX + margin - (touch.start - left), end)
+  }
+
+  /** The widest a pill grows: the row at rest less a peek of a pill on each side, so the pills
+   * keep their widths while held. Never under half the row, so a narrow one still shows a name. */
+  private var widest: CGFloat {
+    props.pills.count > 1 ? max(rest - 2 * Self.peek, rest / 2) : .infinity
+  }
+
+  /** The room the held lens grows into beyond its pill, with the inset it keeps from the capsule. */
+  private var margin: CGFloat {
+    (Self.lift - 1) / 2 * (frames.values.map(\.width).max() ?? 0) + Self.inset
   }
 
   /** The edge of the capsule a held finger is near, -1 for the left and 1 for the right, which
@@ -458,10 +476,11 @@ struct PillBarView: ExpoSwiftUI.View {
 
 /**
  * Pills side by side. They share `width` when each fits its share; otherwise each takes its own
- * width, and one wider than `width` is cut to it so it never sits out of view.
+ * width, and one wider than `widest` or `width` is cut to it.
  */
 private struct PillsLayout: Layout {
   var width: CGFloat
+  var widest: CGFloat
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
     let height = proposal.height ?? subviews.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
@@ -484,7 +503,7 @@ private struct PillsLayout: Layout {
   private func widths(_ subviews: Subviews) -> [CGFloat] {
     guard !subviews.isEmpty, width > 0 else { return subviews.map { _ in 0 } }
     let share = width / CGFloat(subviews.count)
-    let natural = subviews.map { min($0.sizeThatFits(.unspecified).width, width) }
+    let natural = subviews.map { min($0.sizeThatFits(.unspecified).width, widest, width) }
     return natural.allSatisfy { $0 <= share } ? natural.map { _ in share } : natural
   }
 }

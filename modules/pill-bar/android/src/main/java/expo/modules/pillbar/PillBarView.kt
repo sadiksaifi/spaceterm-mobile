@@ -12,12 +12,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectableGroup
@@ -58,12 +58,14 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
@@ -75,6 +77,7 @@ import expo.modules.ui.ModifierList
 import expo.modules.ui.ModifierRegistry
 import expo.modules.ui.findChildSlotView
 import expo.modules.ui.renderSlot
+import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.isActive
@@ -224,7 +227,7 @@ private fun Arriving(pills: List<Pill>, selected: String, content: @Composable (
   }
 }
 
-/** A drag of the indicator, in the row's pixels. */
+/** A drag of the indicator, in the row's pixels, measured from its start side. */
 private data class Drag(
   /** Where the finger was when the drag began and where it is, in the capsule. */
   val start: Float,
@@ -234,9 +237,8 @@ private data class Drag(
   val scrolled: Float,
   /** The pill under the indicator. */
   val over: Int,
-  /** When the finger first moved and last moved, in uptime milliseconds. */
-  val began: Long = 0L,
-  val moved: Long = 0L
+  /** When the finger first moved, in uptime milliseconds. */
+  val began: Long = 0L
 )
 
 @Composable
@@ -270,6 +272,12 @@ private fun Pills(
         .padding(horizontal = INSET)
     ) {
       val viewport = constraints.maxWidth.toFloat()
+      // The row runs from its start side: the right in a right-to-left layout. Positions are kept
+      // from the start, and turned into the screen's left-to-right ones only to draw and to read
+      // a finger, so placing, drawing, and dragging agree in both directions.
+      val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+      val fromStart = { x: Float -> if (rtl) viewport - x else x }
+      val leftOf = { start: Float, width: Float -> if (rtl) viewport - start - width else start }
       val px = remember(density) {
         object {
           val inset = with(density) { INSET.toPx() }
@@ -363,39 +371,48 @@ private fun Pills(
         }
       }
 
-      // The drag reads the layout it began on, so a change to the pills ends it.
-      val gesture = Modifier.pointerInput(pills, widths, restingIndex) {
-        fun finish(lifted: Boolean) {
+      // The drag reads the layout it began on, so a change to the pills ends it. Only a lift
+      // picks: a drag the system or a change to the pills cuts short leaves the indicator to
+      // spring back to the resting pill.
+      val gesture = Modifier.pointerInput(pills, widths, restingIndex, rtl) {
+        fun lift() {
           val now = drag ?: return
           var index = now.over
           val distance = now.now - now.start
-          val flicked = lifted && now.moved - now.began < FLICK_TIME && abs(distance) >= px.flick
-          if (index == restingIndex && flicked) {
+          // Timed to the lift, so a quick move that then holds still is a drag, not a flick.
+          val quick = now.began != 0L && SystemClock.uptimeMillis() - now.began < FLICK_TIME
+          if (index == restingIndex && quick && abs(distance) >= px.flick) {
             index = (index + if (distance < 0) -1 else 1).coerceIn(0, pills.lastIndex)
           }
           drag = null
           pills.getOrNull(index)?.let { pick(it.key) }
         }
-        detectHorizontalDragGestures(
-          onDragStart = { offset ->
-            if (pills.isNotEmpty()) {
-              menu = null
-              drag = Drag(offset.x, offset.x, lensMiddle.value, scroll.value, restingIndex)
-              scope.launch {
-                scroll.stop()
-                lensMiddle.stop()
-                lensWidth.stop()
+        try {
+          detectHorizontalDragGestures(
+            onDragStart = { offset ->
+              if (pills.isNotEmpty()) {
+                menu = null
+                val at = fromStart(offset.x)
+                drag = Drag(at, at, lensMiddle.value, scroll.value, restingIndex)
+                scope.launch {
+                  scroll.stop()
+                  lensMiddle.stop()
+                  lensWidth.stop()
+                }
               }
+            },
+            onDragEnd = { lift() },
+            onDragCancel = { drag = null }
+          ) { change, _ ->
+            change.consume()
+            drag?.let { now ->
+              val began = if (now.began == 0L) change.uptimeMillis else now.began
+              follow(now.copy(now = fromStart(change.position.x), began = began))
             }
-          },
-          onDragEnd = { finish(lifted = true) },
-          onDragCancel = { finish(lifted = false) }
-        ) { change, _ ->
-          change.consume()
-          drag?.let { now ->
-            val began = if (now.began == 0L) change.uptimeMillis else now.began
-            follow(now.copy(now = change.position.x, began = began, moved = change.uptimeMillis))
           }
+        } finally {
+          // A change to the pills cancels the detector without a callback.
+          drag = null
         }
       }
 
@@ -408,14 +425,16 @@ private fun Pills(
           .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
           .drawWithContent {
             drawContent()
-            if (scroll.value > 0.5f) {
+            val left = if (rtl) total - scroll.value - size.width > 0.5f else scroll.value > 0.5f
+            val right = if (rtl) scroll.value > 0.5f else total - scroll.value - size.width > 0.5f
+            if (left) {
               drawRect(
                 Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), endX = px.fade),
                 size = Size(px.fade, size.height),
                 blendMode = BlendMode.DstIn
               )
             }
-            if (total - scroll.value - size.width > 0.5f) {
+            if (right) {
               val from = size.width - px.fade
               drawRect(
                 Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = from, endX = size.width),
@@ -434,7 +453,8 @@ private fun Pills(
               color = colors.primaryContainer,
               // Kept inside the capsule, so a grown indicator at either end shows whole.
               topLeft = Offset(
-                (lensMiddle.value - scroll.value - width / 2).coerceIn(0f, (size.width - width).coerceAtLeast(0f)),
+                leftOf(lensMiddle.value - scroll.value - width / 2, width)
+                  .coerceIn(0f, (size.width - width).coerceAtLeast(0f)),
                 px.inset - grow
               ),
               size = Size(width, height),
@@ -450,7 +470,10 @@ private fun Pills(
           )
           Box(
             Modifier
-              .offset { IntOffset(((starts.getOrElse(index) { 0f }) - scroll.value).roundToInt(), 0) }
+              .absoluteOffset {
+                val start = starts.getOrElse(index) { 0f } - scroll.value
+                IntOffset(leftOf(start, widths.getOrElse(index) { 0f }).roundToInt(), 0)
+              }
               .width(with(density) { widths.getOrElse(index) { 0f }.toDp() })
               .fillMaxHeight()
               .padding(vertical = INSET)

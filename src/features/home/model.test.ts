@@ -10,6 +10,8 @@ const mobile: Workspace = {
   directory: "~/Projects/spaceterm-mobile",
   branch: "main",
   terminalSessions: 1,
+  tabs: [],
+  repository: null,
 };
 const desktop: Workspace = {
   id: "w2",
@@ -17,8 +19,17 @@ const desktop: Workspace = {
   directory: "~/Projects/spaceterm-desktop",
   branch: "fix/sidebar",
   terminalSessions: 1,
+  tabs: [],
+  repository: null,
 };
-const logs: Workspace = { id: "w3", name: "logs", directory: "/var/log", terminalSessions: 1 };
+const logs: Workspace = {
+  id: "w3",
+  name: "logs",
+  directory: "/var/log",
+  terminalSessions: 1,
+  tabs: [],
+  repository: null,
+};
 
 function connected(name: string, workspaces: readonly Workspace[]): Machine {
   return { id: name, name, connection: "connected", workspaces };

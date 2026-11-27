@@ -33,6 +33,13 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="new-worktree/[machineId]/[workspaceId]"
+              options={{
+                // iOS shows New Worktree in a sheet; Android shows it as a full-screen page.
+                presentation: process.env.EXPO_OS === "ios" ? "modal" : "card",
+              }}
+            />
+            <Stack.Screen
               name="settings/themes/get-more"
               options={{
                 // iOS shows Get More Themes in a sheet; Android shows it as a full-screen page.

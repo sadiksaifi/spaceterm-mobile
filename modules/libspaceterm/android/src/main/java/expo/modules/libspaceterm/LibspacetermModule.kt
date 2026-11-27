@@ -24,7 +24,16 @@ import uniffi.spaceterm_mobile.JoinState
 import uniffi.spaceterm_mobile.Machines
 import uniffi.spaceterm_mobile.MachinesException
 import uniffi.spaceterm_mobile.PairedMachine
+import uniffi.spaceterm_mobile.NewWorktreeBranch
+import uniffi.spaceterm_mobile.PaneScreen
+import uniffi.spaceterm_mobile.PaneSide
+import uniffi.spaceterm_mobile.PaneSummary
+import uniffi.spaceterm_mobile.RepositorySummary
+import uniffi.spaceterm_mobile.ScreenRun
+import uniffi.spaceterm_mobile.TabSummary
 import uniffi.spaceterm_mobile.WorkspaceSummary
+import uniffi.spaceterm_mobile.WorktreeCreation
+import uniffi.spaceterm_mobile.WorktreeTarget
 
 class LibspacetermModule : Module() {
   private val changesLock = Any()
@@ -121,6 +130,65 @@ class LibspacetermModule : Module() {
 
     AsyncFunction("killWorkspace") Coroutine { machineId: String, workspaceId: String, seen: String ->
       withContext(Dispatchers.IO) { machines().killWorkspace(machineId, workspaceId, seen) }
+    }
+
+    AsyncFunction("newTab") Coroutine { machineId: String, workspaceId: String, root: String?, path: String?, again: Boolean ->
+      val worktree = if (root != null && path != null) WorktreeTarget(root, path) else null
+      withContext(Dispatchers.IO) { machines().newTab(machineId, workspaceId, worktree, again) }
+    }
+
+    AsyncFunction("newPane") Coroutine { machineId: String, workspaceId: String, tabId: String, source: String, again: Boolean ->
+      withContext(Dispatchers.IO) { machines().newPane(machineId, workspaceId, tabId, source, again) }
+    }
+
+    AsyncFunction("moveTab") Coroutine { machineId: String, workspaceId: String, tabId: String, beside: String, after: Boolean ->
+      withContext(Dispatchers.IO) { machines().moveTab(machineId, workspaceId, tabId, beside, after) }
+    }
+
+    AsyncFunction("close") Coroutine { machineId: String, workspaceId: String, tabId: String, paneId: String?, seen: String, asked: Boolean ->
+      withContext(Dispatchers.IO) { machines().close(machineId, workspaceId, tabId, paneId, seen, asked) }
+    }
+
+    AsyncFunction("panePreviews") Coroutine { machineId: String, panes: List<String> ->
+      withContext(Dispatchers.IO) { machines().panePreviews(machineId, panes).map { it.toMap() } }
+    }
+
+    AsyncFunction("worktreeContext") Coroutine { machineId: String, root: String ->
+      withContext(Dispatchers.IO) {
+        machines().worktreeContext(machineId, root)?.let { context ->
+          mapOf(
+            "root" to context.root,
+            "local" to context.local,
+            "remote" to context.remote,
+            "checkedOut" to context.checkedOut,
+            "startFrom" to context.startFrom,
+            "template" to context.template,
+            "home" to context.home
+          )
+        }
+      }
+    }
+
+    Function("worktreeLocation") { template: String, home: String, root: String, branch: String ->
+      machines().worktreeLocation(template, home, root, branch)
+    }
+
+    AsyncFunction("createWorktree") Coroutine { machineId: String, workspaceId: String, root: String, home: String, location: String, kind: String, name: String, base: String ->
+      val branch = when (kind) {
+        "existing" -> NewWorktreeBranch.Existing(name)
+        "remote" -> NewWorktreeBranch.Remote(base, name)
+        "new-from-remote" -> NewWorktreeBranch.New(name, base, true)
+        else -> NewWorktreeBranch.New(name, base, false)
+      }
+      withContext(Dispatchers.IO) {
+        when (val creation = machines().createWorktree(machineId, workspaceId, root, home, location, branch)) {
+          is WorktreeCreation.Created -> mapOf("kind" to "created", "tab" to creation.tab)
+          WorktreeCreation.InvalidName -> mapOf("kind" to "invalid-name")
+          WorktreeCreation.BranchExists -> mapOf("kind" to "branch-exists")
+          WorktreeCreation.NotEmpty -> mapOf("kind" to "not-empty")
+          WorktreeCreation.Failed -> mapOf("kind" to "failed")
+        }
+      }
     }
 
     OnStartObserving("onChange") { startObserving() }
@@ -254,5 +322,53 @@ private fun WorkspaceSummary.toMap() = mapOf(
   "directory" to directory,
   "branch" to branch,
   "terminalSessions" to terminalSessions.toInt(),
+  "seen" to seen,
+  "tabs" to tabs.map { it.toMap() },
+  "repository" to repository?.toMap(),
+  "fixedTabOrder" to fixedTabOrder
+)
+
+private fun TabSummary.toMap() = mapOf(
+  "id" to id,
+  "name" to name,
+  "worktree" to worktree,
+  "panes" to panes.map { it.toMap() },
   "seen" to seen
+)
+
+private fun PaneScreen.toMap() = mapOf(
+  "pane" to pane,
+  "rows" to rows.map { row -> row.map { it.toMap() } }
+)
+
+private fun ScreenRun.toMap() = mapOf(
+  "text" to text,
+  "foreground" to foreground,
+  "background" to background,
+  "inverse" to inverse,
+  "bold" to bold,
+  "faint" to faint,
+  "italic" to italic,
+  "underline" to underline,
+  "strikethrough" to strikethrough
+)
+
+private fun PaneSummary.toMap() = mapOf(
+  "id" to id,
+  "name" to name,
+  "source" to source,
+  "side" to when (side) {
+    PaneSide.RIGHT -> "right"
+    PaneSide.DOWN -> "down"
+    PaneSide.LEFT -> "left"
+    PaneSide.UP -> "up"
+  },
+  "running" to running,
+  "controlledElsewhere" to controlledElsewhere,
+  "seen" to seen
+)
+
+private fun RepositorySummary.toMap() = mapOf(
+  "root" to root,
+  "worktrees" to worktrees.map { mapOf("path" to it.path, "name" to it.name) }
 )

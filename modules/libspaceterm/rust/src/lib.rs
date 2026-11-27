@@ -5,25 +5,36 @@ uniffi::setup_scaffolding!();
 
 mod edits;
 mod inventories;
+mod previews;
 mod record_file;
+mod tabs;
 mod workspaces;
+mod worktrees;
 
-use edits::Edits;
+use edits::{Edits, Repeat};
 use inventories::Inventories;
+use previews::PaneScreen;
 use record_file::{PrivateRecordFile, hex};
 use spaceterm_client::direct::{DirectError, Endpoint, Invitation, default_port};
-use spaceterm_client::hierarchy::{CloseTarget, Mutation};
+use spaceterm_client::hierarchy::{
+    Axis, CloseTarget, CreateControl, Id, Mutation, Outcome, TabPosition,
+};
 use spaceterm_client::pane::control::ClientName;
-use spaceterm_client::protocol::InventoryRevision;
+use spaceterm_client::protocol::capability::{Capability, Unavailable};
+use spaceterm_client::protocol::preview;
+use spaceterm_client::protocol::{InventoryRevision, Operation, ReplyBody};
 use spaceterm_client::records::PrivateRecords;
 use spaceterm_client::{
     CredentialError, CredentialStore, DeviceName, DirectConnections, DirectRouteId,
     DirectRouteStatus, Interaction, JoinId, JoinStatus, UnpairKey,
 };
+use spaceterm_protocol::worktree::{self, Read, ReadReply};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
-use workspaces::{Seen, WorkspaceSummary, summaries};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tabs::read_confirmation;
+use workspaces::{Abilities, Seen, WorkspaceSummary, summaries};
+use worktrees::{NewWorktreeBranch, WorktreeContext, WorktreeCreation};
 use zeroize::Zeroizing;
 
 /// The build identity of released SpaceTerm. An Invitation Link names the identity of the Core
@@ -33,6 +44,10 @@ const ENDPOINT_SCHEME: &str = "quic://";
 /// The pairings this device can hold, counting unpairs and cancelled pairings that wait for their
 /// Machine: libspaceterm's `records::CAPACITY`, which it does not export.
 const ROOM: usize = 128;
+/// How long a read from a Machine waits for its answer.
+const READ_WAIT: Duration = Duration::from_secs(10);
+/// A card shows its last preview until the next one arrives, so a slow one is not worth a wait.
+const PREVIEW_WAIT: Duration = Duration::from_secs(3);
 
 /// The platform's secret storage: the Keychain on iOS, the Android Keystore on Android. Each
 /// pairing keeps one immutable secret under its own key. Calls come from background threads.
@@ -131,6 +146,14 @@ pub enum MachinesError {
     UnknownMachine,
     #[error("Pairing could not start.")]
     Unavailable,
+}
+
+/// A Worktree of a repository: `root` is its Main Worktree and `path` the Worktree, as the
+/// Machine's paths.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct WorktreeTarget {
+    pub root: String,
+    pub path: String,
 }
 
 /// The Machines this device has paired, and pairing with new ones.
@@ -328,9 +351,21 @@ impl Machines {
                 let route = self.connections.route(id)?;
                 let connection = connection_of(status);
                 let workspaces = match connection {
-                    Connection::Connected => self
-                        .inventory(id)
-                        .map(|revision| summaries(&revision.inventory)),
+                    Connection::Connected => self.inventory(id).map(|revision| {
+                        let core = self.connections.core(id);
+                        let client = core.as_ref().map(|core| core.paired().client);
+                        let too_old = |capability| {
+                            core.as_ref().is_some_and(|core| {
+                                core.work().capabilities().check(capability)
+                                    == Err(Unavailable::CoreTooOld)
+                            })
+                        };
+                        let abilities = Abilities {
+                            reorders_tabs: !too_old(Capability::ReorderTab),
+                            closes_only_idle: !too_old(Capability::CloseIfIdle),
+                        };
+                        summaries(&revision.inventory, client, abilities)
+                    }),
                     _ => None,
                 };
                 Some(PairedMachine {
@@ -402,6 +437,296 @@ impl Machines {
         )
     }
 
+    /// Opens a Tab with a shell as the Workspace's last Tab, in `worktree` when it is given: the
+    /// path of one of the Worktrees of the repository whose Main Worktree is `root`. `again` is
+    /// Try Again of a New Tab that failed, which opens no second Tab if the first one opened with
+    /// its answer lost. Returns the new Tab, or `None` when the Machine did not open it.
+    pub fn new_tab(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        worktree: Option<WorktreeTarget>,
+        again: bool,
+    ) -> Option<String> {
+        let workspace = decode(&workspace_id)?;
+        // No device controls the new shell, so whichever opens it first takes it.
+        let control = CreateControl::Unclaimed;
+        let mutation = match worktree {
+            None => Mutation::CreateTab {
+                workspace,
+                source: None,
+                control,
+            },
+            Some(WorktreeTarget { root, path }) => {
+                Mutation::Worktree(worktree::Operation::OpenTab {
+                    workspace,
+                    source: None,
+                    root: PathBuf::from(root),
+                    path: PathBuf::from(path),
+                    control,
+                })
+            }
+        };
+        match self.outcome(&machine_id, mutation, repeat(again))? {
+            Outcome::Accepted { target } => Some(hex(&target)),
+            _ => None,
+        }
+    }
+
+    /// Adds a Pane with a shell to a Tab, beside `source`, one of its Panes. `again` is Try Again
+    /// of a New Pane that failed, with the same `source`, which adds no second Pane if the first
+    /// one was added with its answer lost. Returns whether the Machine added it.
+    pub fn new_pane(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        tab_id: String,
+        source: String,
+        again: bool,
+    ) -> bool {
+        let (Some(workspace), Some(tab), Some(source)) =
+            (decode(&workspace_id), decode(&tab_id), decode(&source))
+        else {
+            return false;
+        };
+        let mutation = Mutation::SplitPane {
+            workspace,
+            tab,
+            source,
+            axis: Axis::Right,
+            control: CreateControl::Unclaimed,
+        };
+        matches!(
+            self.outcome(&machine_id, mutation, repeat(again)),
+            Some(Outcome::Accepted { .. })
+        )
+    }
+
+    /// Moves a Tab beside `beside`, another Tab of its Worktree, in the order the Machine keeps
+    /// for every device: after it when `after`, else before it. Returns whether the Machine
+    /// moved it.
+    pub fn move_tab(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        tab_id: String,
+        beside: String,
+        after: bool,
+    ) -> bool {
+        let (Some(workspace), Some(tab), Some(beside)) =
+            (decode(&workspace_id), decode(&tab_id), decode(&beside))
+        else {
+            return false;
+        };
+        let position = if after {
+            TabPosition::After(beside)
+        } else {
+            TabPosition::Before(beside)
+        };
+        self.edit(
+            &machine_id,
+            Mutation::ReorderTab {
+                workspace,
+                tab,
+                position,
+            },
+        )
+    }
+
+    /// Closes a Tab, or one Pane of it when `pane_id` is given, as listed with `seen`. `asked` is
+    /// whether the person agreed to close it. Returns whether the Machine closed it. A Machine
+    /// whose Tab or Pane gained or lost a Terminal Session since refuses, and so does one where
+    /// a close nobody was asked about would now end work it can guard.
+    pub fn close(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        tab_id: String,
+        pane_id: Option<String>,
+        seen: String,
+        asked: bool,
+    ) -> bool {
+        let (Some(workspace), Some(tab), Some(confirmation)) = (
+            decode(&workspace_id),
+            decode(&tab_id),
+            read_confirmation(&seen, asked),
+        ) else {
+            return false;
+        };
+        // A Machine before work 1.5 cannot close only what is idle, and would take the close as
+        // consent. Its listing asks first, so this close is refused until the person agrees.
+        if confirmation.is_close_if_idle() && self.too_old(&machine_id, Capability::CloseIfIdle) {
+            return false;
+        }
+        let target = match pane_id {
+            None => CloseTarget::Tab { workspace, tab },
+            Some(pane) => {
+                let Some(pane) = decode(&pane) else {
+                    return false;
+                };
+                CloseTarget::Pane {
+                    workspace,
+                    tab,
+                    pane,
+                }
+            }
+        };
+        self.edit(
+            &machine_id,
+            Mutation::Close {
+                target,
+                confirmation,
+            },
+        )
+    }
+
+    /// The last screens of `panes` on a connected Machine, for their cards. A Pane that has not
+    /// started or whose screen did not arrive in time has none, as has every Pane of a Machine
+    /// before work 1.6.
+    pub fn pane_previews(&self, machine_id: String, panes: Vec<String>) -> Vec<PaneScreen> {
+        let Some(link) = self
+            .known(&machine_id)
+            .ok()
+            .and_then(|route| self.connections.core(&route))
+            .and_then(|machine| machine.work().live_link())
+        else {
+            return Vec::new();
+        };
+        let mut ids: Vec<Id> = Vec::new();
+        for pane in panes.iter().filter_map(|pane| decode(pane)) {
+            if !ids.contains(&pane) {
+                ids.push(pane);
+            }
+        }
+        // Every request goes out before the first answer is awaited, and all share one wait.
+        let deadline = Instant::now() + PREVIEW_WAIT;
+        let pending: Vec<_> = ids
+            .chunks(preview::MAX_PANES)
+            .filter_map(|chunk| link.read_pane_previews(chunk.to_vec()).ok())
+            .collect();
+        pending
+            .into_iter()
+            .filter_map(|reply| {
+                match reply.wait_for(deadline.saturating_duration_since(Instant::now()))? {
+                    Ok(ReplyBody::PanePreviews(previews)) => Some(previews),
+                    _ => None,
+                }
+            })
+            .flat_map(previews::screens)
+            .collect()
+    }
+
+    /// What New Worktree needs from the Machine for the repository whose Main Worktree is `root`.
+    /// `None` when the Machine did not answer.
+    pub fn worktree_context(&self, machine_id: String, root: String) -> Option<WorktreeContext> {
+        let root = PathBuf::from(root);
+        let (settings, home, branches, default_branch) =
+            if self.supports(&machine_id, Capability::WorktreeDefaultBranch) {
+                let read = Read::ContextWithDefault { root: root.clone() };
+                match self.read_worktree(&machine_id, read)? {
+                    Ok(ReadReply::ContextWithDefault {
+                        settings,
+                        home,
+                        branches,
+                        default_branch,
+                    }) => (settings, home, branches, default_branch),
+                    _ => return None,
+                }
+            } else {
+                match self.read_worktree(&machine_id, Read::Context { root: root.clone() })? {
+                    Ok(ReadReply::Context {
+                        settings,
+                        home,
+                        branches,
+                    }) => (settings, home, branches, None),
+                    _ => return None,
+                }
+            };
+        let inventory = self
+            .known(&machine_id)
+            .ok()
+            .and_then(|route| self.inventory(&route));
+        Some(worktrees::context(
+            &root,
+            inventory.as_ref().map(|revision| &revision.inventory),
+            settings.template,
+            &home,
+            branches,
+            default_branch,
+        ))
+    }
+
+    /// Where the Machine's rule places a Worktree of `root` for `branch`, from a
+    /// `WorktreeContext`. Reads nothing from the Machine.
+    pub fn worktree_location(
+        &self,
+        template: String,
+        home: String,
+        root: String,
+        branch: String,
+    ) -> Option<String> {
+        worktrees::location(&template, &home, &root, &branch)
+    }
+
+    /// Creates a Worktree of the repository whose Main Worktree is `root` at `location`, which can
+    /// start with `~/` for the Machine's `home`, and opens one Tab in it.
+    pub fn create_worktree(
+        &self,
+        machine_id: String,
+        workspace_id: String,
+        root: String,
+        home: String,
+        location: String,
+        branch: NewWorktreeBranch,
+    ) -> WorktreeCreation {
+        let Some(workspace) = decode(&workspace_id) else {
+            return WorktreeCreation::Failed;
+        };
+        let root = PathBuf::from(root);
+        let branch = worktrees::branch(branch);
+        // A Create of this branch at this Location whose answer was lost may have made the
+        // Worktree, which the Location check would then find not empty. It goes again instead,
+        // as it would anyway before any other edit, and its answer is this one's.
+        let resumed = self.resume(&machine_id, |pending| {
+            matches!(pending, Mutation::Worktree(worktree::Operation::Create {
+                workspace: listed,
+                root: from,
+                path,
+                branch: checked_out,
+                ..
+            }) if *listed == workspace
+                && *from == root
+                && *checked_out == branch
+                && worktrees::same_location(path, &home, &location))
+        });
+        if let Some(outcome) = resumed {
+            return worktrees::creation(outcome);
+        }
+        // The Machine expands the Location and checks it is missing or empty.
+        let path = match self.read_worktree(
+            &machine_id,
+            Read::Location {
+                root: root.clone(),
+                location,
+            },
+        ) {
+            Some(Ok(ReadReply::Location(path))) => path,
+            Some(Err(error)) => return worktrees::failure(error),
+            _ => return WorktreeCreation::Failed,
+        };
+        worktrees::creation(self.outcome(
+            &machine_id,
+            Mutation::Worktree(worktree::Operation::Create {
+                workspace,
+                root,
+                path,
+                branch,
+                control: CreateControl::Unclaimed,
+            }),
+            Repeat::Same,
+        ))
+    }
+
     /// A new listener for changes, such as one per JavaScript runtime.
     pub fn changes(&self) -> Arc<Changes> {
         let routes = self.connections.subscribe();
@@ -462,15 +787,68 @@ impl Machines {
         Some(link.inventory()?.1)
     }
 
-    /// Sends `mutation` to a connected Machine and waits for its answer.
+    /// Sends `mutation` to a connected Machine and waits for its answer: whether it made the
+    /// change. An identical edit whose answer was lost is this one, as asking for the same rename,
+    /// move or close twice changes nothing more.
     fn edit(&self, machine_id: &str, mutation: Mutation) -> bool {
-        let Ok(route) = self.known(machine_id) else {
-            return false;
-        };
-        let Some(machine) = self.connections.core(&route) else {
-            return false;
-        };
-        self.edits.submit(route, &machine, mutation)
+        matches!(
+            self.outcome(machine_id, mutation, Repeat::Same),
+            Some(Outcome::Accepted { .. })
+        )
+    }
+
+    /// Sends `mutation` to a connected Machine and waits for its outcome, `None` without one.
+    fn outcome(&self, machine_id: &str, mutation: Mutation, repeat: Repeat) -> Option<Outcome> {
+        let route = self.known(machine_id).ok()?;
+        let machine = self.connections.core(&route)?;
+        self.edits.submit(route, &machine, mutation, repeat)
+    }
+
+    /// Sends again the edit to a connected Machine whose answer was lost, if `matches` takes it.
+    fn resume(
+        &self,
+        machine_id: &str,
+        matches: impl Fn(&Mutation) -> bool,
+    ) -> Option<Option<Outcome>> {
+        let route = self.known(machine_id).ok()?;
+        let machine = self.connections.core(&route)?;
+        self.edits.resume(route, &machine, matches)
+    }
+
+    /// The Machine's work protocol, as last admitted, is known to predate `capability`.
+    fn too_old(&self, machine_id: &str, capability: Capability) -> bool {
+        self.known(machine_id)
+            .ok()
+            .and_then(|route| self.connections.core(&route))
+            .is_some_and(|machine| {
+                machine.work().capabilities().check(capability) == Err(Unavailable::CoreTooOld)
+            })
+    }
+
+    /// The connected Machine's work protocol has `capability`.
+    fn supports(&self, machine_id: &str, capability: Capability) -> bool {
+        self.known(machine_id)
+            .ok()
+            .and_then(|route| self.connections.core(&route))
+            .is_some_and(|machine| machine.work().capabilities().check(capability).is_ok())
+    }
+
+    /// Asks a connected Machine for Worktree facts and waits for the answer, `None` without one.
+    fn read_worktree(
+        &self,
+        machine_id: &str,
+        read: Read,
+    ) -> Option<Result<ReadReply, worktree::Error>> {
+        let route = self.known(machine_id).ok()?;
+        let link = self.connections.core(&route)?.work().live_link()?;
+        match link
+            .request(Operation::WorktreeRead(read))
+            .ok()?
+            .wait_for(READ_WAIT)?
+        {
+            Ok(ReplyBody::Worktree(reply)) => Some(reply),
+            _ => None,
+        }
     }
     fn known(&self, machine_id: &str) -> Result<DirectRouteId, MachinesError> {
         decode(machine_id)
@@ -520,6 +898,11 @@ fn connection_of(status: DirectRouteStatus) -> Connection {
         | DirectRouteStatus::Refused(_)
         | DirectRouteStatus::Unavailable(_) => Connection::Unavailable,
     }
+}
+
+/// An edit the person asks for again, as Try Again does, or asks for once more.
+fn repeat(again: bool) -> Repeat {
+    if again { Repeat::Same } else { Repeat::New }
 }
 
 fn decode(text: &str) -> Option<[u8; 32]> {

@@ -1,4 +1,7 @@
-import { createModifier } from "@expo/ui/jetpack-compose/modifiers";
+import {
+  createModifier,
+  createModifierWithEventListener,
+} from "@expo/ui/jetpack-compose/modifiers";
 
 /**
  * Caps the view's width at `fraction` of the width offered. In a Row, a view without `weight`
@@ -21,3 +24,21 @@ export const radioSelected = (selected: boolean) => createModifier("radioSelecte
 
 /** Reports the view to TalkBack as disabled, for a dimmed row that takes no taps. */
 export const disabled = () => createModifier("disabled", {});
+
+/**
+ * Calls `onSwipe` when a sideways drag of at least `distance` dp ends. The drag takes the gesture
+ * from the clickable views inside, so they do not also get a tap.
+ */
+export const horizontalSwipe = (distance: number, onSwipe: (direction: "left" | "right") => void) =>
+  createModifierWithEventListener(
+    "horizontalSwipe",
+    ({ direction }: { direction: "left" | "right" }) => onSwipe(direction),
+    { distance },
+  );
+
+/**
+ * Fades the view's content to transparent over `start` and `end` dp at its sides, which follow
+ * the layout direction.
+ */
+export const fadingEdges = ({ start, end }: { start: number; end: number }) =>
+  createModifier("fadingEdges", { start, end });

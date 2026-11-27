@@ -44,6 +44,14 @@ function fakeNative() {
     unpair: async () => true,
     renameWorkspace: vi.fn(async () => true),
     killWorkspace: vi.fn(async () => true),
+    newTab: vi.fn(async () => "t-new"),
+    newPane: vi.fn(async () => true),
+    moveTab: vi.fn(async () => true),
+    panePreviews: vi.fn(async () => []),
+    close: vi.fn(async () => true),
+    worktreeContext: vi.fn(async () => null),
+    worktreeLocation: vi.fn(() => null),
+    createWorktree: vi.fn(async () => ({ kind: "failed" as const })),
     addListener: (_event, listener) => {
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
@@ -241,6 +249,9 @@ describe("the paired Machines", () => {
     branch: "main",
     terminalSessions: 2,
     seen: "api seen",
+    tabs: [],
+    repository: null,
+    fixedTabOrder: false,
   };
   const logs: NativeWorkspace = {
     id: "w2",
@@ -249,6 +260,9 @@ describe("the paired Machines", () => {
     branch: null,
     terminalSessions: 1,
     seen: "logs seen",
+    tabs: [],
+    repository: null,
+    fixedTabOrder: false,
   };
 
   it("lists a connected Machine's Workspaces and others without a list", () => {
@@ -278,6 +292,8 @@ describe("the paired Machines", () => {
             branch: "main",
             terminalSessions: 2,
             revision: "api seen",
+            tabs: [],
+            repository: null,
           },
           {
             id: "w2",
@@ -285,6 +301,8 @@ describe("the paired Machines", () => {
             directory: "/var/log",
             terminalSessions: 1,
             revision: "logs seen",
+            tabs: [],
+            repository: null,
           },
         ],
       },
@@ -347,6 +365,8 @@ describe("the paired Machines", () => {
             directory: "/var/log",
             terminalSessions: 1,
             revision: "logs seen",
+            tabs: [],
+            repository: null,
           },
         ],
       },
@@ -365,7 +385,15 @@ describe("the paired Machines", () => {
         {
           ...mini,
           connection: "connected",
-          workspaces: [{ ...api, terminalSessions: 3, seen: "api with a third session" }],
+          workspaces: [
+            {
+              ...api,
+              terminalSessions: 3,
+              seen: "api with a third session",
+              tabs: [],
+              repository: null,
+            },
+          ],
         },
       ],
     });
@@ -481,5 +509,102 @@ describe("the paired Machines", () => {
       kind: "invitation",
       invitation: { machineId: "core", machineName: "Mac mini", address: "mac-mini.local" },
     });
+  });
+});
+
+describe("a Workspace's Tabs through libspaceterm", () => {
+  const root = "/Users/you/Projects/api";
+  const pane = {
+    id: "p1",
+    name: "zsh",
+    source: null,
+    side: "right" as const,
+    running: false,
+    controlledElsewhere: false,
+    seen: "pane seen",
+  };
+  const workspace: NativeWorkspace = {
+    id: "w1",
+    name: "api",
+    directory: "~/Projects/api",
+    branch: "main",
+    terminalSessions: 1,
+    seen: "api seen",
+    tabs: [{ id: "t1", name: "zsh", worktree: root, panes: [pane], seen: "tab seen" }],
+    repository: { root, worktrees: [{ path: `${root}-fix`, name: "fix" }] },
+    fixedTabOrder: false,
+  };
+  const machine: NativePairedMachine = {
+    id: "m1",
+    name: "Mac mini",
+    address: "mac-mini.local",
+    connection: "connected",
+    workspaces: [workspace],
+  };
+
+  function listed() {
+    const { native, change } = fakeNative();
+    const client = createNativeClient(native);
+    change({ machines: [machine] });
+    const shown = client.getSnapshot().machines[0].workspaces?.[0];
+    if (shown === undefined) throw new Error("no Workspace listed");
+    return { native, client, shown };
+  }
+
+  it("closes a Tab or a Pane as the person saw it", async () => {
+    const { native, client, shown } = listed();
+    const [tab] = shown.tabs;
+
+    await expect(client.closeTab("m1", shown, tab, true)).resolves.toEqual({ kind: "done" });
+    await client.closePane("m1", shown, tab, tab.panes[0], false);
+
+    expect(native.close).toHaveBeenNthCalledWith(1, "m1", "w1", "t1", null, "tab seen", true);
+    expect(native.close).toHaveBeenNthCalledWith(2, "m1", "w1", "t1", "p1", "pane seen", false);
+  });
+
+  it("opens a Tab in a Worktree of the Workspace's repository and answers with it", async () => {
+    const { native, client, shown } = listed();
+
+    const opened = await client.newTab("m1", shown, { path: `${root}-fix`, name: "fix" }, true);
+
+    expect(opened).toEqual({ kind: "done", tab: "t-new" });
+    expect(native.newTab).toHaveBeenCalledWith("m1", "w1", root, `${root}-fix`, true);
+  });
+
+  it("adds a Pane beside the Pane it is given", async () => {
+    const { native, client, shown } = listed();
+
+    await client.newPane("m1", shown, shown.tabs[0], shown.tabs[0].panes[0], false);
+
+    expect(native.newPane).toHaveBeenCalledWith("m1", "w1", "t1", "p1", false);
+  });
+
+  it("asks for a Worktree from a remote branch as a new branch that tracks it", async () => {
+    const { native, client, shown } = listed();
+    const context = {
+      root,
+      local: [],
+      remote: ["origin/topic"],
+      checkedOut: [],
+      startFrom: null,
+      template: "~/.worktrees/{repository}/{branch}",
+      home: "/Users/you",
+    };
+
+    await client.createWorktree("m1", shown, context, {
+      branch: { kind: "remote", remote: "origin/topic", name: "topic" },
+      location: "~/.worktrees/api/topic",
+    });
+
+    expect(native.createWorktree).toHaveBeenCalledWith(
+      "m1",
+      "w1",
+      root,
+      "/Users/you",
+      "~/.worktrees/api/topic",
+      "remote",
+      "topic",
+      "origin/topic",
+    );
   });
 });

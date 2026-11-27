@@ -43,7 +43,74 @@ export type NativeWorkspace = {
   terminalSessions: number;
   /** The Workspace as listed, which Rename and Kill send back. Opaque. */
   seen: string;
+  tabs: NativeTab[];
+  /** `null` outside a repository. */
+  repository: NativeRepository | null;
+  /** The Machine keeps the Tabs in a fixed order: it is before work 1.6. */
+  fixedTabOrder: boolean;
 };
+
+/** A Pane's last screen, top-left first. A row with no runs is blank. */
+export type NativePaneScreen = { pane: string; rows: NativeScreenRun[][] };
+
+/** Consecutive cells drawn alike. Colors are `#rrggbb`; `null` is the terminal's own. */
+export type NativeScreenRun = {
+  text: string;
+  foreground: string | null;
+  background: string | null;
+  /** Foreground and background trade places. */
+  inverse: boolean;
+  bold: boolean;
+  faint: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+};
+
+export type NativeTab = {
+  id: string;
+  /** Its Root Pane's name. */
+  name: string;
+  /** The Worktree the Tab belongs to, as the Machine's path. `null` outside a repository. */
+  worktree: string | null;
+  panes: NativePane[];
+  /** What Close Tab sends back. Opaque. */
+  seen: string;
+};
+
+export type NativePane = {
+  id: string;
+  name: string;
+  source: string | null;
+  side: "right" | "down" | "left" | "up";
+  /** Closing it would end work, as the Machine observes, else as the shell reports. */
+  running: boolean;
+  controlledElsewhere: boolean;
+  /** What Close Pane sends back. Opaque. */
+  seen: string;
+};
+
+export type NativeRepository = {
+  root: string;
+  worktrees: { path: string; name: string }[];
+};
+
+export type NativeWorktreeContext = {
+  root: string;
+  local: string[];
+  remote: string[];
+  checkedOut: string[];
+  startFrom: string | null;
+  template: string;
+  home: string;
+};
+
+export type NativeWorktreeCreation =
+  | { kind: "created"; tab: string }
+  | { kind: "invalid-name" }
+  | { kind: "branch-exists" }
+  | { kind: "not-empty" }
+  | { kind: "failed" };
 
 export type NativePairedMachine = {
   id: string;
@@ -103,6 +170,67 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   ): Promise<boolean>;
   /** Ends the Workspace and every Terminal Session in it. */
   killWorkspace(machineId: string, workspaceId: string, seen: string): Promise<boolean>;
+  /**
+   * Opens a Tab as the Workspace's last, in the Worktree at `path` of the repository whose Main
+   * Worktree is `root` when both are given. `again` is Try Again of a New Tab that failed, which
+   * opens no second Tab if the first opened with its answer lost. Resolves the new Tab, or `null`.
+   */
+  newTab(
+    machineId: string,
+    workspaceId: string,
+    root: string | null,
+    path: string | null,
+    again: boolean,
+  ): Promise<string | null>;
+  /** Adds a Pane beside `source`, one of the Tab's Panes. `again` is as for `newTab`. */
+  newPane(
+    machineId: string,
+    workspaceId: string,
+    tabId: string,
+    source: string,
+    again: boolean,
+  ): Promise<boolean>;
+  /** Moves the Tab just after `beside`, another Tab of its Worktree, or else just before it. */
+  moveTab(
+    machineId: string,
+    workspaceId: string,
+    tabId: string,
+    beside: string,
+    after: boolean,
+  ): Promise<boolean>;
+  /** Closes the Tab, or its Pane `paneId`, as listed with `seen`. `asked`: the person agreed. */
+  close(
+    machineId: string,
+    workspaceId: string,
+    tabId: string,
+    paneId: string | null,
+    seen: string,
+    asked: boolean,
+  ): Promise<boolean>;
+  /**
+   * The last screens of `panes`. A Pane that shows nothing has no rows. A Pane whose screen did
+   * not arrive in time is left out.
+   */
+  panePreviews(machineId: string, panes: string[]): Promise<NativePaneScreen[]>;
+  /** `null` when the Machine did not answer. */
+  worktreeContext(machineId: string, root: string): Promise<NativeWorktreeContext | null>;
+  /** Reads nothing from the Machine. */
+  worktreeLocation(template: string, home: string, root: string, branch: string): string | null;
+  /**
+   * `kind` is `new` or `new-from-remote` with `base` the branch to start from, `existing`, or
+   * `remote` with `base` the remote branch to track. `home` is the Machine's, from
+   * `worktreeContext`, which places a Location that starts with `~/`.
+   */
+  createWorktree(
+    machineId: string,
+    workspaceId: string,
+    root: string,
+    home: string,
+    location: string,
+    kind: "new" | "new-from-remote" | "existing" | "remote",
+    name: string,
+    base: string,
+  ): Promise<NativeWorktreeCreation>;
 }
 
 export default requireNativeModule<LibspacetermModule>("Libspaceterm");

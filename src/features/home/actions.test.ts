@@ -115,6 +115,8 @@ describe("rowCommands", () => {
     name: "spaceterm-mobile",
     directory: "~/Projects/spaceterm-mobile",
     terminalSessions: 5,
+    tabs: [],
+    repository: null,
   };
   const row = (connection: WorkspaceRow["connection"]): WorkspaceRow => ({
     key: "m1/w1",

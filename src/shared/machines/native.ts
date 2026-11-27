@@ -2,6 +2,7 @@ import type {
   LibspacetermModule,
   NativeJoinState,
   NativePairedMachine,
+  NativeTab,
   NativeWorkspace,
 } from "@/modules/libspaceterm";
 
@@ -15,6 +16,7 @@ import type {
   Pairing,
   PairingOutcome,
   PairingStart,
+  Tab,
   Workspace,
 } from "./model";
 
@@ -34,6 +36,14 @@ export type NativeMachines = Pick<
   | "unpair"
   | "renameWorkspace"
   | "killWorkspace"
+  | "newTab"
+  | "newPane"
+  | "moveTab"
+  | "close"
+  | "panePreviews"
+  | "worktreeContext"
+  | "worktreeLocation"
+  | "createWorktree"
 > & {
   addListener: (event: "onChange", listener: () => void) => { remove: () => void };
 };
@@ -46,9 +56,9 @@ const LIST_WAIT = 30_000;
 
 /**
  * The client for the Machines this device has paired through libspaceterm. Pairing, Saved
- * Connections, connecting, the Workspace list, Rename and Kill Workspace are real. Creating a
- * Workspace, listing directories, and restarting SpaceTerm Core fail until libspaceterm is wired
- * for them.
+ * Connections, connecting, the Workspace list with its Tabs and Worktrees, and the commands on
+ * them are real. Creating a Workspace, listing directories, and restarting SpaceTerm Core fail
+ * until libspaceterm is wired for them.
  */
 export function createNativeClient(
   native: NativeMachines,
@@ -122,8 +132,24 @@ export function createNativeClient(
     unlisted.delete(id);
   }
 
-  function toWorkspace({ branch, seen, ...listed }: NativeWorkspace): Workspace {
-    return branch === null ? { ...listed, revision: seen } : { ...listed, branch, revision: seen };
+  function toWorkspace({
+    branch,
+    seen,
+    tabs,
+    fixedTabOrder,
+    ...listed
+  }: NativeWorkspace): Workspace {
+    const workspace: Workspace = { ...listed, revision: seen, tabs: tabs.map(toTab) };
+    if (fixedTabOrder) workspace.fixedTabOrder = true;
+    return branch === null ? workspace : { ...workspace, branch };
+  }
+
+  function toTab({ seen, panes, ...tab }: NativeTab): Tab {
+    return {
+      ...tab,
+      revision: seen,
+      panes: panes.map(({ seen: paneSeen, ...pane }) => ({ ...pane, revision: paneSeen })),
+    };
   }
 
   function refresh() {
@@ -145,6 +171,13 @@ export function createNativeClient(
     return () => changeWatchers.delete(watcher);
   }
 
+  /** The Main Worktree of a listed Workspace's repository, `null` outside one. */
+  function rootOf(machineId: string, workspaceId: string): string | null {
+    const machine = native.paired().find(({ id }) => id === machineId);
+    const workspace = machine?.workspaces?.find(({ id }) => id === workspaceId);
+    return workspace?.repository?.root ?? null;
+  }
+
   function nameOf(machineId: string): string | undefined {
     return native.paired().find((machine) => machine.id === machineId)?.name;
   }
@@ -164,6 +197,40 @@ export function createNativeClient(
     killWorkspace: async (machineId, { id, revision }) => {
       if (revision === undefined) return { kind: "failed" };
       return done(await native.killWorkspace(machineId, id, revision));
+    },
+    newTab: async (machineId, { id }, worktree, again) => {
+      const root = worktree === null ? null : rootOf(machineId, id);
+      if (worktree !== null && root === null) return { kind: "failed" };
+      const tab = await native.newTab(machineId, id, root, worktree?.path ?? null, again);
+      return tab === null ? { kind: "failed" } : { kind: "done", tab };
+    },
+    newPane: async (machineId, { id }, tab, source, again) =>
+      done(await native.newPane(machineId, id, tab.id, source.id, again)),
+    moveTab: async (machineId, { id }, tab, beside, side) =>
+      done(await native.moveTab(machineId, id, tab.id, beside.id, side === "after")),
+    closeTab: async (machineId, { id }, tab, asked) => {
+      if (tab.revision === undefined) return { kind: "failed" };
+      return done(await native.close(machineId, id, tab.id, null, tab.revision, asked));
+    },
+    closePane: async (machineId, { id }, tab, pane, asked) => {
+      if (pane.revision === undefined) return { kind: "failed" };
+      return done(await native.close(machineId, id, tab.id, pane.id, pane.revision, asked));
+    },
+    panePreviews: async (machineId, panes) => {
+      const screens = await native.panePreviews(machineId, [...panes]).catch(() => []);
+      return Object.fromEntries(screens.map(({ pane, rows }) => [pane, { rows }]));
+    },
+    worktreeContext: (machineId, repository) => native.worktreeContext(machineId, repository.root),
+    worktreeLocation: ({ template, home, root }, branch) =>
+      native.worktreeLocation(template, home, root, branch),
+    createWorktree: (machineId, { id }, { root, home }, { branch, location }) => {
+      const [kind, name, base] =
+        branch.kind === "new"
+          ? ([branch.baseIsRemote ? "new-from-remote" : "new", branch.name, branch.base] as const)
+          : branch.kind === "existing"
+            ? (["existing", branch.name, ""] as const)
+            : (["remote", branch.name, branch.remote] as const);
+      return native.createWorktree(machineId, id, root, home, location, kind, name, base);
     },
     restartCore: async () => ({ kind: "failed" }),
     disconnect: (machineId) => {

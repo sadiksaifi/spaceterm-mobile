@@ -408,9 +408,17 @@ private fun Pills(
               lensWidth.stop()
             }
             follow(first.copy(now = fromStart(crossed.position.x)))
+            var finger = crossed.id
             val lifted = horizontalDrag(crossed.id) { change ->
               change.consume()
-              drag?.let { now -> follow(now.copy(now = fromStart(change.position.x))) }
+              drag?.let { now ->
+                val at = fromStart(change.position.x)
+                // Another finger can carry on the drag when the first lifts. It moves the
+                // indicator from where it was, not by how far it is from the first finger.
+                val start = if (change.id == finger) now.start else at - (now.now - now.start)
+                finger = change.id
+                follow(now.copy(start = start, now = at))
+              }
             }
             if (lifted) {
               // Timed to the lift, so a quick move that then holds still is a drag, not a flick.

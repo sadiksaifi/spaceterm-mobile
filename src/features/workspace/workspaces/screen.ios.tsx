@@ -1,8 +1,8 @@
 import { Host } from "@expo/ui";
-import { List, Section, Text } from "@expo/ui/swift-ui";
-import { font, frame, listStyle, scrollEdgeEffectStyle } from "@expo/ui/swift-ui/modifiers";
+import { List, Section } from "@expo/ui/swift-ui";
+import { listStyle, scrollEdgeEffectStyle } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import { StyleSheet, useWindowDimensions } from "react-native";
+import { StyleSheet } from "react-native";
 
 import { rowCommands } from "@/features/home/actions";
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
@@ -22,26 +22,11 @@ export default function WorkspacesScreen({
   onNewWorkspace,
   onClose,
 }: WorkspacesScreenProps) {
-  const window = useWindowDimensions();
   return (
     <>
-      {/* As the system's own half sheets draw it: a bold title at the left, Close at the right. */}
-      <Stack.Screen options={{ title: text.workspaces, headerTitle: "" }} />
+      {/* As New Workspace's sheet: Close at the left of the title. */}
+      <Stack.Screen options={{ title: text.workspaces }} />
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.View hidesSharedBackground>
-          <Host style={{ width: window.width * TITLE_SHARE, height: TITLE_HEIGHT }}>
-            <Text
-              modifiers={[
-                font({ textStyle: "title2", weight: "bold" }),
-                frame({ maxWidth: FILL, maxHeight: FILL, alignment: "leading" }),
-              ]}
-            >
-              {text.workspaces}
-            </Text>
-          </Host>
-        </Stack.Toolbar.View>
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button icon="xmark" accessibilityLabel={text.close} onPress={onClose} />
       </Stack.Toolbar>
       <Stack.SearchBar
@@ -86,12 +71,6 @@ export default function WorkspacesScreen({
     </>
   );
 }
-
-/** The most of the sheet's width the title takes, leaving the rest to Close. */
-const TITLE_SHARE = 0.6;
-const TITLE_HEIGHT = 44;
-/** Lets a frame take all the space its container offers, like SwiftUI's `.infinity`. */
-const FILL = Number.POSITIVE_INFINITY;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },

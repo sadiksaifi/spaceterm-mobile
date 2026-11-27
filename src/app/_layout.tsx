@@ -45,7 +45,8 @@ export default function RootLayout() {
                 // iOS only: Android shows the Workspaces in a sheet of the Workspace screen.
                 presentation: "formSheet",
                 sheetAllowedDetents: [0.5, 1],
-                sheetGrabberVisible: true,
+                // Close closes it, so the grabber stays hidden; a drag still resizes it.
+                sheetGrabberVisible: false,
                 // Transparent, so the sheet shows the system's glass.
                 contentStyle: { backgroundColor: "transparent" },
               }}

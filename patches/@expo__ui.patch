@@ -1,18 +1,21 @@
 diff --git a/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt b/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt
-index 9ca09321e7068ced9a490fdd06dac7a2d8ec3949..439d7e0aaf66216cc2b87238d65db610cd577898 100644
+index 9ca09321e7068ced9a490fdd06dac7a2d8ec3949..6b5b2f1c89e19b17590fb0cf1772df9003ef1fb4 100644
 --- a/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt
 +++ b/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt
-@@ -2,6 +2,9 @@
+@@ -2,6 +2,12 @@
  
  package expo.modules.ui
  
 +import androidx.compose.foundation.layout.WindowInsets
-+import androidx.compose.foundation.layout.exclude
-+import androidx.compose.foundation.layout.ime
++import androidx.compose.foundation.layout.WindowInsetsSides
++import androidx.compose.foundation.layout.displayCutout
++import androidx.compose.foundation.layout.only
++import androidx.compose.foundation.layout.systemBars
++import androidx.compose.foundation.layout.union
  import android.app.Activity
  import android.app.Dialog
  import android.content.Context
-@@ -49,6 +52,7 @@ data class ModalBottomSheetViewProps(
+@@ -49,6 +55,7 @@ data class ModalBottomSheetViewProps(
    val scrimColor: Color? = null,
    val showDragHandle: Boolean = true,
    val sheetGesturesEnabled: Boolean = true,
@@ -20,7 +23,7 @@ index 9ca09321e7068ced9a490fdd06dac7a2d8ec3949..439d7e0aaf66216cc2b87238d65db610
    val properties: ModalBottomSheetPropertiesRecord = ModalBottomSheetPropertiesRecord(),
    val modifiers: ModifierList = emptyList()
  ) : ComposeProps
-@@ -161,6 +165,13 @@ fun FunctionalComposableScope.ModalBottomSheetContent(
+@@ -161,6 +168,15 @@ fun FunctionalComposableScope.ModalBottomSheetContent(
      contentColor = resolvedContentColor,
      scrimColor = resolvedScrimColor,
      sheetGesturesEnabled = props.sheetGesturesEnabled,
@@ -28,7 +31,9 @@ index 9ca09321e7068ced9a490fdd06dac7a2d8ec3949..439d7e0aaf66216cc2b87238d65db610
 +      if (props.keyboardInsets) {
 +        BottomSheetDefaults.modalWindowInsets
 +      } else {
-+        BottomSheetDefaults.modalWindowInsets.exclude(WindowInsets.ime)
++        // modalWindowInsets is safeDrawing, which is these and the keyboard.
++        WindowInsets.systemBars.union(WindowInsets.displayCutout)
++          .only(WindowInsetsSides.Top + WindowInsetsSides.Bottom)
 +      }
 +    },
      dragHandle = when {

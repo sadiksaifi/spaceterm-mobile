@@ -1,1 +1,7 @@
-export { PillBar, type Pill, type PillAction, type PillBarProps } from "./src/PillBar";
+export {
+  PillBar,
+  type BarButton,
+  type Pill,
+  type PillAction,
+  type PillBarProps,
+} from "./src/PillBar";

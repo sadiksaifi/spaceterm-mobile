@@ -1,13 +1,5 @@
-import { Button, HStack, Image } from "@expo/ui/swift-ui";
-import {
-  accessibilityLabel,
-  buttonBorderShape,
-  buttonStyle,
-  disabled,
-  font,
-  frame,
-  padding,
-} from "@expo/ui/swift-ui/modifiers";
+import { Button } from "@expo/ui/swift-ui";
+import { disabled, frame, padding } from "@expo/ui/swift-ui/modifiers";
 import type { ComponentProps } from "react";
 
 import { rowCommands, type Control, type RowCommands } from "@/features/home/actions";
@@ -20,7 +12,6 @@ import { text } from "../../text";
 /** The bar's metrics from the mockups. */
 export const BAR_HEIGHT = 48;
 const SIDE = 28;
-const GAP = 12;
 
 /**
  * Back at the left, the Workspaces Home lists as pills with the one on screen highlighted, then
@@ -58,52 +49,29 @@ export function WorkspaceBar({
   });
 
   return (
-    <HStack spacing={GAP} modifiers={[padding({ horizontal: SIDE })]}>
-      {roundButton("chevron.left", text.back, onBack)}
-      <PillBar
-        pills={pills}
-        selected={selected}
-        onSelect={(key) => {
-          const row = rows.find((each) => each.key === key);
-          if (row !== undefined) onSwitch(row);
-        }}
-        onAction={(key, id) => {
-          const controls = commands.get(key);
-          const entry = MENU.find((each) => each.id === id);
-          if (controls !== undefined && entry !== undefined) entry.control(controls).onPress?.();
-        }}
-        modifiers={[
-          frame({
-            maxWidth: Number.POSITIVE_INFINITY,
-            minHeight: BAR_HEIGHT,
-            maxHeight: BAR_HEIGHT,
-          }),
-        ]}
-      />
-      {roundButton("rectangle.stack", text.workspaces, onWorkspaces)}
-    </HStack>
-  );
-}
-
-/** A glass circle as tall as the bar, holding a symbol. */
-function roundButton(
-  symbol: NonNullable<ComponentProps<typeof Image>["systemName"]>,
-  label: string,
-  onPress: () => void,
-) {
-  return (
-    <Button
-      onPress={onPress}
-      modifiers={[buttonStyle("glass"), buttonBorderShape("circle"), accessibilityLabel(label)]}
-    >
-      <Image
-        systemName={symbol}
-        modifiers={[
-          font({ size: 20, weight: "medium" }),
-          frame({ width: BAR_HEIGHT - 16, height: BAR_HEIGHT - 16 }),
-        ]}
-      />
-    </Button>
+    <PillBar
+      pills={pills}
+      selected={selected}
+      leading={{ systemImage: "chevron.left", label: text.back, onPress: onBack }}
+      trailing={{ systemImage: "rectangle.stack", label: text.workspaces, onPress: onWorkspaces }}
+      onSelect={(key) => {
+        const row = rows.find((each) => each.key === key);
+        if (row !== undefined) onSwitch(row);
+      }}
+      onAction={(key, id) => {
+        const controls = commands.get(key);
+        const entry = MENU.find((each) => each.id === id);
+        if (controls !== undefined && entry !== undefined) entry.control(controls).onPress?.();
+      }}
+      modifiers={[
+        frame({
+          maxWidth: Number.POSITIVE_INFINITY,
+          minHeight: BAR_HEIGHT,
+          maxHeight: BAR_HEIGHT,
+        }),
+        padding({ horizontal: SIDE }),
+      ]}
+    />
   );
 }
 

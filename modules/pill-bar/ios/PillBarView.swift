@@ -19,19 +19,30 @@ struct Pill: Record {
   @Field var actions: [PillAction] = []
 }
 
+/** A round glass button beside the pills. */
+struct BarButton: Record {
+  @Field var systemImage: String = ""
+  @Field var label: String = ""
+}
+
 final class PillBarProps: UIBaseViewProps {
   @Field var pills: [Pill] = []
   @Field var selected: String = ""
+  @Field var leading: BarButton?
+  @Field var trailing: BarButton?
   var onSelect = EventDispatcher()
   var onAction = EventDispatcher()
+  var onLeading = EventDispatcher()
+  var onTrailing = EventDispatcher()
 }
 
 /**
- * Pills in a glass capsule, one of them highlighted. The pills share the width when every name
- * fits its share; otherwise each takes its name's width and the row scrolls. A tap moves the
- * highlight to a pill. Under a finger the highlight lifts into glass. A drag moves it along the
- * row, which scrolls to keep it in the middle, and it lands on the pill under it when the finger
- * lifts. Touch and hold opens a pill's menu.
+ * Pills in a glass capsule, one of them highlighted, between optional round buttons. The pills
+ * share the width when every name fits its share; otherwise each takes its name's width and the
+ * row scrolls. A tap moves the highlight to a pill. Under a finger the highlight lifts into glass
+ * and the capsule takes the buttons' room. A drag moves the highlight along the row, which
+ * scrolls to keep it in the middle, and it lands on the pill under it when the finger lifts.
+ * Touch and hold opens a pill's menu.
  */
 struct PillBarView: ExpoSwiftUI.View {
   @ObservedObject var props: PillBarProps
@@ -44,6 +55,10 @@ struct PillBarView: ExpoSwiftUI.View {
   private static let scrollRoom: CGFloat = 44
   /** How much the highlight grows under a finger, which fills the bar's height. */
   private static let lift: CGFloat = 1.25
+  /** The buttons' diameter, the capsule's height. */
+  private static let height: CGFloat = 48
+  /** The space between a button and the capsule. */
+  private static let gap: CGFloat = 12
   private static let motion = Animation.spring(response: 0.34, dampingFraction: 0.78)
   private static let row = "pills"
 
@@ -79,13 +94,49 @@ struct PillBarView: ExpoSwiftUI.View {
     return picked
   }
 
-  /** A drag moves the highlight unless the highlight fills the row, which then could not scroll. */
+  /** A drag moves the highlight unless the highlight fills the row even with the buttons' room
+   * a held capsule takes, so the row could not scroll under it. */
   private var slides: Bool {
     guard let frame = frames[resting] else { return false }
-    return frame.width <= width - Self.scrollRoom
+    let buttons = [props.leading, props.trailing].compactMap { $0 }.count
+    let room = CGFloat(buttons) * (Self.height + Self.gap)
+    return frame.width <= width + room - Self.scrollRoom
   }
 
   var body: some View {
+    let held = drag != nil
+    HStack(spacing: 0) {
+      if let leading = props.leading {
+        button(leading) { props.onLeading() }
+          .frame(width: held ? 0 : Self.height + Self.gap, alignment: .leading)
+          .offset(x: held ? -(Self.height + Self.gap) : 0)
+          .opacity(held ? 0 : 1)
+      }
+      capsule
+      if let trailing = props.trailing {
+        button(trailing) { props.onTrailing() }
+          .frame(width: held ? 0 : Self.height + Self.gap, alignment: .trailing)
+          .offset(x: held ? Self.height + Self.gap : 0)
+          .opacity(held ? 0 : 1)
+      }
+    }
+    .animation(Self.motion, value: held)
+  }
+
+  /** A held capsule takes the buttons' room, so they slide off to the sides. */
+  private func button(_ button: BarButton, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: button.systemImage)
+        .font(.system(size: 20, weight: .medium))
+        .frame(width: Self.height - 16, height: Self.height - 16)
+    }
+    .buttonStyle(.glass)
+    .buttonBorderShape(.circle)
+    .accessibilityLabel(button.label)
+    .frame(width: Self.height, height: Self.height)
+  }
+
+  private var capsule: some View {
     ScrollViewReader { proxy in
       ScrollView(.horizontal) {
         PillsLayout(width: width) {
@@ -130,7 +181,7 @@ struct PillBarView: ExpoSwiftUI.View {
       .onChange(of: drag?.middle) { _, middle in
         guard let middle, let frame = frames[drag?.over ?? resting] else { return }
         let end = props.pills.compactMap { frames[$0.key]?.maxX }.max() ?? width
-        let x = clamped(middle, width: frame.width) - width / 2
+        let x = clamped(middle, width: frame.width * Self.lift) - width / 2
         position.scrollTo(x: min(max(x, 0), max(end - width, 0)))
       }
       .onChange(of: props.pills.map(\.key)) { _, keys in
@@ -201,7 +252,8 @@ struct PillBarView: ExpoSwiftUI.View {
   @ViewBuilder
   private func highlight(held: Bool) -> some View {
     if let frame = frames[drag?.over ?? resting] {
-      let middle = drag.map { clamped($0.middle, width: frame.width) } ?? frame.midX
+      // A held highlight grows, so it keeps its grown width inside the row.
+      let middle = drag.map { clamped($0.middle, width: frame.width * Self.lift) } ?? frame.midX
       let shown = (drag != nil) == held
       Group {
         if held {

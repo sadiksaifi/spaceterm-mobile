@@ -326,8 +326,8 @@ private func paneScreen(_ screen: PaneScreen) -> [String: Any] {
 private func screenRun(_ run: ScreenRun) -> [String: Any] {
   [
     "text": run.text,
-    "foreground": run.foreground as Any? ?? NSNull(),
-    "background": run.background as Any? ?? NSNull(),
+    "foreground": runColor(run.foreground),
+    "background": runColor(run.background),
     "inverse": run.inverse,
     "bold": run.bold,
     "faint": run.faint,
@@ -335,6 +335,15 @@ private func screenRun(_ run: ScreenRun) -> [String: Any] {
     "underline": run.underline,
     "strikethrough": run.strikethrough,
   ]
+}
+
+/// `#rrggbb` as a string, a palette entry as its index, the terminal's own color as null.
+private func runColor(_ color: RunColor?) -> Any {
+  switch color {
+  case .rgb(let hex): return hex
+  case .palette(let index): return Int(index)
+  case nil: return NSNull()
+  }
 }
 
 private func pane(_ pane: PaneSummary) -> [String: Any] {

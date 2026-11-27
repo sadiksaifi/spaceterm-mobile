@@ -4,7 +4,27 @@ import type { ScreenRun } from "@/shared/machines/model";
 
 import { runColors } from "./snapshot";
 
-const theme = { foreground: "#d8d8dc", background: "#1c1c1e" };
+const normal = [
+  "#000001",
+  "#e06c75",
+  "#000003",
+  "#000004",
+  "#000005",
+  "#000006",
+  "#000007",
+  "#000008",
+] as const;
+const bright = [
+  "#100001",
+  "#ff7b86",
+  "#100003",
+  "#100004",
+  "#100005",
+  "#100006",
+  "#100007",
+  "#100008",
+] as const;
+const theme = { foreground: "#d8d8dc", background: "#1c1c1e", normal, bright };
 const run = (extra: Partial<ScreenRun>): ScreenRun => ({
   text: "x",
   foreground: null,
@@ -44,6 +64,22 @@ describe("a run's colors", () => {
       foreground: "#7bc47f",
       background: null,
     });
+  });
+
+  it("takes a palette color's first 16 from the Terminal Theme", () => {
+    expect(runColors(run({ foreground: 1, background: 9 }), theme, true)).toEqual({
+      foreground: "#e06c75",
+      background: "#ff7b86",
+    });
+    expect(runColors(run({ inverse: true, background: 1 }), theme, true).foreground).toBe(
+      "#e06c75",
+    );
+  });
+
+  it("takes the rest of the 256 palette colors from xterm's cube and grays", () => {
+    const shown = (index: number) => runColors(run({ foreground: index }), theme, true).foreground;
+    expect([16, 196, 110, 231].map(shown)).toEqual(["#000000", "#ff0000", "#87afd7", "#ffffff"]);
+    expect([232, 255].map(shown)).toEqual(["#080808", "#eeeeee"]);
   });
 
   it("draws faint text at half strength", () => {

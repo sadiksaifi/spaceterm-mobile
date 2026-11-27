@@ -13,12 +13,12 @@ pub struct PaneScreen {
     pub rows: Vec<Vec<ScreenRun>>,
 }
 
-/// Consecutive cells drawn alike. Colors are `#rrggbb`; `None` is the terminal's own.
+/// Consecutive cells drawn alike. `None` is the terminal's own color.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct ScreenRun {
     pub text: String,
-    pub foreground: Option<String>,
-    pub background: Option<String>,
+    pub foreground: Option<RunColor>,
+    pub background: Option<RunColor>,
     /// Foreground and background trade places, as the cell or the whole screen asks.
     pub inverse: bool,
     pub bold: bool,
@@ -26,6 +26,15 @@ pub struct ScreenRun {
     pub italic: bool,
     pub underline: bool,
     pub strikethrough: bool,
+}
+
+/// A run's color. A Machine before work 1.7 resolves palette entries itself, so only RGB arrives.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum RunColor {
+    /// `#rrggbb`.
+    Rgb { hex: String },
+    /// An index into the 256-color palette, whose first 16 entries the Terminal Theme sets.
+    Palette { index: u8 },
 }
 
 /// The screens among `previews`. A Pane that has not started, or whose ended screen the Machine
@@ -95,8 +104,8 @@ fn screen_run(run: &Run, reversed: bool) -> ScreenRun {
     };
     ScreenRun {
         text,
-        foreground: style.and_then(|style| rgb(style.foreground)),
-        background: style.and_then(|style| rgb(style.background)),
+        foreground: style.and_then(|style| run_color(style.foreground)),
+        background: style.and_then(|style| run_color(style.background)),
         inverse: has(flags::INVERSE) != reversed,
         bold: has(flags::BOLD),
         faint: has(flags::FAINT),
@@ -116,11 +125,13 @@ fn drawable(character: char) -> char {
     if private { ' ' } else { character }
 }
 
-/// The Machine resolves palette entries, so only RGB arrives.
-fn rgb(color: Color) -> Option<String> {
+fn run_color(color: Color) -> Option<RunColor> {
     match color {
-        Color::Rgb([red, green, blue]) => Some(format!("#{red:02x}{green:02x}{blue:02x}")),
-        Color::Default | Color::Palette(_) => None,
+        Color::Rgb([red, green, blue]) => Some(RunColor::Rgb {
+            hex: format!("#{red:02x}{green:02x}{blue:02x}"),
+        }),
+        Color::Palette(index) => Some(RunColor::Palette { index }),
+        Color::Default => None,
     }
 }
 
@@ -226,7 +237,9 @@ mod tests {
                 rows: vec![
                     vec![
                         ScreenRun {
-                            foreground: Some("#7bc47f".to_owned()),
+                            foreground: Some(RunColor::Rgb {
+                                hex: "#7bc47f".to_owned(),
+                            }),
                             ..plain("❯ ")
                         },
                         plain("pnpm test"),
@@ -239,6 +252,30 @@ mod tests {
                     vec![plain("  main")],
                 ],
             }]
+        );
+    }
+
+    #[test]
+    fn a_palette_color_arrives_as_its_index_for_the_terminal_theme_to_color() {
+        let red_on_gray = inline(|style| {
+            style.foreground = Color::Palette(1);
+            style.background = Color::Palette(244);
+        });
+        let shown = screens(vec![PanePreview {
+            pane: [1; 32],
+            state: State::Live {
+                session: [2; 32],
+                screen: Some(screen(vec![row(0, vec![run("error", red_on_gray)])], false)),
+            },
+        }]);
+
+        assert_eq!(
+            shown[0].rows[0],
+            vec![ScreenRun {
+                foreground: Some(RunColor::Palette { index: 1 }),
+                background: Some(RunColor::Palette { index: 244 }),
+                ..plain("error")
+            }],
         );
     }
 

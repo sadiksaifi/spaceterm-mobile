@@ -63,11 +63,18 @@ export type PaneScreen = {
   rows: readonly (readonly ScreenRun[])[];
 };
 
-/** Consecutive cells drawn alike. Colors are `#rrggbb`; `null` is the Terminal Theme's own. */
+/**
+ * A run's color: `#rrggbb`, or an index into the 256-color palette, whose first 16 entries the
+ * Terminal Theme sets.
+ * A Machine before work 1.7 sends only `#rrggbb`, resolved from its own palette.
+ */
+export type RunColor = string | number;
+
+/** Consecutive cells drawn alike. `null` is the Terminal Theme's own color. */
 export type ScreenRun = {
   text: string;
-  foreground: string | null;
-  background: string | null;
+  foreground: RunColor | null;
+  background: RunColor | null;
   /** Foreground and background trade places. */
   inverse: boolean;
   bold: boolean;

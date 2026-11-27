@@ -19,8 +19,8 @@ required-features = ["bindgen"]
 bindgen = ["uniffi/cli"]
 
 [dependencies]
-spaceterm-client = { git = "https://github.com/sadiksaifi/SpaceTerm", tag = "libspaceterm@v0.1.4" }
-spaceterm-protocol = { git = "https://github.com/sadiksaifi/SpaceTerm", tag = "libspaceterm@v0.1.4" }
+spaceterm-client = { git = "https://github.com/sadiksaifi/SpaceTerm", tag = "libspaceterm@v0.1.5" }
+spaceterm-protocol = { git = "https://github.com/sadiksaifi/SpaceTerm", tag = "libspaceterm@v0.1.5" }
 uniffi = "=0.33.0"
 # Pinned to the versions libspaceterm pins.
 async-channel = "=2.5.0"

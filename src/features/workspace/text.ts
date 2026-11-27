@@ -5,6 +5,8 @@ import type { TabAlert, TabFailure } from "./use-tab-commands";
 export const text = {
   back: "Back",
   more: cased("More", "More options"),
+  /** What TalkBack says for the check beside the active Worktree. */
+  selected: "Selected",
   worktree: "Worktree",
   newWorktree: "New Worktree",
   renameWorkspace: "Rename Workspace",

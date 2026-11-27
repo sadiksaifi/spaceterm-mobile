@@ -298,7 +298,11 @@ function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: Workspace
             >
               {active && (
                 <DropdownMenuItem.LeadingIcon>
-                  <Icon source={checkIcon} tint={material.onPrimaryContainer} />
+                  <Icon
+                    source={checkIcon}
+                    tint={material.onPrimaryContainer}
+                    contentDescription={text.selected}
+                  />
                 </DropdownMenuItem.LeadingIcon>
               )}
               <DropdownMenuItem.Text>

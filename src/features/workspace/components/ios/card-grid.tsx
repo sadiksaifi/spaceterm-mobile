@@ -218,7 +218,6 @@ function AddTile({
   width: number;
   height: number;
 }) {
-  const colors = useColors();
   return (
     <Button onPress={onAdd} modifiers={[buttonStyle("plain"), accessibilityLabel(label)]}>
       {/* The whole tile takes taps, not only what it draws. */}
@@ -231,7 +230,7 @@ function AddTile({
           modifiers={[
             frame({ width, height }),
             strokeBorder({
-              content: colors.separator,
+              content: Color.ios.systemGray3,
               style: { lineWidth: 1.5, dash: DASH },
               shape: "roundedRectangle",
               cornerRadius: CORNER,

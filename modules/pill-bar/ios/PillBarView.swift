@@ -97,6 +97,8 @@ struct PillBarView: ExpoSwiftUI.View {
   @State private var position = ScrollPosition(idType: String.self)
   /** The last change of selection, which brings the content in from its side. */
   @State private var arrived = Arrival()
+  /** Counts the lifts of the lens, each of which centers the pill it rests on. */
+  @State private var lifts = 0
 
   private struct Drag: Equatable {
     /** The point of the row under the lens. */
@@ -275,6 +277,10 @@ struct PillBarView: ExpoSwiftUI.View {
         frames = frames.filter { keys.contains($0.key) }
         naturals = naturals.filter { keys.contains($0.key) }
       }
+      // Centered as far as the ends allow, also when the lens lifts over the pill it came from.
+      .onChange(of: lifts) {
+        withAnimation(Self.motion) { proxy.scrollTo(resting, anchor: .center) }
+      }
       .onChange(of: props.selected) { _, selected in
         withAnimation(Self.motion) {
           picked = nil
@@ -409,8 +415,7 @@ struct PillBarView: ExpoSwiftUI.View {
         let touch = Touch(start: value.startLocation.x, now: value.location.x)
         guard let over = lens(from: touch)?.over else { return }
         pick(over)
-        // Centered as far as the ends allow, also when it was already picked.
-        withAnimation(Self.motion) { position.scrollTo(id: over, anchor: .center) }
+        lifts += 1
       }
   }
 

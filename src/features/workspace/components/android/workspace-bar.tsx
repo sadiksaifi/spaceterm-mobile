@@ -1,12 +1,6 @@
 import addIcon from "@expo/material-symbols/add.xml";
 import stacksIcon from "@expo/material-symbols/stacks.xml";
-import {
-  Box,
-  FloatingActionButton,
-  Icon,
-  Surface,
-  useMaterialColors,
-} from "@expo/ui/jetpack-compose";
+import { Box, Icon, Surface, useMaterialColors } from "@expo/ui/jetpack-compose";
 import { alpha, clip, Shapes, size, type ModifierConfig } from "@expo/ui/jetpack-compose/modifiers";
 import type { ReactNode } from "react";
 
@@ -20,14 +14,15 @@ import { text } from "../../text";
 /** The bar's metrics from the mockups. */
 export const BAR_HEIGHT = 56;
 const SIDE = 16;
-/** A FloatingActionButton has no disabled state; an unavailable one takes Material's disabled opacity. */
+/** An unavailable New Workspace takes Material's disabled opacity. */
 const UNAVAILABLE = 0.38;
 
 /**
  * Workspaces at the left, the Workspaces Home lists as pills in the middle with the one on screen
- * on the indicator, and New Workspace at the right as the floating action button. A tap or a
- * sideways drag of the indicator changes Workspace; the pills scroll by themselves when they do
- * not fit. Touch and hold a pill for the menu of its Workspace row. The Workspace's content fills
+ * on the indicator, and New Workspace at the right. New Workspace is a filled circle, not the
+ * floating action button's rounded square, so the bar's three parts share one round shape. A tap
+ * or a sideways drag of the indicator changes Workspace; the pills scroll by themselves when they
+ * do not fit. Touch and hold a pill for the menu of its Workspace row. The Workspace's content fills
  * the view under the bar and comes in from the side of the pill it changed to.
  */
 export function WorkspaceBar({
@@ -99,18 +94,21 @@ export function WorkspaceBar({
         </Surface>
       </PillBar.Leading>
       <PillBar.Trailing>
-        <FloatingActionButton
+        <Surface
+          color={material.primaryContainer}
+          contentColor={material.onPrimaryContainer}
+          enabled={!!onNewWorkspace}
           onClick={onNewWorkspace}
-          containerColor={material.primaryContainer}
           modifiers={[
             size(BAR_HEIGHT, BAR_HEIGHT),
+            clip(Shapes.Circle),
             ...(onNewWorkspace ? [] : [alpha(UNAVAILABLE)]),
           ]}
         >
-          <FloatingActionButton.Icon>
+          <Box contentAlignment="center" modifiers={[size(BAR_HEIGHT, BAR_HEIGHT)]}>
             <Icon source={addIcon} contentDescription={text.newWorkspace} />
-          </FloatingActionButton.Icon>
-        </FloatingActionButton>
+          </Box>
+        </Surface>
       </PillBar.Trailing>
     </PillBar>
   );

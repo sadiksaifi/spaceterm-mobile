@@ -286,9 +286,8 @@ export function useTabCommands({
           return newTabIn(shown.worktree ?? grid.active, true);
         case "new-pane": {
           const tab = listedTab(shown.tab.id);
-          const source = tab?.panes.find((each) => each.id === shown.source.id);
-          if (tab === undefined) return;
-          return source === undefined ? newPane(tab) : sendNewPane(tab, source, true);
+          // The same split, though its Pane closed since: the Machine may have run it already.
+          return tab && sendNewPane(tab, shown.source, true);
         }
         case "move-tab": {
           const tab = listedTab(shown.tab.id);

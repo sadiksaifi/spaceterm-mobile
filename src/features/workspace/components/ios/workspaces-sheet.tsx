@@ -55,6 +55,9 @@ import { secondary } from "@/shared/ui/ios/modifiers";
 import { text } from "../../text";
 import { menuItem } from "./workspace-bar";
 
+/** The sheet's height while searching: the search field and about two Workspaces. */
+const SEARCHING: PresentationDetent = { fraction: 0.3 };
+
 /**
  * Search and New Workspace, then the Workspaces Home lists, with the one on screen checked.
  * Picking a Workspace closes the sheet on its Tabs. `alerts` shows Rename and Kill over the
@@ -108,7 +111,9 @@ export function WorkspacesSheet({
     <BottomSheet isPresented={open} onIsPresentedChange={(presented) => !presented && close()}>
       <Group
         modifiers={[
-          presentationDetents(["medium", "large"], {
+          // The system raises a sheet by the keyboard's height and to its tallest height, so
+          // Search offers only a short one, which rides above the keyboard with the grid in view.
+          presentationDetents(searching ? [SEARCHING] : ["medium", "large"], {
             selection: detent,
             onSelectionChange: setDetent,
           }),
@@ -124,8 +129,7 @@ export function WorkspacesSheet({
                 onChange={setQuery}
                 onFocusChange={(focused) => {
                   setSearching(focused);
-                  // The keyboard would cover half a sheet, so Search takes all of it.
-                  if (focused) setDetent("large");
+                  if (focused) setDetent(SEARCHING);
                 }}
               />
               <Button

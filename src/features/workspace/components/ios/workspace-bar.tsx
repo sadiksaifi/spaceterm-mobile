@@ -5,7 +5,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { rowCommands, type Control, type RowCommands } from "@/features/home/actions";
 import type { WorkspaceRow } from "@/features/home/model";
 import type { RowAlerts } from "@/features/home/row-alerts";
-import { PillBar, type PillAction } from "@/modules/pill-bar";
+import { PillBar, type PillAction } from "@/modules/pill-bar/swift-ui";
 
 import { text } from "../../text";
 

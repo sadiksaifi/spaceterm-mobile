@@ -12,7 +12,6 @@ import {
   useMaterialColors,
 } from "@expo/ui/jetpack-compose";
 import {
-  align,
   background,
   defaultMinSize,
   fillMaxSize,
@@ -86,78 +85,78 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         <Box modifiers={[fillMaxSize(), background(colors.background)]}>
           <Column modifiers={[fillMaxSize()]}>
             <Header {...props} />
-            {connected ? (
-              <Column
-                modifiers={[
-                  fillMaxWidth(),
-                  weight(1),
-                  verticalScroll(),
-                  padding(0, 8, 0, bottom + BAR_HEIGHT + 24),
-                ]}
-              >
-                <CardGrid
-                  screens={props.screens}
-                  cards={commands.grid.tabs.map((tab) => {
-                    const move = moves(commands.grid, tab);
-                    return {
-                      key: tab.id,
-                      name: tab.name,
-                      split: splitOf(tab.panes),
-                      onPress: () => commands.openTab(tab),
-                      closeLabel: text.closeTab,
-                      onClose: () => commands.closeTab(tab),
-                      menu: [
-                        { label: text.newTab, control: { onPress: commands.newTab } },
-                        {
-                          label: text.moveTabLeft,
-                          control: {
-                            onPress: move.left ? () => commands.moveTab(tab, -1) : undefined,
-                          },
-                        },
-                        {
-                          label: text.moveTabRight,
-                          control: {
-                            onPress: move.right ? () => commands.moveTab(tab, 1) : undefined,
-                          },
-                        },
-                        {
-                          label: text.closeTab,
-                          control: { onPress: () => commands.closeTab(tab) },
-                        },
-                      ],
-                    };
-                  })}
-                  addLabel={text.newTab}
-                  onAdd={commands.newTab}
-                />
-              </Column>
-            ) : (
-              <Box modifiers={[fillMaxWidth(), weight(1)]}>
-                <Unreachable
-                  view={{ kind: "unreachable", state: view.state, machine: view.machine }}
-                  actions={{
-                    onTryAgain: props.onTryAgain,
-                    onMachineSettings: props.onMachineSettings,
-                    onGetDesktop: () => {},
-                  }}
-                  bottom={bottom + BAR_HEIGHT}
-                />
-              </Box>
-            )}
-          </Column>
-          {!sheet && panes === null && (
-            <SnackbarSlot {...snackbar} bottom={bottom + BAR_HEIGHT + 8} />
-          )}
-          <Box modifiers={[align("bottomCenter"), padding(0, 0, 0, bottom)]}>
             <WorkspaceBar
               rows={rows}
               selected={row.key}
               alerts={alerts}
+              bottom={bottom}
+              modifiers={[fillMaxWidth(), weight(1)]}
               onSwitch={props.onSwitch}
               onWorkspaces={() => setSheet(true)}
               onNewWorkspace={props.onNewWorkspace}
-            />
-          </Box>
+            >
+              {connected ? (
+                <Column
+                  modifiers={[
+                    fillMaxSize(),
+                    verticalScroll(),
+                    padding(0, 8, 0, bottom + BAR_HEIGHT + 24),
+                  ]}
+                >
+                  <CardGrid
+                    screens={props.screens}
+                    cards={commands.grid.tabs.map((tab) => {
+                      const move = moves(commands.grid, tab);
+                      return {
+                        key: tab.id,
+                        name: tab.name,
+                        split: splitOf(tab.panes),
+                        onPress: () => commands.openTab(tab),
+                        closeLabel: text.closeTab,
+                        onClose: () => commands.closeTab(tab),
+                        menu: [
+                          { label: text.newTab, control: { onPress: commands.newTab } },
+                          {
+                            label: text.moveTabLeft,
+                            control: {
+                              onPress: move.left ? () => commands.moveTab(tab, -1) : undefined,
+                            },
+                          },
+                          {
+                            label: text.moveTabRight,
+                            control: {
+                              onPress: move.right ? () => commands.moveTab(tab, 1) : undefined,
+                            },
+                          },
+                          {
+                            label: text.closeTab,
+                            control: { onPress: () => commands.closeTab(tab) },
+                          },
+                        ],
+                      };
+                    })}
+                    addLabel={text.newTab}
+                    onAdd={commands.newTab}
+                  />
+                </Column>
+              ) : (
+                <Box modifiers={[fillMaxSize()]}>
+                  <Unreachable
+                    view={{ kind: "unreachable", state: view.state, machine: view.machine }}
+                    actions={{
+                      onTryAgain: props.onTryAgain,
+                      onMachineSettings: props.onMachineSettings,
+                      onGetDesktop: () => {},
+                    }}
+                    bottom={bottom + BAR_HEIGHT}
+                  />
+                </Box>
+              )}
+            </WorkspaceBar>
+          </Column>
+          {!sheet && panes === null && (
+            <SnackbarSlot {...snackbar} bottom={bottom + BAR_HEIGHT + 8} />
+          )}
           {sheet && (
             <WorkspacesSheet
               onClose={() => setSheet(false)}

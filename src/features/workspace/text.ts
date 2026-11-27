@@ -24,6 +24,7 @@ export const text = {
   panes: "Panes",
   workspaces: "Workspaces",
   newWorkspace: "New Workspace",
+  cancelSearch: cased("Cancel Search", "Cancel search"),
   searchWorkspaces: "Search Workspaces",
   clearText: "Clear text",
   cancel: "Cancel",

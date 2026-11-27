@@ -19,8 +19,6 @@ export type WorkspaceScreenProps = {
   alerts: RowAlerts;
   onBack: () => void;
   onSwitch: (row: WorkspaceRow) => void;
-  /** Opens the Workspaces sheet, where iOS shows it as its own route. */
-  onWorkspaces: () => void;
   /** Absent while no connected Machine can take a new Workspace. */
   onNewWorkspace: (() => void) | undefined;
   /** Absent outside a repository and while the Machine is not connected. */

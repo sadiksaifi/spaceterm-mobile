@@ -22,7 +22,7 @@ import {
 } from "@expo/ui/jetpack-compose/modifiers";
 import { useState } from "react";
 
-import { heading } from "@/modules/compose-modifiers";
+import { flexible, heading } from "@/modules/compose-modifiers";
 
 import type { WorktreeChoice } from "../../grid";
 import { text } from "../../text";
@@ -103,7 +103,7 @@ export function WorkspaceTitle({
             maxLines={1}
             overflow="ellipsis"
             style={{ typography: "titleLarge" }}
-            modifiers={[heading()]}
+            modifiers={[flexible(), heading()]}
           >
             {active.worktree.name}
           </Text>

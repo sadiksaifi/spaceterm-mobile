@@ -16,6 +16,8 @@ import expo.modules.kotlin.records.Record
 import expo.modules.kotlin.records.recordFromMap
 import expo.modules.kotlin.types.OptimizedRecord
 import expo.modules.ui.ModifierRegistry
+import expo.modules.ui.columnScope
+import expo.modules.ui.rowScope
 
 @OptimizedRecord
 data class MaxWidthFractionParams(@Field val fraction: Float = 1f) : Record
@@ -41,6 +43,12 @@ class ComposeModifiersModule : Module() {
       ModifierRegistry.register("maxWidthFraction") { map, _, converterContext, _ ->
         maxWidthFraction(recordFromMap<MaxWidthFractionParams>(map, converterContext).fraction)
       }
+      ModifierRegistry.register("flexible") { _, scope, _, _ ->
+        // Measured after its siblings, so a long text gives way to the icons beside it.
+        scope?.rowScope?.run { Modifier.weight(1f, fill = false) }
+          ?: scope?.columnScope?.run { Modifier.weight(1f, fill = false) }
+          ?: Modifier
+      }
       ModifierRegistry.register("heading") { _, _, _, _ -> Modifier.semantics { heading() } }
       ModifierRegistry.register("radioSelected") { map, _, converterContext, _ ->
         val selected = recordFromMap<RadioSelectedParams>(map, converterContext).selected
@@ -57,6 +65,7 @@ class ComposeModifiersModule : Module() {
 
     OnDestroy {
       ModifierRegistry.unregister("maxWidthFraction")
+      ModifierRegistry.unregister("flexible")
       ModifierRegistry.unregister("heading")
       ModifierRegistry.unregister("radioSelected")
       ModifierRegistry.unregister("hiddenFromAccessibility")

@@ -7,6 +7,12 @@ import { createModifier } from "@expo/ui/jetpack-compose/modifiers";
 export const maxWidthFraction = (fraction: number) =>
   createModifier("maxWidthFraction", { fraction });
 
+/**
+ * In a Row or Column, the view takes the space its siblings leave, and no more than it needs. A
+ * long text then shortens instead of pushing the views after it out.
+ */
+export const flexible = () => createModifier("flexible", {});
+
 /** Marks the view as a heading, so TalkBack can move between headings. */
 export const heading = () => createModifier("heading", {});
 

@@ -7,7 +7,10 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -40,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -77,7 +82,6 @@ import expo.modules.ui.ModifierList
 import expo.modules.ui.ModifierRegistry
 import expo.modules.ui.findChildSlotView
 import expo.modules.ui.renderSlot
-import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.isActive
@@ -229,7 +233,7 @@ private fun Arriving(pills: List<Pill>, selected: String, content: @Composable (
 
 /** A drag of the indicator, in the row's pixels, measured from its start side. */
 private data class Drag(
-  /** Where the finger was when the drag began and where it is, in the capsule. */
+  /** Where the finger came down and where it is, in the capsule. */
   val start: Float,
   val now: Float,
   /** The indicator's middle and the row's scroll when the drag began. */
@@ -237,8 +241,8 @@ private data class Drag(
   val scrolled: Float,
   /** The pill under the indicator. */
   val over: Int,
-  /** When the finger first moved, in uptime milliseconds. */
-  val began: Long = 0L
+  /** When the finger came down, in uptime milliseconds. */
+  val began: Long
 )
 
 @Composable
@@ -375,49 +379,57 @@ private fun Pills(
       // picks: a drag the system or a change to the pills cuts short leaves the indicator to
       // spring back to the resting pill.
       val gesture = Modifier.pointerInput(pills, widths, restingIndex, rtl) {
-        fun lift() {
+        fun lift(at: Long) {
           val now = drag ?: return
           var index = now.over
           val distance = now.now - now.start
-          // Timed to the lift, so a quick move that then holds still is a drag, not a flick.
-          val quick = now.began != 0L && SystemClock.uptimeMillis() - now.began < FLICK_TIME
-          if (index == restingIndex && quick && abs(distance) >= px.flick) {
+          if (index == restingIndex && at - now.began < FLICK_TIME && abs(distance) >= px.flick) {
             index = (index + if (distance < 0) -1 else 1).coerceIn(0, pills.lastIndex)
           }
           drag = null
           pills.getOrNull(index)?.let { pick(it.key) }
         }
         try {
-          detectHorizontalDragGestures(
-            onDragStart = { offset ->
-              if (pills.isNotEmpty()) {
-                menu = null
-                val at = fromStart(offset.x)
-                drag = Drag(at, at, lensMiddle.value, scroll.value, restingIndex)
-                scope.launch {
-                  scroll.stop()
-                  lensMiddle.stop()
-                  lensWidth.stop()
-                }
-              }
-            },
-            onDragEnd = { lift() },
-            onDragCancel = { drag = null }
-          ) { change, _ ->
-            change.consume()
-            drag?.let { now ->
-              val began = if (now.began == 0L) change.uptimeMillis else now.began
-              follow(now.copy(now = fromStart(change.position.x), began = began))
+          awaitEachGesture {
+            // Not only an unconsumed down, so a drag can start on a pill.
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val crossed = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ ->
+              change.consume()
+            } ?: return@awaitEachGesture
+            if (pills.isEmpty()) return@awaitEachGesture
+            menu = null
+            // From where the finger came down, so the indicator keeps up with it past the slop.
+            val start = fromStart(down.position.x)
+            val first = Drag(start, start, lensMiddle.value, scroll.value, restingIndex, down.uptimeMillis)
+            drag = first
+            scope.launch {
+              scroll.stop()
+              lensMiddle.stop()
+              lensWidth.stop()
+            }
+            follow(first.copy(now = fromStart(crossed.position.x)))
+            val lifted = horizontalDrag(crossed.id) { change ->
+              change.consume()
+              drag?.let { now -> follow(now.copy(now = fromStart(change.position.x))) }
+            }
+            if (lifted) {
+              // Timed to the lift, so a quick move that then holds still is a drag, not a flick.
+              val up = currentEvent.changes.firstOrNull { it.changedToUpIgnoreConsumed() }
+              lift(up?.uptimeMillis ?: currentEvent.changes.first().uptimeMillis)
+            } else {
+              drag = null
             }
           }
         } finally {
-          // A change to the pills cancels the detector without a callback.
+          // A change to the pills cancels the gesture without an up.
           drag = null
         }
       }
 
+      // Pinned to the left in both directions, since each pill is placed from the screen's left.
       Box(
-        gesture
+        contentAlignment = AbsoluteAlignment.TopLeft,
+        modifier = gesture
           .fillMaxSize()
           .clipToBounds()
           .selectableGroup()

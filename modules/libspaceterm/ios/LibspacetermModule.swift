@@ -170,6 +170,27 @@ public class LibspacetermModule: Module {
       shared.killWorkspace(machineId: machineId, workspaceId: workspaceId, seen: seen)
     }.runOnQueue(edits)
 
+    AsyncFunction("directoryHome") { (machineId: String) -> String? in
+      shared.directoryHome(machineId: machineId)
+    }
+
+    AsyncFunction("listDirectory") { (machineId: String, path: String) -> [String]? in
+      shared.listDirectory(machineId: machineId, path: path)
+    }
+
+    AsyncFunction("createWorkspace") {
+      (machineId: String, path: String, name: String, createDirectory: Bool, again: Bool)
+        -> [String: Any] in
+      switch shared.createWorkspace(
+        machineId: machineId, path: path, name: name, createDirectory: createDirectory,
+        again: again)
+      {
+      case .created(let workspaceId): return ["kind": "created", "workspaceId": workspaceId]
+      case .missingDirectory: return ["kind": "missing-directory"]
+      case .failed: return ["kind": "failed"]
+      }
+    }.runOnQueue(edits)
+
     AsyncFunction("newTab") {
       (machineId: String, workspaceId: String, root: String?, path: String?, again: Bool) -> String?
       in

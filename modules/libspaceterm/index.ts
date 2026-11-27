@@ -108,6 +108,12 @@ export type NativeWorktreeContext = {
   home: string;
 };
 
+export type NativeWorkspaceCreation =
+  | { kind: "created"; workspaceId: string }
+  /** The directory does not exist, so nothing was created. */
+  | { kind: "missing-directory" }
+  | { kind: "failed" };
+
 export type NativeWorktreeCreation =
   | { kind: "created"; tab: string }
   | { kind: "invalid-name" }
@@ -202,6 +208,25 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   ): Promise<boolean>;
   /** Ends the Workspace and every Terminal Session in it. */
   killWorkspace(machineId: string, workspaceId: string, seen: string): Promise<boolean>;
+  /** The Machine's home directory, `null` when it did not answer. */
+  directoryHome(machineId: string): Promise<string | null>;
+  /**
+   * The names of the directories in `path`, an absolute path on the Machine, unsorted. `null`
+   * when the Machine cannot list it or did not answer.
+   */
+  listDirectory(machineId: string, path: string): Promise<string[] | null>;
+  /**
+   * Creates a Workspace named `name` in `path`, an absolute path on the Machine, with a shell
+   * there in its first Tab. A missing directory is created first only with `createDirectory`.
+   * `again` is as for `newTab`: Try Again creates no second Workspace.
+   */
+  createWorkspace(
+    machineId: string,
+    path: string,
+    name: string,
+    createDirectory: boolean,
+    again: boolean,
+  ): Promise<NativeWorkspaceCreation>;
   /**
    * Opens a Tab as the Workspace's last, in the Worktree at `path` of the repository whose Main
    * Worktree is `root` when both are given. `again` is Try Again of a New Tab that failed, which

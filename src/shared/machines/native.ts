@@ -198,17 +198,14 @@ export function createNativeClient(
       if (revision === undefined) return { kind: "failed" };
       return done(await native.killWorkspace(machineId, id, revision));
     },
-    newTab: async (machineId, { id }, worktree) => {
-      const root = worktree === undefined ? null : rootOf(machineId, id);
-      if (worktree !== undefined && root === null) return { kind: "failed" };
-      const tab = await native.newTab(machineId, id, root, worktree?.path ?? null);
+    newTab: async (machineId, { id }, worktree, again) => {
+      const root = worktree === null ? null : rootOf(machineId, id);
+      if (worktree !== null && root === null) return { kind: "failed" };
+      const tab = await native.newTab(machineId, id, root, worktree?.path ?? null, again);
       return tab === null ? { kind: "failed" } : { kind: "done", tab };
     },
-    newPane: async (machineId, { id }, tab) => {
-      const source = tab.panes.at(-1);
-      if (source === undefined) return { kind: "failed" };
-      return done(await native.newPane(machineId, id, tab.id, source.id));
-    },
+    newPane: async (machineId, { id }, tab, source, again) =>
+      done(await native.newPane(machineId, id, tab.id, source.id, again)),
     moveTab: async (machineId, { id }, tab, beside, side) =>
       done(await native.moveTab(machineId, id, tab.id, beside.id, side === "after")),
     closeTab: async (machineId, { id }, tab, asked) => {

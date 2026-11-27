@@ -172,16 +172,24 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
   killWorkspace(machineId: string, workspaceId: string, seen: string): Promise<boolean>;
   /**
    * Opens a Tab as the Workspace's last, in the Worktree at `path` of the repository whose Main
-   * Worktree is `root` when both are given. Resolves the new Tab, or `null`.
+   * Worktree is `root` when both are given. `again` is Try Again of a New Tab that failed, which
+   * opens no second Tab if the first opened with its answer lost. Resolves the new Tab, or `null`.
    */
   newTab(
     machineId: string,
     workspaceId: string,
     root: string | null,
     path: string | null,
+    again: boolean,
   ): Promise<string | null>;
-  /** Adds a Pane beside `source`, one of the Tab's Panes. */
-  newPane(machineId: string, workspaceId: string, tabId: string, source: string): Promise<boolean>;
+  /** Adds a Pane beside `source`, one of the Tab's Panes. `again` is as for `newTab`. */
+  newPane(
+    machineId: string,
+    workspaceId: string,
+    tabId: string,
+    source: string,
+    again: boolean,
+  ): Promise<boolean>;
   /** Moves the Tab just after `beside`, another Tab of its Worktree, or else just before it. */
   moveTab(
     machineId: string,

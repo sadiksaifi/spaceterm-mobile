@@ -13,9 +13,20 @@ use std::time::{Duration, Instant};
 
 /// How long an edit waits for the Machine before it counts as failed.
 const EDIT_WAIT: Duration = Duration::from_secs(10);
-/// How long the answer to a lost edit, recovered while another edit went out, stands in for Try
-/// Again of the lost one. Past it, the same edit asked again counts as new.
-const RECOVERED_FOR: Duration = Duration::from_secs(120);
+/// How long the answer to a lost edit, recovered while another edit went out, waits for Try Again
+/// of the lost one. Only Try Again takes it, so it only bounds what is kept.
+const RECOVERED_FOR: Duration = Duration::from_secs(30 * 60);
+/// The most recovered answers kept for one pairing; past it the oldest goes.
+const RECOVERED_KEPT: usize = 16;
+
+/// What an edit identical to one whose answer was lost asks for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Repeat {
+    /// That same edit again, as Try Again does: the lost one's answer is its answer.
+    Same,
+    /// One more of it, such as a second New Tab: it goes out after the lost one.
+    New,
+}
 
 type Slot = Arc<Mutex<Option<(PairedMachine, WorkspaceEditor)>>>;
 
@@ -35,17 +46,21 @@ impl Edits {
     }
 
     /// Sends `mutation` to `machine` and waits for its answer: the Machine's outcome, or `None`
-    /// when no answer arrived. One edit per pairing runs at a time.
+    /// when no answer arrived. `repeat` says whether an identical edit whose answer was lost is
+    /// this one. One edit per pairing runs at a time.
     pub(crate) fn submit(
         &self,
         route: DirectRouteId,
         machine: &PairedMachine,
         mutation: Mutation,
+        repeat: Repeat,
     ) -> Option<Outcome> {
         let slot = self.slot(route)?;
         let mut slot = slot.lock().ok()?;
         // Try Again of an edit whose answer came back while another edit went out.
-        if let Some(outcome) = self.take_recovered(route, |recovered| *recovered == mutation) {
+        if repeat == Repeat::Same
+            && let Some(outcome) = self.take_recovered(route, |recovered| *recovered == mutation)
+        {
             return Some(outcome);
         }
         let deadline = Instant::now() + EDIT_WAIT;
@@ -59,7 +74,7 @@ impl Edits {
                 Ok(Some(outcome)) => {
                     let _ = editor.presented(outcome.sequence);
                     // Try Again of that same edit: its answer is this one's.
-                    if pending.mutation == mutation {
+                    if repeat == Repeat::Same && pending.mutation == mutation {
                         return Some(outcome.outcome);
                     }
                     // Its own Try Again may still come, and must not apply it twice.
@@ -231,14 +246,19 @@ impl Edits {
     }
 }
 
-/// Each pairing's last answer to a lost edit that another edit recovered, kept for that edit's
-/// own Try Again. It answers once, and only within `RECOVERED_FOR`.
+/// Each pairing's answers to lost edits that other edits recovered, kept for those edits' own
+/// Try Again. Each answers once, and only within `RECOVERED_FOR`.
 #[derive(Default)]
-struct Recovered(HashMap<DirectRouteId, (Mutation, Outcome, Instant)>);
+struct Recovered(HashMap<DirectRouteId, Vec<(Mutation, Outcome, Instant)>>);
 
 impl Recovered {
     fn keep(&mut self, route: DirectRouteId, mutation: Mutation, outcome: Outcome, at: Instant) {
-        self.0.insert(route, (mutation, outcome, at));
+        let kept = self.0.entry(route).or_default();
+        kept.retain(|(_, _, since)| at.saturating_duration_since(*since) <= RECOVERED_FOR);
+        if kept.len() == RECOVERED_KEPT {
+            kept.remove(0);
+        }
+        kept.push((mutation, outcome, at));
     }
 
     fn take(
@@ -247,15 +267,10 @@ impl Recovered {
         matches: impl Fn(&Mutation) -> bool,
         now: Instant,
     ) -> Option<Outcome> {
-        let (mutation, _, at) = self.0.get(&route)?;
-        if now.saturating_duration_since(*at) > RECOVERED_FOR {
-            self.0.remove(&route);
-            return None;
-        }
-        if !matches(mutation) {
-            return None;
-        }
-        self.0.remove(&route).map(|(_, outcome, _)| outcome)
+        let kept = self.0.get_mut(&route)?;
+        kept.retain(|(_, _, since)| now.saturating_duration_since(*since) <= RECOVERED_FOR);
+        let at = kept.iter().position(|(mutation, _, _)| matches(mutation))?;
+        Some(kept.remove(at).1)
     }
 }
 
@@ -356,6 +371,39 @@ mod tests {
         recovered.keep(route, new_tab(1), created, start);
         let later = start + RECOVERED_FOR + Duration::from_secs(1);
         assert_eq!(recovered.take(route, |m| *m == new_tab(1), later), None);
+    }
+
+    #[test]
+    fn a_recovered_answer_waits_while_others_are_recovered() {
+        use spaceterm_client::hierarchy::CreateControl;
+        let new_tab = |workspace: u8| Mutation::CreateTab {
+            workspace: [workspace; 32],
+            source: None,
+            control: CreateControl::Unclaimed,
+        };
+        let created = |tab: u8| Outcome::Accepted { target: [tab; 32] };
+        let (route, start) = ([1; 32], Instant::now());
+        let mut recovered = Recovered::default();
+
+        recovered.keep(route, new_tab(1), created(1), start);
+        recovered.keep(route, new_tab(2), created(2), start);
+        assert_eq!(
+            recovered.take(route, |m| *m == new_tab(1), start),
+            Some(created(1))
+        );
+        assert_eq!(
+            recovered.take(route, |m| *m == new_tab(2), start),
+            Some(created(2))
+        );
+
+        for workspace in 0..=RECOVERED_KEPT as u8 {
+            recovered.keep(route, new_tab(workspace), created(workspace), start);
+        }
+        assert_eq!(recovered.take(route, |m| *m == new_tab(0), start), None);
+        assert_eq!(
+            recovered.take(route, |m| *m == new_tab(1), start),
+            Some(created(1))
+        );
     }
 
     #[test]

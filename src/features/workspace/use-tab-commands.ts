@@ -37,7 +37,8 @@ export type TabFailure =
   | { command: "close-pane"; tab: Tab; pane: Pane; asked: boolean }
   /** `worktree`: the active Worktree then, where Try Again opens the Tab while it is listed. */
   | { command: "new-tab"; worktree: Worktree | null }
-  | { command: "new-pane"; tab: Tab }
+  /** `source`: the Pane it split, which Try Again splits again while it is listed. */
+  | { command: "new-pane"; tab: Tab; source: Pane }
   /**
    * Try Again sends the same move, which the Machine may have made with its answer lost, so the
    * Tab never moves twice.
@@ -182,16 +183,24 @@ export function useTabCommands({
     } else sendClosePane(tab, pane, false);
   };
 
-  const newTabIn = (worktree: Worktree | null) =>
+  // `again`: Try Again, which the Machine may have done already with its answer lost. A tap is a
+  // new command, even when it asks for what a lost one did.
+  const newTabIn = (worktree: Worktree | null, again: boolean) =>
     run(
       { command: "new-tab", worktree },
-      () => client.newTab(machineId, workspace, worktree ?? undefined),
+      () => client.newTab(machineId, workspace, worktree, again),
       opened,
     );
-  const newTab = () => newTabIn(grid.active);
+  const newTab = () => newTabIn(grid.active, false);
 
-  const newPane = (tab: Tab) =>
-    run({ command: "new-pane", tab }, () => client.newPane(machineId, workspace, tab));
+  const sendNewPane = (tab: Tab, source: Pane, again: boolean) =>
+    run({ command: "new-pane", tab, source }, () =>
+      client.newPane(machineId, workspace, tab, source, again),
+    );
+  const newPane = (tab: Tab) => {
+    const source = tab.panes.at(-1);
+    if (source !== undefined) sendNewPane(tab, source, false);
+  };
 
   const sendMove = (tab: Tab, beside: Tab, side: "before" | "after") =>
     run({ command: "move-tab", tab, beside, side }, () =>
@@ -202,7 +211,7 @@ export function useTabCommands({
     if (beside !== null) sendMove(tab, beside, direction === -1 ? "before" : "after");
   };
 
-  const pickWorktree = (worktree: Worktree) => {
+  const pickWorktree = (worktree: Worktree, again = false) => {
     const picked = { ...state, picked: worktree.path, expecting: null };
     const hasTabs = gridView(workspace, picked).active?.path === worktree.path;
     if (hasTabs) return updateGrid((grid) => ({ ...grid, picked: worktree.path }));
@@ -212,7 +221,7 @@ export function useTabCommands({
     updateGrid((grid) => ({ ...grid, picked: worktree.path, expecting: PENDING }));
     run(
       { command: "switch", worktree },
-      () => client.newTab(machineId, workspace, worktree),
+      () => client.newTab(machineId, workspace, worktree, again),
       (result) =>
         result.kind === "done"
           ? opened(result)
@@ -274,10 +283,12 @@ export function useTabCommands({
             : closePane(tab, pane);
         }
         case "new-tab":
-          return shown.worktree === null ? newTab() : newTabIn(shown.worktree);
+          return newTabIn(shown.worktree ?? grid.active, true);
         case "new-pane": {
           const tab = listedTab(shown.tab.id);
-          return tab && newPane(tab);
+          const source = tab?.panes.find((each) => each.id === shown.source.id);
+          if (tab === undefined) return;
+          return source === undefined ? newPane(tab) : sendNewPane(tab, source, true);
         }
         case "move-tab": {
           const tab = listedTab(shown.tab.id);
@@ -285,7 +296,7 @@ export function useTabCommands({
           return tab && beside && sendMove(tab, beside, shown.side);
         }
         case "switch":
-          return pickWorktree(shown.worktree);
+          return pickWorktree(shown.worktree, true);
       }
     },
     dismissFailure(shown) {

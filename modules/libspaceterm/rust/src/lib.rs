@@ -11,7 +11,7 @@ mod tabs;
 mod workspaces;
 mod worktrees;
 
-use edits::Edits;
+use edits::{Edits, Repeat};
 use inventories::Inventories;
 use previews::PaneScreen;
 use record_file::{PrivateRecordFile, hex};
@@ -438,13 +438,15 @@ impl Machines {
     }
 
     /// Opens a Tab with a shell as the Workspace's last Tab, in `worktree` when it is given: the
-    /// path of one of the Worktrees of the repository whose Main Worktree is `root`. Returns the
-    /// new Tab, or `None` when the Machine did not open it.
+    /// path of one of the Worktrees of the repository whose Main Worktree is `root`. `again` is
+    /// Try Again of a New Tab that failed, which opens no second Tab if the first one opened with
+    /// its answer lost. Returns the new Tab, or `None` when the Machine did not open it.
     pub fn new_tab(
         &self,
         machine_id: String,
         workspace_id: String,
         worktree: Option<WorktreeTarget>,
+        again: bool,
     ) -> Option<String> {
         let workspace = decode(&workspace_id)?;
         // No device controls the new shell, so whichever opens it first takes it.
@@ -465,35 +467,38 @@ impl Machines {
                 })
             }
         };
-        match self.outcome(&machine_id, mutation)? {
+        match self.outcome(&machine_id, mutation, repeat(again))? {
             Outcome::Accepted { target } => Some(hex(&target)),
             _ => None,
         }
     }
 
-    /// Adds a Pane with a shell to a Tab, beside `source`, one of its Panes. Returns whether the
-    /// Machine added it.
+    /// Adds a Pane with a shell to a Tab, beside `source`, one of its Panes. `again` is Try Again
+    /// of a New Pane that failed, with the same `source`, which adds no second Pane if the first
+    /// one was added with its answer lost. Returns whether the Machine added it.
     pub fn new_pane(
         &self,
         machine_id: String,
         workspace_id: String,
         tab_id: String,
         source: String,
+        again: bool,
     ) -> bool {
         let (Some(workspace), Some(tab), Some(source)) =
             (decode(&workspace_id), decode(&tab_id), decode(&source))
         else {
             return false;
         };
-        self.edit(
-            &machine_id,
-            Mutation::SplitPane {
-                workspace,
-                tab,
-                source,
-                axis: Axis::Right,
-                control: CreateControl::Unclaimed,
-            },
+        let mutation = Mutation::SplitPane {
+            workspace,
+            tab,
+            source,
+            axis: Axis::Right,
+            control: CreateControl::Unclaimed,
+        };
+        matches!(
+            self.outcome(&machine_id, mutation, repeat(again)),
+            Some(Outcome::Accepted { .. })
         )
     }
 
@@ -718,6 +723,7 @@ impl Machines {
                 branch,
                 control: CreateControl::Unclaimed,
             }),
+            Repeat::Same,
         ))
     }
 
@@ -782,19 +788,20 @@ impl Machines {
     }
 
     /// Sends `mutation` to a connected Machine and waits for its answer: whether it made the
-    /// change.
+    /// change. An identical edit whose answer was lost is this one, as asking for the same rename,
+    /// move or close twice changes nothing more.
     fn edit(&self, machine_id: &str, mutation: Mutation) -> bool {
         matches!(
-            self.outcome(machine_id, mutation),
+            self.outcome(machine_id, mutation, Repeat::Same),
             Some(Outcome::Accepted { .. })
         )
     }
 
     /// Sends `mutation` to a connected Machine and waits for its outcome, `None` without one.
-    fn outcome(&self, machine_id: &str, mutation: Mutation) -> Option<Outcome> {
+    fn outcome(&self, machine_id: &str, mutation: Mutation, repeat: Repeat) -> Option<Outcome> {
         let route = self.known(machine_id).ok()?;
         let machine = self.connections.core(&route)?;
-        self.edits.submit(route, &machine, mutation)
+        self.edits.submit(route, &machine, mutation, repeat)
     }
 
     /// Sends again the edit to a connected Machine whose answer was lost, if `matches` takes it.
@@ -891,6 +898,11 @@ fn connection_of(status: DirectRouteStatus) -> Connection {
         | DirectRouteStatus::Refused(_)
         | DirectRouteStatus::Unavailable(_) => Connection::Unavailable,
     }
+}
+
+/// An edit the person asks for again, as Try Again does, or asks for once more.
+fn repeat(again: bool) -> Repeat {
+    if again { Repeat::Same } else { Repeat::New }
 }
 
 fn decode(text: &str) -> Option<[u8; 32]> {

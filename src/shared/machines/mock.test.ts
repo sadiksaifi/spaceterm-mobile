@@ -391,8 +391,8 @@ describe("the mock client's Tabs", () => {
   it("adds a Tab last and a Pane beside a Tab's last Pane", async () => {
     const client = createMockClient([{ ...mac, workspaces: [split] }]);
 
-    const opened = await client.newTab("mac", split);
-    await client.newPane("mac", split, split.tabs[0]);
+    const opened = await client.newTab("mac", split, null, false);
+    await client.newPane("mac", split, split.tabs[0], split.tabs[0].panes.at(-1)!, false);
 
     const tabs = listedNow(client)?.tabs ?? [];
     expect(opened.kind === "done" && tabs.at(-1)?.id).toBe(opened.kind === "done" && opened.tab);

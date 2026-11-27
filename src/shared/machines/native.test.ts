@@ -565,18 +565,18 @@ describe("a Workspace's Tabs through libspaceterm", () => {
   it("opens a Tab in a Worktree of the Workspace's repository and answers with it", async () => {
     const { native, client, shown } = listed();
 
-    const opened = await client.newTab("m1", shown, { path: `${root}-fix`, name: "fix" });
+    const opened = await client.newTab("m1", shown, { path: `${root}-fix`, name: "fix" }, true);
 
     expect(opened).toEqual({ kind: "done", tab: "t-new" });
-    expect(native.newTab).toHaveBeenCalledWith("m1", "w1", root, `${root}-fix`);
+    expect(native.newTab).toHaveBeenCalledWith("m1", "w1", root, `${root}-fix`, true);
   });
 
-  it("adds a Pane beside the Tab's last Pane", async () => {
+  it("adds a Pane beside the Pane it is given", async () => {
     const { native, client, shown } = listed();
 
-    await client.newPane("m1", shown, shown.tabs[0]);
+    await client.newPane("m1", shown, shown.tabs[0], shown.tabs[0].panes[0], false);
 
-    expect(native.newPane).toHaveBeenCalledWith("m1", "w1", "t1", "p1");
+    expect(native.newPane).toHaveBeenCalledWith("m1", "w1", "t1", "p1", false);
   });
 
   it("asks for a Worktree from a remote branch as a new branch that tracks it", async () => {

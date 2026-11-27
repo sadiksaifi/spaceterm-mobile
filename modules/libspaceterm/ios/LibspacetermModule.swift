@@ -165,14 +165,17 @@ public class LibspacetermModule: Module {
     }.runOnQueue(edits)
 
     AsyncFunction("newTab") {
-      (machineId: String, workspaceId: String, root: String?, path: String?) -> String? in
+      (machineId: String, workspaceId: String, root: String?, path: String?, again: Bool) -> String?
+      in
       let worktree = root.flatMap { root in path.map { WorktreeTarget(root: root, path: $0) } }
-      return shared.newTab(machineId: machineId, workspaceId: workspaceId, worktree: worktree)
+      return shared.newTab(
+        machineId: machineId, workspaceId: workspaceId, worktree: worktree, again: again)
     }.runOnQueue(edits)
 
     AsyncFunction("newPane") {
-      (machineId: String, workspaceId: String, tabId: String, source: String) -> Bool in
-      shared.newPane(machineId: machineId, workspaceId: workspaceId, tabId: tabId, source: source)
+      (machineId: String, workspaceId: String, tabId: String, source: String, again: Bool) -> Bool in
+      shared.newPane(
+        machineId: machineId, workspaceId: workspaceId, tabId: tabId, source: source, again: again)
     }.runOnQueue(edits)
 
     AsyncFunction("moveTab") {

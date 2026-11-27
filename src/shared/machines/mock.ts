@@ -284,7 +284,7 @@ export function createMockClient(
       );
     },
 
-    newPane: (machineId, { id: workspaceId }, { id: tabId }) => {
+    newPane: (machineId, { id: workspaceId }, { id: tabId }, source) => {
       const listed = workspaceOf(machineId, workspaceId);
       const target = listed?.workspace.tabs.find((candidate) => candidate.id === tabId);
       if (listed === undefined || target === undefined || refuses("newPane")) return failed();
@@ -292,9 +292,7 @@ export function createMockClient(
         update(listed, (workspace) => ({
           ...workspace,
           tabs: workspace.tabs.map((each) =>
-            each.id === tabId
-              ? { ...each, panes: [...each.panes, shellPane(each.panes.at(-1)?.id ?? null)] }
-              : each,
+            each.id === tabId ? { ...each, panes: [...each.panes, shellPane(source.id)] } : each,
           ),
         })),
       );

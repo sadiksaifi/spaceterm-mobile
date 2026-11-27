@@ -168,7 +168,7 @@ describe("picking a Worktree", () => {
     const fix = { path: FIX, name: "fix" };
 
     await act(async () => result.current.pickWorktree(fix));
-    expect(newTab).toHaveBeenCalledWith(expect.any(String), expect.anything(), fix);
+    expect(newTab).toHaveBeenCalledWith(expect.any(String), expect.anything(), fix, false);
     expect(result.current.grid.active?.name).toBe("fix");
 
     await act(async () => answer({ kind: "done", tab: "fresh" }));
@@ -203,6 +203,35 @@ describe("picking a Worktree", () => {
   });
 });
 
+describe("New Pane", () => {
+  it("splits the Pane it split before on Try Again, though a Pane was added since", async () => {
+    const newPane = jest.fn<TabClient["newPane"]>(refused);
+    const { result, rerender } = await render({ newPane });
+    const [, last] = busy.panes;
+
+    await act(async () => result.current.newPane(busy));
+    expect(newPane).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.anything(),
+      busy,
+      last,
+      false,
+    );
+
+    // The Machine added the Pane, and its answer was lost.
+    const grown = { ...busy, panes: [...busy.panes, pane("z", { source: last.id })] };
+    await rerender({ listed: workspace([idle, grown]) });
+    await act(async () => result.current.retry(result.current.failure!));
+    expect(newPane).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.anything(),
+      grown,
+      last,
+      true,
+    );
+  });
+});
+
 describe("New Tab", () => {
   it("opens again in the Worktree it was asked for when Try Again comes after a switch", async () => {
     const newTab = jest.fn<TabClient["newTab"]>(async () => ({ kind: "failed" }));
@@ -212,10 +241,12 @@ describe("New Tab", () => {
     await act(async () => result.current.pickWorktree(fix));
     await act(async () => result.current.newTab());
     expect(result.current.failure).toEqual({ command: "new-tab", worktree: fix });
+    expect(newTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), fix, false);
 
     await act(async () => result.current.pickWorktree({ path: MAIN, name: "main" }));
     await act(async () => result.current.retry(result.current.failure!));
-    expect(newTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), fix);
+    // Try Again: the Machine opens no second Tab if the first opened with its answer lost.
+    expect(newTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), fix, true);
   });
 
   it("drops a New Tab failure whose Worktree is gone, rather than open the Tab elsewhere", async () => {

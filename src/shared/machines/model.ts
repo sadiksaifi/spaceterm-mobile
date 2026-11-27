@@ -235,10 +235,28 @@ export type MachineClient = {
     name: string,
   ) => Promise<CommandResult>;
   killWorkspace: (machineId: string, workspace: Workspace) => Promise<CommandResult>;
-  /** Opens a Tab with a shell as the Workspace's last Tab, in `worktree` when it is given. */
-  newTab: (machineId: string, workspace: Workspace, worktree?: Worktree) => Promise<NewTabResult>;
-  /** Adds a Pane with a shell to `tab`, as its last Pane. */
-  newPane: (machineId: string, workspace: Workspace, tab: Tab) => Promise<CommandResult>;
+  /**
+   * Opens a Tab with a shell as the Workspace's last Tab, in `worktree` when it is given. `again`
+   * is Try Again of a New Tab that failed: the Machine may have opened that Tab with its answer
+   * lost, and then opens no second one.
+   */
+  newTab: (
+    machineId: string,
+    workspace: Workspace,
+    worktree: Worktree | null,
+    again: boolean,
+  ) => Promise<NewTabResult>;
+  /**
+   * Adds a Pane with a shell to `tab`, as its last Pane, split from `source`, one of its Panes.
+   * `again` is as for `newTab`, with the `source` of the New Pane that failed.
+   */
+  newPane: (
+    machineId: string,
+    workspace: Workspace,
+    tab: Tab,
+    source: Pane,
+    again: boolean,
+  ) => Promise<CommandResult>;
   /**
    * Moves `tab` just before or after `beside`, another Tab of its Worktree, in the order the
    * Machine keeps for every device.

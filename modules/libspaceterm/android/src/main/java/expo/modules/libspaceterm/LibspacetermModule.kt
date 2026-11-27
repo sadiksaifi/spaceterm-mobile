@@ -132,13 +132,13 @@ class LibspacetermModule : Module() {
       withContext(Dispatchers.IO) { machines().killWorkspace(machineId, workspaceId, seen) }
     }
 
-    AsyncFunction("newTab") Coroutine { machineId: String, workspaceId: String, root: String?, path: String? ->
+    AsyncFunction("newTab") Coroutine { machineId: String, workspaceId: String, root: String?, path: String?, again: Boolean ->
       val worktree = if (root != null && path != null) WorktreeTarget(root, path) else null
-      withContext(Dispatchers.IO) { machines().newTab(machineId, workspaceId, worktree) }
+      withContext(Dispatchers.IO) { machines().newTab(machineId, workspaceId, worktree, again) }
     }
 
-    AsyncFunction("newPane") Coroutine { machineId: String, workspaceId: String, tabId: String, source: String ->
-      withContext(Dispatchers.IO) { machines().newPane(machineId, workspaceId, tabId, source) }
+    AsyncFunction("newPane") Coroutine { machineId: String, workspaceId: String, tabId: String, source: String, again: Boolean ->
+      withContext(Dispatchers.IO) { machines().newPane(machineId, workspaceId, tabId, source, again) }
     }
 
     AsyncFunction("moveTab") Coroutine { machineId: String, workspaceId: String, tabId: String, beside: String, after: Boolean ->

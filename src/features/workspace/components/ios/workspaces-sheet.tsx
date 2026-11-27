@@ -152,7 +152,7 @@ export function WorkspacesSheet({
                   modifiers={[
                     font({ size: 20, weight: "medium" }),
                     rotationEffect(searching ? 45 : 0),
-                    scaleEffect(searching ? 0.85 : 1),
+                    scaleEffect(searching ? 0.95 : 1),
                     animation(Animation.snappy(), searching),
                     frame({ width: FIELD_HEIGHT, height: FIELD_HEIGHT }),
                     glassEffect({

@@ -105,6 +105,8 @@ struct PillBarView: ExpoSwiftUI.View {
     var over: String
     /** The row's scroll offset, which puts the lens under the finger. */
     var offset: CGFloat
+    /** The point of the row at the capsule's left edge. */
+    var left: CGFloat
   }
 
   /** Where a finger came down and where it is, on screen. */
@@ -213,7 +215,7 @@ struct PillBarView: ExpoSwiftUI.View {
   private var capsule: some View {
     ScrollViewReader { proxy in
       ScrollView(.horizontal) {
-        PillsLayout(width: width, widest: widest) {
+        PillsLayout(width: width - 2 * Self.inset, widest: widest) {
           ForEach(props.pills, id: \.key) { pill in
             pillView(pill)
           }
@@ -230,20 +232,19 @@ struct PillBarView: ExpoSwiftUI.View {
         .padding(.vertical, Self.inset)
       }
       .scrollIndicators(.hidden)
-      // Room at both ends while held, so the grown lens over an end pill stays inside the capsule.
-      .contentMargins(.horizontal, touch == nil ? 0 : margin, for: .scrollContent)
-      // Room at both ends while held, so the row can bring any pill under the lens.
+      // The inset sits inside the scroll view too, so it clips at the capsule's edge and the lens
+      // can grow up to it.
+      .contentMargins(.horizontal, Self.inset, for: .scrollContent)
       .scrollPosition($position)
       .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
         width = frame.width
         left = frame.minX
-        if touch == nil { rest = frame.width }
+        if touch == nil { rest = frame.width - 2 * Self.inset }
       }
       .onScrollGeometryChange(for: Past.self) { geometry in
         // Half a point of slack, so rounding never fades an edge with nothing past it.
-        let offset = geometry.contentOffset.x
-        let rest = geometry.contentSize.width - offset - geometry.containerSize.width
-        return Past(start: offset > 0.5, end: rest > 0.5)
+        let visible = geometry.visibleRect
+        return Past(start: visible.minX > 0.5, end: visible.maxX < geometry.contentSize.width - 0.5)
       } action: { _, now in
         past = now
       }
@@ -278,7 +279,6 @@ struct PillBarView: ExpoSwiftUI.View {
         }
       }
     }
-    .padding(.horizontal, Self.inset)
     // Glass cannot show through glass, so while the highlight is held as a glass lens, the bar
     // under it turns flat, as Liquid Glass segmented controls do.
     .background {
@@ -355,8 +355,11 @@ struct PillBarView: ExpoSwiftUI.View {
   @ViewBuilder
   private var lens: some View {
     if let frame = frames[resting] {
-      let middle = drag?.middle ?? frame.midX
       let width = drag?.width ?? frame.width
+      // Its point of the row, kept as far inside the capsule as the grown lens needs.
+      let half = width * Self.lift / 2
+      let middle = drag.map { min(max($0.middle, $0.left + half), $0.left + self.width - half) }
+        ?? frame.midX
       Capsule()
         .fill(.clear)
         .glassEffect(.clear, in: .capsule)
@@ -414,7 +417,7 @@ struct PillBarView: ExpoSwiftUI.View {
       return nil
     }
     let offset = min(max(row.base + scrolled, 0), row.end)
-    let middle = min(max(offset - margin + touch.now - left, first.1.midX), last.1.midX)
+    let middle = min(max(offset - Self.inset + touch.now - left, first.1.midX), last.1.midX)
     // The pills whose middles are either side of `middle`, and how far it is from one to the other.
     let after = placed.firstIndex { $0.1.midX >= middle } ?? placed.count - 1
     let (key, frame) = placed[max(after - 1, 0)]
@@ -424,16 +427,17 @@ struct PillBarView: ExpoSwiftUI.View {
       middle: middle,
       width: frame.width + (next.width - frame.width) * along,
       over: along < 0.5 ? key : nextKey,
-      offset: offset
+      offset: offset,
+      left: offset - Self.inset
     )
   }
 
   /** The row's scroll offset that keeps the resting pill where `touch` came down, and the
-   * furthest the row scrolls. The offset counts the held margin at the start of the row. */
+   * furthest the row scrolls. The offset counts the inset at the start of the row. */
   private func row(for touch: Touch) -> (base: CGFloat, end: CGFloat)? {
     guard let start = frames[resting] else { return nil }
-    let end = max((frames.values.map(\.maxX).max() ?? 0) + 2 * margin - width, 0)
-    return (start.midX + margin - (touch.start - left), end)
+    let end = max((frames.values.map(\.maxX).max() ?? 0) + 2 * Self.inset - width, 0)
+    return (start.midX + Self.inset - (touch.start - left), end)
   }
 
   /** The widest a pill grows: the row at rest less a peek of a pill on each side, so the pills
@@ -442,25 +446,26 @@ struct PillBarView: ExpoSwiftUI.View {
     props.pills.count > 1 ? max(rest - 2 * Self.peek, rest / 2) : .infinity
   }
 
-  /** The room the held lens grows into beyond its pill, with the inset it keeps from the capsule. */
-  private var margin: CGFloat {
-    (Self.lift - 1) / 2 * (frames.values.map(\.width).max() ?? 0) + Self.inset
-  }
-
-  /** The edge of the capsule a held finger is near, -1 for the left and 1 for the right, which
-   * scrolls the row toward it. */
+  /** The side the row scrolls toward while held, -1 for the left and 1 for the right: that of a
+   * finger near a side of the capsule, or of the pill under the lens while that side of it is out
+   * of view. */
   private var pushing: Int {
-    guard let touch, width > Self.edge * 2 else { return 0 }
+    guard let touch, let drag, let over = frames[drag.over], width > Self.edge * 2 else { return 0 }
     let shown = touch.now - left
-    return shown < Self.edge ? -1 : shown > width - Self.edge ? 1 : 0
+    if shown < Self.edge || over.minX < drag.left - 0.5 && shown < width / 2 { return -1 }
+    if shown > width - Self.edge || over.maxX > drag.left + width + 0.5 && shown > width / 2 {
+      return 1
+    }
+    return 0
   }
 
-  /** Scrolls the row one frame toward the edge the finger is near, faster the nearer it is. */
+  /** Scrolls the row one frame toward `pushing`: faster the nearer the finger is to the side,
+   * and at least at half speed while the pill under the lens is out of view. */
   private func push() {
     guard let touch, let row = row(for: touch), pushing != 0 else { return }
     let shown = touch.now - left
     let into = pushing < 0 ? Self.edge - shown : shown - (width - Self.edge)
-    let step = CGFloat(pushing) * min(into / Self.edge, 1) * Self.speed / 60
+    let step = CGFloat(pushing) * min(max(into / Self.edge, 0.5), 1) * Self.speed / 60
     // Within the row's ends, so moving back from an edge moves the row at once.
     scrolled = min(max(scrolled + step, -row.base), row.end - row.base)
   }

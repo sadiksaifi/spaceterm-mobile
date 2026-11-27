@@ -10,3 +10,16 @@ export function workspaceHref(machineId: string, workspaceId: string, newTab = f
     params: { machineId, workspaceId, ...(newTab && { action: NEW_TAB }) },
   };
 }
+
+/**
+ * `path`, a link another app opened, without the `action` of a Workspace link: only the app asks
+ * for New Tab, so a link from outside cannot open a Tab on a Machine.
+ */
+export function linkFromOutside(path: string): string {
+  const [before, query] = path.split("?", 2);
+  if (query === undefined || !/(^|\/)workspace\//.test(before)) return path;
+  const params = new URLSearchParams(query);
+  params.delete("action");
+  const rest = params.toString();
+  return rest === "" ? before : `${before}?${rest}`;
+}

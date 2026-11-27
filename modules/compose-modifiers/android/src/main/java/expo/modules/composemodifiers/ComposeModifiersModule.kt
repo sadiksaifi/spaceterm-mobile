@@ -1,5 +1,6 @@
 package expo.modules.composemodifiers
 
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -9,6 +10,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
@@ -21,6 +23,14 @@ import expo.modules.ui.rowScope
 
 @OptimizedRecord
 data class MaxWidthFractionParams(@Field val fraction: Float = 1f) : Record
+
+@OptimizedRecord
+data class AbsolutePaddingParams(
+  @Field val left: Float = 0f,
+  @Field val top: Float = 0f,
+  @Field val right: Float = 0f,
+  @Field val bottom: Float = 0f
+) : Record
 
 @OptimizedRecord
 data class RadioSelectedParams(@Field val selected: Boolean = false) : Record
@@ -61,6 +71,10 @@ class ComposeModifiersModule : Module() {
         Modifier.clearAndSetSemantics {}
       }
       ModifierRegistry.register("disabled") { _, _, _, _ -> Modifier.semantics { disabled() } }
+      ModifierRegistry.register("absolutePadding") { map, _, converterContext, _ ->
+        val params = recordFromMap<AbsolutePaddingParams>(map, converterContext)
+        Modifier.absolutePadding(params.left.dp, params.top.dp, params.right.dp, params.bottom.dp)
+      }
     }
 
     OnDestroy {
@@ -70,6 +84,7 @@ class ComposeModifiersModule : Module() {
       ModifierRegistry.unregister("radioSelected")
       ModifierRegistry.unregister("hiddenFromAccessibility")
       ModifierRegistry.unregister("disabled")
+      ModifierRegistry.unregister("absolutePadding")
     }
   }
 }

@@ -27,3 +27,7 @@ export const radioSelected = (selected: boolean) => createModifier("radioSelecte
 
 /** Reports the view to TalkBack as disabled, for a dimmed row that takes no taps. */
 export const disabled = () => createModifier("disabled", {});
+
+/** Padding on the screen's left and right in both directions, for content that stays left to right. */
+export const absolutePadding = (left: number, top: number, right: number, bottom: number) =>
+  createModifier("absolutePadding", { left, top, right, bottom });

@@ -221,7 +221,12 @@ function AddTile({
   const colors = useColors();
   return (
     <Button onPress={onAdd} modifiers={[buttonStyle("plain"), accessibilityLabel(label)]}>
-      <VStack alignment="leading" spacing={CAPTION_GAP} modifiers={[frame({ width })]}>
+      {/* The whole tile takes taps, not only what it draws. */}
+      <VStack
+        alignment="leading"
+        spacing={CAPTION_GAP}
+        modifiers={[frame({ width }), contentShape(shapes.rectangle())]}
+      >
         <ZStack
           modifiers={[
             frame({ width, height }),

@@ -6,7 +6,7 @@ import type { RemoveWorktree } from "../../use-remove-worktree";
 
 /**
  * Remove Worktree's system alert, attached to `children`: what it deletes on `machine`, to
- * confirm, or why nothing was removed. Cancel comes first. Only the `active` one of several shows
+ * confirm, or why nothing was removed, which may offer Try Again. Cancel comes first. Only the `active` one of several shows
  * it, as with `RowAlertsView`.
  */
 export function RemovalAlertsView({
@@ -36,7 +36,11 @@ export function RemovalAlertsView({
         ) : (
           <>
             <Button label={text.cancel} role="cancel" onPress={removal.dismiss} />
-            <Button label={shown.action} role="destructive" onPress={removal.confirm} />
+            <Button
+              label={shown.action}
+              role={shown.destructive ? "destructive" : undefined}
+              onPress={removal.confirm}
+            />
           </>
         )}
       </Alert.Actions>

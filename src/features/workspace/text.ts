@@ -78,12 +78,13 @@ export function failureText(failure: TabFailure): string {
 
 /**
  * Remove Worktree's alert: what it deletes on `machine` and what it closes, to confirm, or why
- * nothing was removed. `action` is the confirming button's, absent on a failure.
+ * nothing was removed. `action` is the confirming button's, absent on a failure that leaves
+ * nothing to do; `destructive` when it removes.
  */
 export function removalAlertText(
   alert: RemovalAlert,
   machine: string,
-): { title: string; body: string; action?: string } {
+): { title: string; body: string; action?: string; destructive?: boolean } {
   if (alert.kind === "confirm") {
     const { worktree, changes, submodules, tabs, sessions } = alert.review;
     const deleted =
@@ -105,6 +106,7 @@ export function removalAlertText(
       action: changes
         ? cased("Remove and Discard Changes", "Remove and discard changes")
         : "Remove",
+      destructive: true,
     };
   }
   const { worktree, failure, checking } = alert;
@@ -123,7 +125,8 @@ export function removalAlertText(
   if (failure === "unanswered") {
     return {
       title: "Check the Worktree",
-      body: "The Machine didn’t answer, so it may have removed the Worktree. Remove Worktree again to find out.",
+      body: "The Machine didn’t answer, so it may have removed the Worktree. Try again to find out.",
+      action: text.tryAgain,
     };
   }
   return {

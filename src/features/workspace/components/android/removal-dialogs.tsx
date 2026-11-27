@@ -5,7 +5,7 @@ import type { RemoveWorktree } from "../../use-remove-worktree";
 
 /**
  * Remove Worktree's Material dialogs: what it deletes on `machine`, with Cancel and the action, or
- * why nothing was removed, with OK.
+ * why nothing was removed, with OK, or with Cancel and Try Again when the Machine didn't answer.
  */
 export function RemovalDialogs({ removal, machine }: { removal: RemoveWorktree; machine: string }) {
   const { alert } = removal;

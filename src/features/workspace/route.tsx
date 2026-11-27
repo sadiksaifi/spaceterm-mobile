@@ -99,7 +99,12 @@ export default function WorkspaceRoute() {
       alerts={alerts}
       onBack={() => router.back()}
       onSwitch={(next) =>
-        router.setParams({ machineId: next.machineId, workspaceId: next.workspace.id })
+        // A New Tab still waiting for this Workspace's Tabs does not follow to the next one.
+        router.setParams({
+          machineId: next.machineId,
+          workspaceId: next.workspace.id,
+          action: undefined,
+        })
       }
       onNewWorkspace={newWorkspace === null ? undefined : () => router.navigate(newWorkspace)}
       onNewWorktree={

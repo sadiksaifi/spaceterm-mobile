@@ -335,14 +335,10 @@ function PaneSnapshot({
             fontSize: SNAPSHOT_TEXT.size,
             lineHeight: SNAPSHOT_TEXT.lineHeight,
           }}
+          // Only the top-left is inset, so the text is cut at the part's own edges.
           modifiers={[
             fillMaxSize(),
-            padding(
-              SNAPSHOT_TEXT.horizontal,
-              SNAPSHOT_TEXT.vertical,
-              SNAPSHOT_TEXT.horizontal,
-              SNAPSHOT_TEXT.vertical,
-            ),
+            padding(SNAPSHOT_TEXT.horizontal, SNAPSHOT_TEXT.vertical, 0, 0),
           ]}
         >
           {lines}

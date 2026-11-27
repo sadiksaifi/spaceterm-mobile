@@ -2,6 +2,8 @@
 
 package expo.modules.searchbar
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.ExpandedFullScreenSearchBar
@@ -19,6 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import expo.modules.kotlin.views.ComposeProps
 import expo.modules.kotlin.views.FunctionalComposableScope
@@ -30,7 +35,12 @@ import expo.modules.ui.UIComposableScope
 import expo.modules.ui.findChildSlotView
 import expo.modules.ui.isSlotWithName
 import expo.modules.ui.renderSlot
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** The longest the back button waits for the keyboard to close before the search collapses. */
+private const val KEYBOARD_WAIT_MS = 500L
 
 @OptimizedComposeProps
 data class SearchBarProps(
@@ -85,7 +95,22 @@ fun FunctionalComposableScope.SearchBarContent(
         },
         leadingIcon = {
           if (expanded) {
-            IconButton(onClick = { scope.launch { searchBarState.animateToCollapsed() } }) {
+            val keyboard = LocalSoftwareKeyboardController.current
+            val focus = LocalFocusManager.current
+            val density = LocalDensity.current
+            val ime = WindowInsets.ime
+            // The collapsed bar sits in a view the keyboard lifts, so the search collapses once
+            // the keyboard is down; otherwise it shrinks toward where the bar was and then jumps.
+            IconButton(onClick = {
+              scope.launch {
+                focus.clearFocus()
+                keyboard?.hide()
+                withTimeoutOrNull(KEYBOARD_WAIT_MS) {
+                  snapshotFlow { ime.getBottom(density) }.first { it == 0 }
+                }
+                searchBarState.animateToCollapsed()
+              }
+            }) {
               Icon(painterResource(R.drawable.search_bar_arrow_back), contentDescription = props.backLabel)
             }
           } else {

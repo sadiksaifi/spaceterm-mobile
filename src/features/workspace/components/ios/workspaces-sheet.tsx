@@ -86,7 +86,8 @@ export function WorkspacesSheet({
 }) {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [detent, setDetent] = useState<PresentationDetent>("medium");
+  // The height the person left the sheet at, which it comes back to after Search.
+  const [browsing, setBrowsing] = useState<PresentationDetent>("medium");
   const field = useRef<TextFieldRef>(null);
   const needle = query.trim().toLocaleLowerCase();
   const shown =
@@ -100,7 +101,7 @@ export function WorkspacesSheet({
     void field.current?.blur();
     setQuery("");
     setSearching(false);
-    setDetent("medium");
+    setBrowsing("medium");
   };
   const close = () => {
     reset();
@@ -114,8 +115,8 @@ export function WorkspacesSheet({
           // The system raises a sheet by the keyboard's height and to its tallest height, so
           // Search offers only a short one, which rides above the keyboard with the grid in view.
           presentationDetents(searching ? [SEARCHING] : ["medium", "large"], {
-            selection: detent,
-            onSelectionChange: setDetent,
+            selection: searching ? SEARCHING : browsing,
+            onSelectionChange: (detent) => !searching && setBrowsing(detent),
           }),
           presentationDragIndicator("visible"),
         ]}
@@ -127,10 +128,7 @@ export function WorkspacesSheet({
                 field={field}
                 query={query}
                 onChange={setQuery}
-                onFocusChange={(focused) => {
-                  setSearching(focused);
-                  if (focused) setDetent(SEARCHING);
-                }}
+                onFocusChange={setSearching}
               />
               <Button
                 onPress={

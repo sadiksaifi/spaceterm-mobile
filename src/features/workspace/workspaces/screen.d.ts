@@ -14,7 +14,6 @@ export type WorkspacesScreenProps = {
   onPick: (row: WorkspaceRow) => void;
   /** Absent while no connected Machine can take a new Workspace. */
   onNewWorkspace: (() => void) | undefined;
-  onClose: () => void;
 };
 
 /** Implemented per platform in `screen.ios.tsx` and `screen.android.tsx`. */

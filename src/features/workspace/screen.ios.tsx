@@ -163,7 +163,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         <Stack.Toolbar.View hidesSharedBackground>
           <WorkspaceTitle
             name={view.workspace.name}
-            machine={view.machine.name}
+            directory={view.workspace.directory}
             worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}
             connected={connected}
             width={window.width - TITLE_ROOM}

@@ -2,7 +2,6 @@ import { Host } from "@expo/ui";
 import { Button, Divider, HStack, Image, Menu, Text, Toggle, VStack } from "@expo/ui/swift-ui";
 import {
   accessibilityAddTraits,
-  accessibilityElement,
   accessibilityHidden,
   accessibilityLabel,
   buttonStyle,
@@ -10,10 +9,10 @@ import {
   font,
   foregroundStyle,
   frame,
-  layoutPriority,
   lineLimit,
   menuIndicator,
   menuStyle,
+  truncationMode,
 } from "@expo/ui/swift-ui/modifiers";
 
 import type { WorktreeChoice } from "../../grid";
@@ -22,12 +21,12 @@ import { text } from "../../text";
 const secondary = foregroundStyle({ type: "hierarchical", style: "secondary" });
 
 /**
- * The header's names at the top left: a Workspace symbol beside the Workspace's name and its
- * Machine, over the active Worktree in a repository, which opens the Worktree menu.
+ * The header's names at the top left: a Workspace symbol beside the Workspace's name, over its
+ * active Worktree in a repository, which opens the Worktree menu, or over its directory.
  */
 export function WorkspaceTitle({
   name,
-  machine,
+  directory,
   worktrees,
   connected,
   width,
@@ -35,7 +34,7 @@ export function WorkspaceTitle({
   onNewWorktree,
 }: {
   name: string;
-  machine: string;
+  directory: string;
   /** The repository's Worktrees, empty outside one. */
   worktrees: readonly WorktreeChoice[];
   /** A Workspace whose Machine is not connected shows its Worktree without the menu. */
@@ -55,26 +54,27 @@ export function WorkspaceTitle({
           modifiers={[font({ textStyle: "title2" }), secondary, accessibilityHidden()]}
         />
         <VStack alignment="leading" spacing={1}>
-          {/* One header element that says both names; the Machine gives way first. */}
-          <HStack
-            alignment="firstTextBaseline"
-            spacing={6}
-            modifiers={[accessibilityElement("combine"), accessibilityAddTraits(["isHeader"])]}
+          <Text
+            modifiers={[
+              font({ textStyle: "headline" }),
+              lineLimit(1),
+              accessibilityAddTraits(["isHeader"]),
+            ]}
           >
-            <Text modifiers={[font({ textStyle: "headline" }), lineLimit(1), layoutPriority(1)]}>
-              {name}
-            </Text>
+            {name}
+          </Text>
+          {active === undefined ? (
             <Text
               modifiers={[
-                font({ textStyle: "footnote" }),
-                foregroundStyle({ type: "hierarchical", style: "tertiary" }),
+                font({ textStyle: "subheadline" }),
+                secondary,
                 lineLimit(1),
+                truncationMode("middle"),
               ]}
             >
-              {`· ${machine}`}
+              {directory}
             </Text>
-          </HStack>
-          {active !== undefined && (
+          ) : (
             <Menu
               label={
                 <HStack spacing={3} modifiers={[secondary]}>

@@ -100,10 +100,14 @@ pub enum WorktreeRemovalFailure {
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum WorktreeRemovalCheck {
-    Review { review: WorktreeRemovalReview },
+    Review {
+        review: WorktreeRemovalReview,
+    },
     /// An earlier remove of this Worktree whose answer was lost went again and removed it.
     Removed,
-    Failed { failure: WorktreeRemovalFailure },
+    Failed {
+        failure: WorktreeRemovalFailure,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]

@@ -742,7 +742,9 @@ impl Machines {
         let (root, path) = (PathBuf::from(root), PathBuf::from(path));
         // A remove of this Worktree whose answer was lost may have removed it. It goes again
         // first, as it would before any other edit: the same remove changes nothing more, so its
-        // answer is the lost one. Only a refusal leaves the Worktree to check again.
+        // answer is the lost one. An answer that says what became of the Worktree, its Tabs, or
+        // their Terminal Sessions is the person's to see. Only a refusal that left them as they
+        // were leaves the Worktree to check again.
         let resumed = self.resume(&machine_id, |pending| {
             matches!(pending, Mutation::Worktree(worktree::Operation::Remove {
                 root: from,
@@ -753,12 +755,12 @@ impl Machines {
         match resumed.map(worktrees::removal) {
             Some(WorktreeRemoval::Removed) => return WorktreeRemovalCheck::Removed,
             Some(WorktreeRemoval::Failed {
-                failure: WorktreeRemovalFailure::Unanswered,
-            }) => {
-                return WorktreeRemovalCheck::Failed {
-                    failure: WorktreeRemovalFailure::Unanswered,
-                };
-            }
+                failure:
+                    failure @ (WorktreeRemovalFailure::Unanswered
+                    | WorktreeRemovalFailure::ChangedAfterClosing
+                    | WorktreeRemovalFailure::Interrupted
+                    | WorktreeRemovalFailure::Missing),
+            }) => return WorktreeRemovalCheck::Failed { failure },
             _ => {}
         }
         let read = Read::CheckRemoval { root, path };

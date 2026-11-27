@@ -1,10 +1,8 @@
 import backIcon from "@expo/material-symbols/arrow_back.xml";
 import moreIcon from "@expo/material-symbols/more_vert.xml";
-import checkIcon from "@expo/material-symbols/check.xml";
 import {
   Box,
   Column,
-  HorizontalDivider,
   DropdownMenu,
   DropdownMenuItem,
   Icon,
@@ -16,12 +14,10 @@ import {
 import {
   align,
   background,
-  clip,
   defaultMinSize,
   fillMaxSize,
   fillMaxWidth,
   padding,
-  Shapes,
   verticalScroll,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
@@ -34,16 +30,17 @@ import { RowAlertsView } from "@/features/home/components/android/row-alerts";
 import { Unreachable } from "@/features/home/components/android/states/unreachable";
 import type { RowFailure } from "@/features/home/row-alerts";
 import { text as homeText } from "@/features/home/text";
-import { heading } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 import { SnackbarSlot, useSnackbar } from "@/shared/ui/android/snackbar";
 
 import { CardGrid } from "./components/android/card-grid";
 import { PanesSheet } from "./components/android/panes-sheet";
+import { RemovalDialogs } from "./components/android/removal-dialogs";
 import { TabDialogs } from "./components/android/tab-dialogs";
 import { BAR_HEIGHT, WorkspaceBar } from "./components/android/workspace-bar";
 import { WorkspacesSheet } from "./components/android/workspaces-sheet";
+import { WorkspaceTitle } from "./components/android/workspace-title";
 import { moves } from "./grid";
 import { splitOf } from "./layout";
 import type { WorkspaceScreenProps } from "./props";
@@ -56,8 +53,6 @@ const BAR_MARGIN = 16;
 const MENU_CORNER = 16;
 const MENU_ELEVATION = 3;
 const MENU_WIDTH = 220;
-/** The active Worktree's band, inset 4 dp in the menu. */
-const BAND_CORNER = 12;
 
 export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
@@ -185,6 +180,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
             />
           )}
           <TabDialogs commands={commands} />
+          <RemovalDialogs removal={props.removal} machine={row.machineName} />
           <RowAlertsView alerts={alerts} />
         </Box>
       </ScreenHost>
@@ -196,10 +192,10 @@ function isRowFailure(failure: TabFailure | RowFailure): failure is RowFailure {
   return "row" in failure;
 }
 
-/** Back, the Workspace name over its Machine, and the Workspace menu. */
+/** Back, the Worktree or directory, and the Workspace menu. The bar names the Workspace. */
 function Header(props: WorkspaceScreenProps) {
   const colors = useColors();
-  const { view } = props;
+  const { view, commands } = props;
   return (
     <TopAppBar colors={{ containerColor: colors.background }}>
       <TopAppBar.NavigationIcon>
@@ -208,24 +204,14 @@ function Header(props: WorkspaceScreenProps) {
         </IconButton>
       </TopAppBar.NavigationIcon>
       <TopAppBar.Title>
-        <Column>
-          <Text
-            maxLines={1}
-            overflow="ellipsis"
-            style={{ typography: "titleLarge" }}
-            modifiers={[heading()]}
-          >
-            {view.workspace.name}
-          </Text>
-          <Text
-            maxLines={1}
-            overflow="ellipsis"
-            style={{ typography: "bodyMedium" }}
-            color={colors.secondaryText}
-          >
-            {view.machine.name}
-          </Text>
-        </Column>
+        <WorkspaceTitle
+          directory={view.workspace.directory}
+          worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}
+          connected={view.kind === "tabs"}
+          onPickWorktree={({ worktree }) => commands.pickWorktree(worktree)}
+          onNewWorktree={props.onNewWorktree}
+          onRemoveWorktree={props.removal.start}
+        />
       </TopAppBar.Title>
       <TopAppBar.Actions>
         <WorkspaceMenu {...props} />
@@ -234,14 +220,10 @@ function Header(props: WorkspaceScreenProps) {
   );
 }
 
-/**
- * The Workspace menu under More options: its Worktrees with the active one filled and New
- * Worktree, in a repository, then Rename Workspace and Kill Workspace. No item is red.
- */
-function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: WorkspaceScreenProps) {
+/** The Workspace menu under More options: Rename Workspace and Kill Workspace. No item is red. */
+function WorkspaceMenu({ view, row, alerts }: WorkspaceScreenProps) {
   const [expanded, setExpanded] = useState(false);
   const material = useMaterialColors();
-  const colors = useColors();
   const connected = view.kind === "tabs";
   const available = connected && alerts.underway.get(row.key) === undefined;
   const { onRenameWorkspace, onKillWorkspace } = alerts.handlers;
@@ -260,7 +242,6 @@ function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: Workspace
       </DropdownMenuItem.Text>
     </DropdownMenuItem>
   );
-  const inRepository = view.workspace.repository !== null;
 
   return (
     <DropdownMenu
@@ -276,50 +257,6 @@ function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: Workspace
         </IconButton>
       </DropdownMenu.Trigger>
       <DropdownMenu.Items>
-        {inRepository && (
-          <Text
-            style={{ typography: "titleSmall" }}
-            color={colors.secondaryText}
-            modifiers={[padding(16, 12, 16, 8), heading()]}
-          >
-            {text.worktree}
-          </Text>
-        )}
-        {inRepository &&
-          commands.grid.worktrees.map(({ worktree, active }) => (
-            <DropdownMenuItem
-              key={worktree.path}
-              enabled={connected}
-              modifiers={[
-                defaultMinSize({ minWidth: MENU_WIDTH }),
-                padding(4, 0, 4, 0),
-                ...(active
-                  ? [clip(Shapes.RoundedCorner(BAND_CORNER)), background(material.primaryContainer)]
-                  : []),
-              ]}
-              onClick={() => {
-                setExpanded(false);
-                commands.pickWorktree(worktree);
-              }}
-            >
-              {active && (
-                <DropdownMenuItem.LeadingIcon>
-                  <Icon
-                    source={checkIcon}
-                    tint={material.onPrimaryContainer}
-                    contentDescription={text.selected}
-                  />
-                </DropdownMenuItem.LeadingIcon>
-              )}
-              <DropdownMenuItem.Text>
-                <Text color={active ? material.onPrimaryContainer : undefined}>
-                  {worktree.name}
-                </Text>
-              </DropdownMenuItem.Text>
-            </DropdownMenuItem>
-          ))}
-        {inRepository && item(text.newWorktree, { onPress: onNewWorktree })}
-        {inRepository && <HorizontalDivider />}
         {item(text.renameWorkspace, {
           onPress: available && onRenameWorkspace ? () => onRenameWorkspace(row) : undefined,
         })}

@@ -1,8 +1,8 @@
 import { Host } from "@expo/ui";
-import { List, Section } from "@expo/ui/swift-ui";
-import { ignoreSafeArea, listStyle, padding } from "@expo/ui/swift-ui/modifiers";
+import { List, Section, Text } from "@expo/ui/swift-ui";
+import { font, frame, listStyle, scrollEdgeEffectStyle } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import { StyleSheet } from "react-native";
+import { StyleSheet, useWindowDimensions } from "react-native";
 
 import { rowCommands } from "@/features/home/actions";
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
@@ -20,13 +20,30 @@ export default function WorkspacesScreen({
   onSearch,
   onPick,
   onNewWorkspace,
+  onClose,
 }: WorkspacesScreenProps) {
+  const window = useWindowDimensions();
   return (
     <>
-      {/* No title shows: the rows make plain what the sheet holds. VoiceOver still reads it. */}
-      <Stack.Screen
-        options={{ title: text.workspaces, headerTitle: "", headerTransparent: true }}
-      />
+      {/* As the system's own half sheets draw it: a bold title at the left, Close at the right. */}
+      <Stack.Screen options={{ title: text.workspaces, headerTitle: "" }} />
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.View hidesSharedBackground>
+          <Host style={{ width: window.width * TITLE_SHARE, height: TITLE_HEIGHT }}>
+            <Text
+              modifiers={[
+                font({ textStyle: "title2", weight: "bold" }),
+                frame({ maxWidth: FILL, maxHeight: FILL, alignment: "leading" }),
+              ]}
+            >
+              {text.workspaces}
+            </Text>
+          </Host>
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button icon="xmark" accessibilityLabel={text.close} onPress={onClose} />
+      </Stack.Toolbar>
       <Stack.SearchBar
         placeholder={text.searchWorkspaces}
         placement="integrated"
@@ -50,14 +67,8 @@ export default function WorkspacesScreen({
       </Stack.Toolbar>
       <Host style={styles.fill}>
         <RowAlertsView alerts={alerts}>
-          {/* The header shows no title, so the list rises into it, stopping short of the grabber. */}
-          <List
-            modifiers={[
-              listStyle("plain"),
-              padding({ top: GRABBER_CLEARANCE }),
-              ignoreSafeArea({ edges: "top" }),
-            ]}
-          >
+          {/* A hard edge gives the header its band: the soft one barely shows over a SwiftUI list. */}
+          <List modifiers={[listStyle("plain"), scrollEdgeEffectStyle("hard", "top")]}>
             <Section>
               {rows.map((row) => (
                 <WorkspaceRowView
@@ -76,8 +87,11 @@ export default function WorkspacesScreen({
   );
 }
 
-/** The space between the grabber and the first row. */
-const GRABBER_CLEARANCE = 16;
+/** The most of the sheet's width the title takes, leaving the rest to Close. */
+const TITLE_SHARE = 0.6;
+const TITLE_HEIGHT = 44;
+/** Lets a frame take all the space its container offers, like SwiftUI's `.infinity`. */
+const FILL = Number.POSITIVE_INFINITY;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },

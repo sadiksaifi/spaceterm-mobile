@@ -60,6 +60,7 @@ export default function WorkspacesRoute() {
               router.navigate(newWorkspace);
             }
       }
+      onClose={() => router.back()}
     />
   );
 }

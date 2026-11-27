@@ -44,6 +44,8 @@ export type BarLayout = {
   widths: readonly number[];
   /** How far the Workspaces are moved left, to keep the selected one in view. */
   offset: number;
+  /** Which edges have Workspaces past them; the bar fades those edges. */
+  past: { start: boolean; end: boolean };
 };
 
 /**
@@ -61,12 +63,23 @@ export function barLayout(
   const share = names.length === 0 ? 0 : width / names.length;
   const natural = names.map((name) => (name === undefined ? undefined : name + 2 * padding));
   if (natural.every((each) => each !== undefined && each <= share) || natural.includes(undefined)) {
-    return { shared: true, widths: names.map(() => share), offset: 0 };
+    return {
+      shared: true,
+      widths: names.map(() => share),
+      offset: 0,
+      past: { start: false, end: false },
+    };
   }
   const widths = natural as number[];
   const total = widths.reduce((sum, each) => sum + each, 0);
   const start = widths.slice(0, Math.max(selected, 0)).reduce((sum, each) => sum + each, 0);
   const middle = start + (widths[selected] ?? 0) / 2;
   const offset = Math.min(Math.max(middle - width / 2, 0), Math.max(total - width, 0));
-  return { shared: false, widths, offset };
+  return {
+    shared: false,
+    widths,
+    offset,
+    // Half a point of slack, so rounding never fades an edge with nothing past it.
+    past: { start: offset > 0.5, end: total - offset - width > 0.5 },
+  };
 }

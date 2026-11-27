@@ -30,7 +30,7 @@ import { useState } from "react";
 import { useWindowDimensions } from "react-native";
 
 import { rowCommands, type Control } from "@/features/home/actions";
-import { horizontalSwipe } from "@/modules/compose-modifiers";
+import { fadingEdges, horizontalSwipe } from "@/modules/compose-modifiers";
 import type { WorkspaceRow } from "@/features/home/model";
 import type { RowAlerts } from "@/features/home/row-alerts";
 import { useColors } from "@/shared/theme/colors";
@@ -47,6 +47,8 @@ const GAP = 8;
 const INSET = 8;
 /** Room on each side of a name. */
 const PADDING = 20;
+/** An edge with Workspaces past it fades over this width. */
+const FADE = 14;
 /** A FloatingActionButton has no disabled state; an unavailable one takes Material's disabled opacity. */
 const UNAVAILABLE = 0.38;
 const MENU_CORNER = 16;
@@ -140,6 +142,10 @@ export function WorkspaceBar({
             modifiers={[
               size(inner, BAR_HEIGHT - 2 * INSET),
               clip(Shapes.RoundedCorner(BAR_HEIGHT)),
+              fadingEdges({
+                left: layout.past.start ? FADE : 0,
+                right: layout.past.end ? FADE : 0,
+              }),
             ]}
           >
             {rows.map((row, index) => (

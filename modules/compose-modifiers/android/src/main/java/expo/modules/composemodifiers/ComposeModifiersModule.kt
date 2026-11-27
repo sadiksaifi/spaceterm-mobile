@@ -4,6 +4,14 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -32,6 +40,9 @@ data class MaxWidthFractionParams(@Field val fraction: Float = 1f) : Record
 data class HorizontalSwipeParams(@Field val distance: Float = 32f) : Record
 
 @OptimizedRecord
+data class FadingEdgesParams(@Field val left: Float = 0f, @Field val right: Float = 0f) : Record
+
+@OptimizedRecord
 data class RadioSelectedParams(@Field val selected: Boolean = false) : Record
 
 /** Caps the width at a fraction of the width offered. In a Row, that is the space left for the view. */
@@ -41,6 +52,31 @@ fun maxWidthFraction(fraction: Float): Modifier =
     val placeable = measurable.measure(constraints.copy(maxWidth = maxWidth))
     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
   }
+
+/** Fades the view's content to transparent over `left` and `right` pixels at its sides. */
+fun fadingEdges(left: Float, right: Float): Modifier =
+  Modifier
+    // Offscreen, so the fade takes away the content's own pixels, not the window's.
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+      drawContent()
+      if (left > 0f) {
+        drawRect(
+          Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = left),
+          size = Size(left, size.height),
+          blendMode = BlendMode.DstIn
+        )
+      }
+      if (right > 0f) {
+        val start = size.width - right
+        drawRect(
+          Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = start, endX = size.width),
+          topLeft = Offset(start, 0f),
+          size = Size(right, size.height),
+          blendMode = BlendMode.DstIn
+        )
+      }
+    }
 
 /**
  * Reports a sideways drag of at least `distance` pixels, once the finger lifts, as "left" or
@@ -82,6 +118,11 @@ class ComposeModifiersModule : Module() {
         Modifier.clearAndSetSemantics {}
       }
       ModifierRegistry.register("disabled") { _, _, _, _ -> Modifier.semantics { disabled() } }
+      ModifierRegistry.register("fadingEdges") { map, _, converterContext, _ ->
+        val params = recordFromMap<FadingEdgesParams>(map, converterContext)
+        val density = LocalDensity.current
+        with(density) { fadingEdges(params.left.dp.toPx(), params.right.dp.toPx()) }
+      }
       ModifierRegistry.register("horizontalSwipe") { map, _, converterContext, eventDispatcher ->
         val distance = recordFromMap<HorizontalSwipeParams>(map, converterContext).distance
         val pixels = with(LocalDensity.current) { distance.dp.toPx() }
@@ -99,6 +140,7 @@ class ComposeModifiersModule : Module() {
       ModifierRegistry.unregister("radioSelected")
       ModifierRegistry.unregister("hiddenFromAccessibility")
       ModifierRegistry.unregister("disabled")
+      ModifierRegistry.unregister("fadingEdges")
       ModifierRegistry.unregister("horizontalSwipe")
     }
   }

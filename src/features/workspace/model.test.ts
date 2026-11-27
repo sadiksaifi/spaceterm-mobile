@@ -51,11 +51,17 @@ describe("the Workspace bar", () => {
   const PADDING = 16;
 
   it("shares the bar equally while every name fits its share", () => {
-    expect(barLayout([30], 300, 0, PADDING)).toEqual({ shared: true, widths: [300], offset: 0 });
+    expect(barLayout([30], 300, 0, PADDING)).toEqual({
+      shared: true,
+      widths: [300],
+      offset: 0,
+      past: { start: false, end: false },
+    });
     expect(barLayout([30, 40], 300, 1, PADDING)).toEqual({
       shared: true,
       widths: [150, 150],
       offset: 0,
+      past: { start: false, end: false },
     });
   });
 
@@ -65,10 +71,19 @@ describe("the Workspace bar", () => {
       shared: false,
       widths: [232, 212],
       offset: 0,
+      past: { start: false, end: true },
     });
     expect(barLayout([200, 180], 300, 1, PADDING).offset).toBe(144);
     // Five of 100: the third's middle, at 250, sits in the middle of the bar.
     expect(barLayout([68, 68, 68, 68, 68], 300, 2, PADDING).offset).toBe(100);
+  });
+
+  it("says which edges have Workspaces past them", () => {
+    // Five of 100 in a bar of 300: 200 more than it shows.
+    const names = [68, 68, 68, 68, 68];
+    expect(barLayout(names, 300, 0, PADDING).past).toEqual({ start: false, end: true });
+    expect(barLayout(names, 300, 2, PADDING).past).toEqual({ start: true, end: true });
+    expect(barLayout(names, 300, 4, PADDING).past).toEqual({ start: true, end: false });
   });
 
   it("shares the bar until every name is measured", () => {

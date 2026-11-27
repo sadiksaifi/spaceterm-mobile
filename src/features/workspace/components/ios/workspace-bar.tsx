@@ -28,6 +28,7 @@ import { useWindowDimensions } from "react-native";
 import { rowCommands, type Control } from "@/features/home/actions";
 import type { WorkspaceRow } from "@/features/home/model";
 import type { RowAlerts } from "@/features/home/row-alerts";
+import { fadingEdges } from "@/modules/swift-ui-modifiers";
 
 import { barLayout } from "../../model";
 import { text } from "../../text";
@@ -40,6 +41,8 @@ const GAP = 12;
 const INSET = 6;
 /** Room on each side of a name. */
 const PADDING = 16;
+/** An edge with Workspaces past it fades over this width. */
+const FADE = 14;
 
 /**
  * Workspaces at the left, the Workspaces Home lists in the middle, New Workspace at the right.
@@ -91,6 +94,10 @@ export function WorkspaceBar({
             clipShape("capsule"),
             // Clipping hides the names past the edges but leaves them tappable; this stops that.
             contentShape(shapes.capsule()),
+            fadingEdges({
+              left: layout.past.start ? FADE : 0,
+              right: layout.past.end ? FADE : 0,
+            }),
           ]}
         >
           <HStack

@@ -35,3 +35,7 @@ export const horizontalSwipe = (distance: number, onSwipe: (direction: "left" | 
     ({ direction }: { direction: "left" | "right" }) => onSwipe(direction),
     { distance },
   );
+
+/** Fades the view's content to transparent over `left` and `right` dp at its sides. */
+export const fadingEdges = ({ left, right }: { left: number; right: number }) =>
+  createModifier("fadingEdges", { left, right });

@@ -30,8 +30,8 @@ import { text } from "./text";
 /** The bar's bottom edge sits this far into the bottom safe area, as the mockups place it. */
 const INTO_SAFE_AREA = 6;
 const MIN_BOTTOM = 16;
-/** Width the header keeps beside the names for its margins and the menu button. */
-const TITLE_ROOM = 120;
+/** The most of the screen's width the header's top left takes. */
+const TITLE_SHARE = 0.6;
 
 export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
@@ -150,7 +150,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
 
   return (
     <>
-      {/* Back sits in the bar, so the names take its place at the top left and the middle stays
+      {/* Back sits in the bar, so the Worktree takes its place at the top left and the middle stays
           empty. The swipe back starts above the bar only, so a swipe on the bar stays there. */}
       <Stack.Screen
         options={{
@@ -160,13 +160,12 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         }}
       />
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.View hidesSharedBackground>
+        <Stack.Toolbar.View>
           <WorkspaceTitle
-            name={view.workspace.name}
             directory={view.workspace.directory}
             worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}
             connected={connected}
-            width={window.width - TITLE_ROOM}
+            width={window.width * TITLE_SHARE}
             onPickWorktree={({ worktree }) => commands.pickWorktree(worktree)}
             onNewWorktree={props.onNewWorktree}
           />

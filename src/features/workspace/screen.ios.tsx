@@ -1,5 +1,5 @@
 import { Host } from "@expo/ui";
-import { ScrollView, VStack, ZStack } from "@expo/ui/swift-ui";
+import { ScrollView, Spacer, VStack, ZStack } from "@expo/ui/swift-ui";
 import {
   frame,
   ignoreSafeArea,
@@ -12,13 +12,17 @@ import { useRef, useState, type ReactNode } from "react";
 import { PlatformColor, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import type { HomeActions } from "@/features/home/actions";
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
 import { Unreachable } from "@/features/home/components/ios/states/unreachable";
+import type { Tab } from "@/shared/machines/model";
 
 import { moves } from "./grid";
 import { splitOf } from "./layout";
+import type { WorkspaceView } from "./model";
 import type { WorkspaceScreenProps } from "./props";
-import { CardGrid } from "./components/ios/card-grid";
+import type { Screens } from "./use-pane-previews";
+import { CardGrid, type Card } from "./components/ios/card-grid";
 import { PanesSheet } from "./components/ios/panes-sheet";
 import { TabAlertsView } from "./components/ios/tab-alerts";
 import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-bar";
@@ -54,61 +58,62 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   );
   const onScreen = !sheet && panes === null;
 
-  const content = connected ? (
-    // A hard edge under the header once the grid scrolls: the soft one barely covers it over a
-    // SwiftUI scroll view, so a card scrolled under it would cross the title. At rest the hard
-    // edge would draw a band and a line over nothing.
-    <ScrollView
-      modifiers={[
-        ...(scroll.modifier ? [scroll.modifier] : []),
-        scrollEdgeEffectStyle(scroll.scrolled ? "hard" : "soft", "top"),
-      ]}
-    >
-      <VStack modifiers={[padding({ top: 10, bottom: bottom + BAR_HEIGHT + 24 })]}>
-        <CardGrid
-          screens={props.screens}
-          cards={commands.grid.tabs.map((tab) => {
-            const move = moves(commands.grid, tab);
-            return {
-              key: tab.id,
-              name: tab.name,
-              split: splitOf(tab.panes),
-              onPress: () => commands.openTab(tab),
-              closeLabel: text.closeTab,
-              onClose: () => commands.closeTab(tab),
-              menu: (
-                <>
-                  {menuItem(text.newTab, "plus.square.on.square", { onPress: commands.newTab })}
-                  {menuItem(text.moveTabLeft, "arrow.left", {
-                    onPress: move.left ? () => commands.moveTab(tab, -1) : undefined,
-                  })}
-                  {menuItem(text.moveTabRight, "arrow.right", {
-                    onPress: move.right ? () => commands.moveTab(tab, 1) : undefined,
-                  })}
-                  {menuItem(
-                    text.closeTab,
-                    "xmark",
-                    { onPress: () => commands.closeTab(tab) },
-                    true,
-                  )}
-                </>
-              ),
-            };
-          })}
-          addLabel={text.newTab}
-          onAdd={commands.newTab}
-        />
-      </VStack>
-    </ScrollView>
-  ) : (
-    <Unreachable
-      view={{ kind: "unreachable", state: view.state, machine: view.machine }}
+  const cards: Card[] = connected
+    ? commands.grid.tabs.map((tab) => {
+        const move = moves(commands.grid, tab);
+        return {
+          key: tab.id,
+          name: tab.name,
+          split: splitOf(tab.panes),
+          onPress: () => commands.openTab(tab),
+          closeLabel: text.closeTab,
+          onClose: () => commands.closeTab(tab),
+          menu: (
+            <>
+              {menuItem(text.newTab, "plus.square.on.square", { onPress: commands.newTab })}
+              {menuItem(text.moveTabLeft, "arrow.left", {
+                onPress: move.left ? () => commands.moveTab(tab, -1) : undefined,
+              })}
+              {menuItem(text.moveTabRight, "arrow.right", {
+                onPress: move.right ? () => commands.moveTab(tab, 1) : undefined,
+              })}
+              {menuItem(text.closeTab, "xmark", { onPress: () => commands.closeTab(tab) }, true)}
+            </>
+          ),
+        };
+      })
+    : [];
+  const page = (
+    <Page
+      key={row.key}
+      view={view}
+      cards={cards}
+      screens={props.screens}
+      onAdd={commands.newTab}
       actions={{
         onTryAgain: props.onTryAgain,
         onMachineSettings: props.onMachineSettings,
         onGetDesktop: () => {},
       }}
+      bottom={bottom}
+      scroll={scroll}
     />
+  );
+  // Each Workspace of the bar has a page under it, which a drag of the bar slides in. One that
+  // is not in the bar, as one whose Machine dropped its list, shows alone.
+  const paged = props.pages.some((each) => each.key === row.key);
+  const bar = (pages?: ReactNode) => (
+    <WorkspaceBar
+      rows={rows}
+      selected={row.key}
+      alerts={alerts}
+      bottom={bottom}
+      onBack={props.onBack}
+      onSwitch={props.onSwitch}
+      onWorkspaces={() => setSheet(true)}
+    >
+      {pages}
+    </WorkspaceBar>
   );
 
   const body = (
@@ -117,17 +122,31 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
       alignment="bottom"
       modifiers={[frame({ maxWidth: FILL, maxHeight: FILL }), ignoreSafeArea({ edges: "bottom" })]}
     >
-      {content}
-      <VStack modifiers={[padding({ bottom })]}>
-        <WorkspaceBar
-          rows={rows}
-          selected={row.key}
-          alerts={alerts}
-          onBack={props.onBack}
-          onSwitch={props.onSwitch}
-          onWorkspaces={() => setSheet(true)}
-        />
-      </VStack>
+      {paged ? (
+        bar(
+          props.pages.map((each) =>
+            each.key === row.key ? (
+              page
+            ) : (
+              <Page
+                key={each.key}
+                view={each.view}
+                cards={each.tabs.map(sideCard)}
+                screens={each.screens}
+                onAdd={NOTHING}
+                actions={SIDE_ACTIONS}
+                bottom={bottom}
+                scroll={null}
+              />
+            ),
+          ),
+        )
+      ) : (
+        <>
+          {page}
+          {bar()}
+        </>
+      )}
       <WorkspacesSheet
         open={sheet}
         onClose={() => setSheet(false)}
@@ -232,6 +251,76 @@ function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: Workspace
     </Stack.Toolbar>
   );
 }
+
+/**
+ * A Workspace's page: its grid, or its Machine's state while it is not connected. Every page has
+ * the same parts, so the page a drag brings in stays in place as it takes over the screen.
+ */
+function Page({
+  view,
+  cards,
+  screens,
+  onAdd,
+  actions,
+  bottom,
+  scroll,
+}: {
+  view: WorkspaceView;
+  cards: readonly Card[];
+  screens: Screens;
+  onAdd: (() => void) | undefined;
+  actions: HomeActions;
+  bottom: number;
+  /** The page on screen's, which tells the header whether the grid scrolled. */
+  scroll: Scrolled | null;
+}) {
+  if (view.kind === "gone") return <Spacer />;
+  if (view.kind === "unreachable") {
+    return (
+      <Unreachable
+        view={{ kind: "unreachable", state: view.state, machine: view.machine }}
+        actions={actions}
+      />
+    );
+  }
+  return (
+    // A hard edge under the header once the grid scrolls: the soft one barely covers it over a
+    // SwiftUI scroll view, so a card scrolled under it would cross the title. At rest the hard
+    // edge would draw a band and a line over nothing.
+    <ScrollView
+      modifiers={[
+        ...(scroll?.modifier ? [scroll.modifier] : []),
+        scrollEdgeEffectStyle(scroll?.scrolled ? "hard" : "soft", "top"),
+      ]}
+    >
+      <VStack modifiers={[padding({ top: 10, bottom: bottom + BAR_HEIGHT + 24 })]}>
+        <CardGrid cards={cards} screens={screens} addLabel={text.newTab} onAdd={onAdd} />
+      </VStack>
+    </ScrollView>
+  );
+}
+
+/** A card of a page beside the one on screen, which shows only while it slides past. */
+function sideCard(tab: Tab): Card {
+  return {
+    key: tab.id,
+    name: tab.name,
+    split: splitOf(tab.panes),
+    onPress: NOTHING,
+    closeLabel: text.closeTab,
+    onClose: NOTHING,
+    menu: null,
+  };
+}
+
+const NOTHING = () => {};
+const SIDE_ACTIONS: HomeActions = {
+  onTryAgain: NOTHING,
+  onMachineSettings: NOTHING,
+  onGetDesktop: NOTHING,
+};
+
+type Scrolled = ReturnType<typeof useScrolled>;
 
 /** Whether a scroll view has scrolled from where it first rested, with the modifier that tells. */
 function useScrolled() {

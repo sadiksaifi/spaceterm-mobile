@@ -35,6 +35,9 @@ const app = ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
+    // Every string is English, so the layout stays left to right in a right-to-left language,
+    // as iOS keeps it for an app without that language. Turn it back on with a translation.
+    ["expo-localization", { supportsRTL: false }],
     [
       "expo-camera",
       {

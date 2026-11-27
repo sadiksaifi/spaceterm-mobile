@@ -1,6 +1,6 @@
 import { Host } from "@expo/ui";
 import { List, Section } from "@expo/ui/swift-ui";
-import { listStyle } from "@expo/ui/swift-ui/modifiers";
+import { ignoreSafeArea, listStyle, padding } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 import { StyleSheet } from "react-native";
 
@@ -23,9 +23,12 @@ export default function WorkspacesScreen({
 }: WorkspacesScreenProps) {
   return (
     <>
-      <Stack.Screen options={{ title: text.workspaces }} />
+      {/* No title shows: the rows make plain what the sheet holds. VoiceOver still reads it. */}
+      <Stack.Screen
+        options={{ title: text.workspaces, headerTitle: "", headerTransparent: true }}
+      />
       <Stack.SearchBar
-        placeholder={text.search}
+        placeholder={text.searchWorkspaces}
         placement="integrated"
         autoCapitalize="none"
         hideNavigationBar={false}
@@ -36,7 +39,7 @@ export default function WorkspacesScreen({
       {/* New Workspace sits beside the search, both within reach of the thumb. */}
       <Stack.Toolbar placement="bottom">
         <Stack.Toolbar.SearchBarSlot />
-        <Stack.Toolbar.Spacer width={8} />
+        <Stack.Toolbar.Spacer />
         <Stack.Toolbar.Button
           icon="plus"
           accessibilityLabel={text.newWorkspace}
@@ -47,7 +50,14 @@ export default function WorkspacesScreen({
       </Stack.Toolbar>
       <Host style={styles.fill}>
         <RowAlertsView alerts={alerts}>
-          <List modifiers={[listStyle("plain")]}>
+          {/* The header shows no title, so the list rises into it, stopping short of the grabber. */}
+          <List
+            modifiers={[
+              listStyle("plain"),
+              padding({ top: GRABBER_CLEARANCE }),
+              ignoreSafeArea({ edges: "top" }),
+            ]}
+          >
             <Section>
               {rows.map((row) => (
                 <WorkspaceRowView
@@ -65,6 +75,9 @@ export default function WorkspacesScreen({
     </>
   );
 }
+
+/** The space between the grabber and the first row. */
+const GRABBER_CLEARANCE = 16;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },

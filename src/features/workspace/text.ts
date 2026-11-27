@@ -24,7 +24,6 @@ export const text = {
   panes: "Panes",
   workspaces: "Workspaces",
   newWorkspace: "New Workspace",
-  search: "Search",
   searchWorkspaces: "Search Workspaces",
   clearText: "Clear text",
   cancel: "Cancel",

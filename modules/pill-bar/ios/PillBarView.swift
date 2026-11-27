@@ -78,6 +78,8 @@ struct PillBarView: ExpoSwiftUI.View {
 
   /** Each pill's frame in the row. */
   @State private var frames: [String: CGRect] = [:]
+  /** Each pill's width with its whole name, before the row shares or cuts it. */
+  @State private var naturals: [String: CGFloat] = [:]
   /** A pill a tap or a drag picked, highlighted until `selected` follows. */
   @State private var picked: String?
   /** A drag of the highlight, which the system clears when the gesture ends or is cancelled. */
@@ -271,6 +273,7 @@ struct PillBarView: ExpoSwiftUI.View {
       }
       .onChange(of: props.pills.map(\.key)) { _, keys in
         frames = frames.filter { keys.contains($0.key) }
+        naturals = naturals.filter { keys.contains($0.key) }
       }
       .onChange(of: props.selected) { _, selected in
         withAnimation(Self.motion) {
@@ -291,17 +294,29 @@ struct PillBarView: ExpoSwiftUI.View {
     .sensoryFeedback(.selection, trigger: drag?.over) { old, new in old != nil && new != nil }
   }
 
-  private func pillView(_ pill: Pill) -> some View {
-    let lit = (drag?.over ?? resting) == pill.key
-    let name = Text(pill.name)
+  private func label(_ pill: Pill) -> some View {
+    Text(pill.name)
       .font(.body)
       // The bar keeps its height, so names stop growing where they would no longer fit it.
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
       .lineLimit(1)
-      .foregroundStyle(lit ? .primary : .secondary)
       .padding(.horizontal, 16)
+  }
+
+  private func pillView(_ pill: Pill) -> some View {
+    let lit = (drag?.over ?? resting) == pill.key
+    let name = label(pill)
+      .foregroundStyle(lit ? .primary : .secondary)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .contentShape(.capsule)
+      .background {
+        label(pill)
+          .fixedSize()
+          .hidden()
+          .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            naturals[pill.key] = width
+          }
+      }
     return Group {
       if pill.key == resting {
         // Touch and hold lifts the lens, so the highlighted pill has no menu.
@@ -423,9 +438,13 @@ struct PillBarView: ExpoSwiftUI.View {
     let (key, frame) = placed[max(after - 1, 0)]
     let (nextKey, next) = placed[after]
     let along = next.midX > frame.midX ? (middle - frame.midX) / (next.midX - frame.midX) : 1
+    // As wide as the pill under it will be at rest: the held row is wider, so its pills may share
+    // it out more widely than they will once the finger lifts.
+    let sizes = restingWidths
+    let width = sizes[key] ?? frame.width
     return Drag(
       middle: middle,
-      width: frame.width + (next.width - frame.width) * along,
+      width: width + ((sizes[nextKey] ?? next.width) - width) * along,
       over: along < 0.5 ? key : nextKey,
       offset: offset,
       left: offset - Self.inset
@@ -438,6 +457,14 @@ struct PillBarView: ExpoSwiftUI.View {
     guard let start = frames[resting] else { return nil }
     let end = max((frames.values.map(\.maxX).max() ?? 0) + 2 * Self.inset - width, 0)
     return (start.midX + Self.inset - (touch.start - left), end)
+  }
+
+  /** Each pill's width in the row at rest. */
+  private var restingWidths: [String: CGFloat] {
+    let keys = props.pills.map(\.key)
+    guard keys.allSatisfy({ naturals[$0] != nil }) else { return [:] }
+    let widths = PillsLayout.widths(keys.map { naturals[$0] ?? 0 }, width: rest, widest: widest)
+    return Dictionary(uniqueKeysWithValues: zip(keys, widths))
   }
 
   /** The widest a pill grows: the row at rest less a peek of a pill on each side, so the pills
@@ -506,9 +533,14 @@ private struct PillsLayout: Layout {
   }
 
   private func widths(_ subviews: Subviews) -> [CGFloat] {
-    guard !subviews.isEmpty, width > 0 else { return subviews.map { _ in 0 } }
-    let share = width / CGFloat(subviews.count)
-    let natural = subviews.map { min($0.sizeThatFits(.unspecified).width, widest, width) }
-    return natural.allSatisfy { $0 <= share } ? natural.map { _ in share } : natural
+    Self.widths(subviews.map { $0.sizeThatFits(.unspecified).width }, width: width, widest: widest)
+  }
+
+  /** The widths of pills whose whole names take `natural`, in a row `width` wide. */
+  static func widths(_ natural: [CGFloat], width: CGFloat, widest: CGFloat) -> [CGFloat] {
+    guard !natural.isEmpty, width > 0 else { return natural.map { _ in 0 } }
+    let share = width / CGFloat(natural.count)
+    let cut = natural.map { min($0, widest, width) }
+    return cut.allSatisfy { $0 <= share } ? cut.map { _ in share } : cut
   }
 }

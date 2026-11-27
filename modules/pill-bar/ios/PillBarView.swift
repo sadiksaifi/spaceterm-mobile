@@ -94,6 +94,8 @@ struct PillBarView: ExpoSwiftUI.View {
         }
         .background(alignment: .topLeading) { highlight }
         .coordinateSpace(.named(Self.row))
+        // The inset sits inside the scroll view, so the lifted highlight grows into it unclipped.
+        .padding(.vertical, Self.inset)
       }
       .scrollIndicators(.hidden)
       .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
@@ -126,7 +128,7 @@ struct PillBarView: ExpoSwiftUI.View {
         }
       }
     }
-    .padding(Self.inset)
+    .padding(.horizontal, Self.inset)
     .glassEffect(.regular, in: .capsule)
     .sensoryFeedback(.selection, trigger: drag?.over) { old, new in old != nil && new != nil }
   }
@@ -138,6 +140,8 @@ struct PillBarView: ExpoSwiftUI.View {
     } label: {
       Text(pill.name)
         .font(.body)
+        // The bar keeps its height, so names stop growing where they would no longer fit it.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .lineLimit(1)
         .foregroundStyle(lit ? .primary : .secondary)
         .padding(.horizontal, 16)

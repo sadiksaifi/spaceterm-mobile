@@ -119,6 +119,12 @@ export default function WorkspaceRoute() {
           action: undefined,
         })
       }
+      onWorkspaces={() =>
+        router.navigate({
+          pathname: "/workspaces/[machineId]/[workspaceId]",
+          params: { machineId, workspaceId },
+        })
+      }
       onNewWorkspace={newWorkspace === null ? undefined : () => router.navigate(newWorkspace)}
       onNewWorktree={
         repository === null || view.kind !== "tabs"

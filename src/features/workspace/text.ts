@@ -25,7 +25,6 @@ export const text = {
   workspaces: "Workspaces",
   newWorkspace: "New Workspace",
   search: "Search",
-  cancelSearch: cased("Cancel Search", "Cancel search"),
   searchWorkspaces: "Search Workspaces",
   clearText: "Clear text",
   cancel: "Cancel",

@@ -23,7 +23,6 @@ import { PanesSheet } from "./components/ios/panes-sheet";
 import { RemovalAlertsView } from "./components/ios/removal-alerts";
 import { TabAlertsView } from "./components/ios/tab-alerts";
 import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-bar";
-import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
 import { WorkspaceTitle } from "./components/ios/workspace-title";
 import type ScreenContract from "./screen";
 import { text } from "./text";
@@ -37,7 +36,6 @@ const TITLE_SHARE = 0.6;
 export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
   const insets = useSafeAreaInsets();
-  const [sheet, setSheet] = useState(false);
   const scroll = useScrolled();
   const bottom = Math.max(insets.bottom - INTO_SAFE_AREA, MIN_BOTTOM);
   const window = useWindowDimensions();
@@ -45,8 +43,8 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const connected = view.kind === "tabs";
   const panes = connected ? commands.panes : null;
 
-  // A system alert shows over the topmost view: an open sheet, else the screen. Each view always
-  // carries the alerts, so a sheet that closes leaves every view in place.
+  // A system alert shows over the topmost view: the Panes sheet while it is open, else the screen.
+  // Each view always carries the alerts, so a sheet that closes leaves every view in place.
   const alertsView = (active: boolean) => (children: ReactNode) => (
     <RowAlertsView alerts={alerts} active={active}>
       <TabAlertsView commands={commands} active={active}>
@@ -56,7 +54,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
       </TabAlertsView>
     </RowAlertsView>
   );
-  const onScreen = !sheet && panes === null;
+  const onScreen = panes === null;
 
   const content = connected ? (
     // A hard edge under the header once the grid scrolls: the soft one barely covers it over a
@@ -128,25 +126,15 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         bottom={bottom}
         onBack={props.onBack}
         onSwitch={props.onSwitch}
-        onWorkspaces={() => setSheet(true)}
+        onWorkspaces={props.onWorkspaces}
       >
         {content}
       </WorkspaceBar>
-      <WorkspacesSheet
-        open={sheet}
-        onClose={() => setSheet(false)}
-        rows={rows}
-        selected={row.key}
-        alerts={alerts}
-        alertsView={alertsView(sheet)}
-        onSwitch={props.onSwitch}
-        onNewWorkspace={props.onNewWorkspace}
-      />
       <PanesSheet
         screens={props.screens}
         tab={panes}
         commands={commands}
-        alertsView={alertsView(panes !== null && !sheet)}
+        alertsView={alertsView(panes !== null)}
       />
     </ZStack>
   );

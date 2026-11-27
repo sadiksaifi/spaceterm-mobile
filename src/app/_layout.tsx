@@ -40,6 +40,17 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="workspaces/[machineId]/[workspaceId]"
+              options={{
+                // iOS only: Android shows the Workspaces in a sheet of the Workspace screen.
+                presentation: "formSheet",
+                sheetAllowedDetents: [0.5, 1],
+                sheetGrabberVisible: true,
+                // Transparent, so the sheet shows the system's glass.
+                contentStyle: { backgroundColor: "transparent" },
+              }}
+            />
+            <Stack.Screen
               name="settings/themes/get-more"
               options={{
                 // iOS shows Get More Themes in a sheet; Android shows it as a full-screen page.

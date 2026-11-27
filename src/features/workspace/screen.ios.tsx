@@ -19,7 +19,6 @@ import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-b
 import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
 import type ScreenContract from "./screen";
 import { text } from "./text";
-import { useBarSwipe } from "./use-bar-swipe";
 
 /** The bar's bottom edge sits this far into the bottom safe area, as the mockups place it. */
 const INTO_SAFE_AREA = 6;
@@ -30,7 +29,6 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState(false);
   const bottom = Math.max(insets.bottom - INTO_SAFE_AREA, MIN_BOTTOM);
-  const swipe = useBarSwipe(rows, row.key, props.onSwitch, bottom + BAR_HEIGHT);
   const barTop = useWindowDimensions().height - bottom - BAR_HEIGHT;
   const connected = view.kind === "tabs";
   const panes = connected ? commands.panes : null;
@@ -148,9 +146,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         </View>
       </Stack.Screen.Title>
       <WorkspaceMenu {...props} />
-      <View style={styles.fill} {...swipe}>
-        <Host style={styles.fill}>{onScreen ? alertsView(body) : body}</Host>
-      </View>
+      <Host style={styles.fill}>{onScreen ? alertsView(body) : body}</Host>
     </>
   );
 }

@@ -30,9 +30,10 @@ import { useWindowDimensions } from "react-native";
 import { rowCommands, type Control } from "@/features/home/actions";
 import type { WorkspaceRow } from "@/features/home/model";
 import type { RowAlerts } from "@/features/home/row-alerts";
-import { fadingEdges } from "@/modules/swift-ui-modifiers";
+import { fadingEdges, useHorizontalSwipe } from "@/modules/swift-ui-modifiers";
 
 import { barLayout } from "../../model";
+import { SWIPE_DISTANCE, swipedTo } from "../../bar-swipe";
 import { text } from "../../text";
 
 /** The bar's metrics from the mockups. */
@@ -48,8 +49,8 @@ const FADE = 14;
 
 /**
  * Workspaces at the left, the Workspaces Home lists in the middle, New Workspace at the right.
- * The middle is never scrolled by hand: a swipe along it changes Workspace, through the screen,
- * and it moves by itself to keep the selected Workspace in view.
+ * The middle is never scrolled by hand: a swipe along the bar changes Workspace, and the middle
+ * moves by itself to keep the selected Workspace in view.
  */
 export function WorkspaceBar({
   rows,
@@ -78,8 +79,13 @@ export function WorkspaceBar({
     PADDING,
   );
 
+  const swipe = useHorizontalSwipe(SWIPE_DISTANCE, (direction) => {
+    const next = swipedTo(rows, selected, direction);
+    if (next !== undefined) onSwitch(next);
+  });
+
   return (
-    <HStack spacing={GAP} modifiers={[padding({ horizontal: SIDE })]}>
+    <HStack spacing={GAP} modifiers={[padding({ horizontal: SIDE }), swipe]}>
       <Circle symbol="square.stack" label={text.workspaces} onPress={onWorkspaces} />
       <ZStack
         alignment="leading"

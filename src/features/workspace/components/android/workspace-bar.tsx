@@ -37,7 +37,7 @@ import { useColors } from "@/shared/theme/colors";
 
 import { barLayout } from "../../model";
 import { text } from "../../text";
-import { SWIPE_DISTANCE, swipedTo } from "../../use-bar-swipe";
+import { SWIPE_DISTANCE, swipedTo } from "../../bar-swipe";
 
 /** The bar's metrics from the mockups. */
 export const BAR_HEIGHT = 56;

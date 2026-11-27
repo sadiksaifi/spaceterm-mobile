@@ -119,7 +119,7 @@ export type WorktreeCreation =
   | { kind: "created"; tab: string }
   | { kind: "invalid-name" }
   | { kind: "branch-exists" }
-  /** The Location exists and is not empty. */
+  /** The Machine cannot use the Location: it is not empty, or not a place it can create one. */
   | { kind: "not-empty" }
   | { kind: "failed" };
 

@@ -12,7 +12,7 @@ export type FormState = {
   newBranch: { name: string; startFrom: string | null; location: string | null };
   existing: { branch: string | null; location: string | null };
   remote: { remote: string | null; local: string | null; location: string | null };
-  /** The Location the Machine found not empty. The form says so while it shows that Location. */
+  /** A Location the Machine refused, such as one not empty. The form says so while it shows it. */
   notEmpty: string | null;
   /** A branch name the Machine refused. The form says why while it shows that name. */
   refused: { name: string; problem: "invalid-name" | "branch-exists" } | null;

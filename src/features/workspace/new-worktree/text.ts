@@ -31,7 +31,8 @@ export const kindText: Record<WorktreeKind, string> = {
 export const problemText: Record<FormProblem, string> = {
   "invalid-name": "This branch name can’t be used.",
   "branch-exists": "This branch already exists.",
-  "not-empty": "This directory is not empty.",
+  // The Machine refuses a Location that is not empty, or one it cannot use, with one answer.
+  "not-empty": "This Location can’t be used.",
 };
 
 export const failureText: Record<NewWorktreeFailure, string> = {

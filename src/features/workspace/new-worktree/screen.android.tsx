@@ -57,7 +57,7 @@ export default function NewWorktreeScreen({ worktree, onClose }: NewWorktreeScre
     worktree.retry,
     worktree.dismissFailure,
   );
-  // A name problem shows under its field; a Location found not empty shows under the Location.
+  // A name problem shows under its field; a refused Location shows under the Location.
   const nameProblem = problem === "not-empty" ? null : problem;
 
   return (

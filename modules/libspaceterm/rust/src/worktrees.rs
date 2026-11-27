@@ -51,7 +51,7 @@ pub enum WorktreeCreation {
     InvalidName,
     /// A branch with that name exists.
     BranchExists,
-    /// The Location exists and is not empty.
+    /// The Machine cannot use the Location: it is not empty, or not a place it can create one.
     NotEmpty,
     Failed,
 }

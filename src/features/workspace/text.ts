@@ -110,17 +110,24 @@ export function removalAlertText(
     };
   }
   const { worktree, failure, checking } = alert;
-  if (checking && failure === "failed") {
-    return {
-      title: cased("Couldn’t Check Worktree Changes", "Couldn’t check Worktree changes"),
-      body: "Try again before removing the Worktree.",
-    };
-  }
+
   if (failure === "interrupted") {
     return {
       title: "Check the Worktree",
       body: "SpaceTerm Core stopped before it confirmed the result. Check the Worktrees before trying again.",
     };
+  }
+  if (failure === "failed") {
+    return checking
+      ? {
+          title: cased("Couldn’t Check Worktree Changes", "Couldn’t check Worktree changes"),
+          body: "Try again before removing the Worktree.",
+        }
+      : {
+          // Git deletes the checkout before its own records, so a failure may leave part of it.
+          title: "Check the Worktree",
+          body: "The Machine didn’t finish removing it. Its Tabs may have closed, and Git may have deleted part of it. Check the Worktrees before trying again.",
+        };
   }
   if (failure === "unanswered") {
     return {
@@ -137,7 +144,7 @@ export function removalAlertText(
 
 /** The failures whose alert says the Worktree was not removed. */
 const removalFailureBody: Record<
-  Exclude<WorktreeRemovalFailure, "interrupted" | "unanswered">,
+  Exclude<WorktreeRemovalFailure, "interrupted" | "unanswered" | "failed">,
   string
 > = {
   main: "The Main Worktree can’t be removed.",
@@ -148,8 +155,6 @@ const removalFailureBody: Record<
     "Nothing was removed. Review the updated Worktree and Terminal Sessions before removing it.",
   "changed-after-closing":
     "Git kept the Worktree because it changed after its Tabs closed and their Terminal Sessions ended. Review it before removing it.",
-  failed:
-    "The Machine didn’t remove it, but may have closed its Tabs and ended their Terminal Sessions. Try again.",
 };
 
 /** `1 Tab`, `2 Tabs`. */

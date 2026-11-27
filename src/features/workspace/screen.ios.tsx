@@ -9,7 +9,7 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 import { useRef, useState, type ReactNode } from "react";
-import { PlatformColor, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
@@ -23,6 +23,7 @@ import { PanesSheet } from "./components/ios/panes-sheet";
 import { TabAlertsView } from "./components/ios/tab-alerts";
 import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-bar";
 import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
+import { WorkspaceTitle } from "./components/ios/workspace-title";
 import type ScreenContract from "./screen";
 import { text } from "./text";
 
@@ -160,18 +161,15 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
       />
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.View hidesSharedBackground>
-          <View
-            style={[styles.title, { maxWidth: window.width - TITLE_ROOM }]}
-            accessible
-            accessibilityRole="header"
-          >
-            <Text numberOfLines={1} style={styles.name}>
-              {view.workspace.name}
-            </Text>
-            <Text numberOfLines={1} style={styles.machine}>
-              {view.machine.name}
-            </Text>
-          </View>
+          <WorkspaceTitle
+            name={view.workspace.name}
+            machine={view.machine.name}
+            worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}
+            connected={connected}
+            width={window.width - TITLE_ROOM}
+            onPickWorktree={({ worktree }) => commands.pickWorktree(worktree)}
+            onNewWorktree={props.onNewWorktree}
+          />
         </Stack.Toolbar.View>
       </Stack.Toolbar>
       <WorkspaceMenu {...props} />
@@ -180,46 +178,21 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   );
 }
 
-/**
- * The Workspace menu: its Worktrees with the active one checked and New Worktree, in a
- * repository, then Rename Workspace and Kill Workspace.
- */
-function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: WorkspaceScreenProps) {
+/** The Workspace menu: Rename Workspace and Kill Workspace. The Worktrees have their own menu. */
+function WorkspaceMenu({ view, row, alerts }: WorkspaceScreenProps) {
   const connected = view.kind === "tabs";
-  const worktrees = connected ? commands.grid.worktrees : [];
   const available = connected && alerts.underway.get(row.key) === undefined;
   const { onRenameWorkspace, onKillWorkspace } = alerts.handlers;
   return (
     <Stack.Toolbar placement="right">
       <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel={text.more}>
-        {view.workspace.repository !== null && (
-          <Stack.Toolbar.Menu inline title={text.worktree}>
-            {worktrees.map(({ worktree, active }) => (
-              <Stack.Toolbar.MenuAction
-                key={worktree.path}
-                isOn={active}
-                disabled={!connected}
-                onPress={() => commands.pickWorktree(worktree)}
-              >
-                {worktree.name}
-              </Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>
-        )}
-        <Stack.Toolbar.Menu inline>
-          {view.workspace.repository !== null && (
-            <Stack.Toolbar.MenuAction icon="plus" disabled={!onNewWorktree} onPress={onNewWorktree}>
-              {text.newWorktree}
-            </Stack.Toolbar.MenuAction>
-          )}
-          <Stack.Toolbar.MenuAction
-            icon="pencil"
-            disabled={!available || !onRenameWorkspace}
-            onPress={() => onRenameWorkspace?.(row)}
-          >
-            {text.renameWorkspace}
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
+        <Stack.Toolbar.MenuAction
+          icon="pencil"
+          disabled={!available || !onRenameWorkspace}
+          onPress={() => onRenameWorkspace?.(row)}
+        >
+          {text.renameWorkspace}
+        </Stack.Toolbar.MenuAction>
         <Stack.Toolbar.MenuAction
           icon="xmark"
           destructive
@@ -249,9 +222,6 @@ const FILL = Number.POSITIVE_INFINITY;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  title: { alignItems: "flex-start" },
-  name: { fontSize: 17, fontWeight: "600", color: PlatformColor("label") },
-  machine: { fontSize: 13, color: PlatformColor("secondaryLabel") },
 });
 
 WorkspaceScreen satisfies typeof ScreenContract;

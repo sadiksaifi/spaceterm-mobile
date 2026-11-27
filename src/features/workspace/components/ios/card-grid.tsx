@@ -146,61 +146,61 @@ function CardView({
   const colors = useColors();
   const terminal = useTerminalColors();
   const snapshot = (
-    <ZStack alignment="topTrailing" modifiers={[frame({ width, height })]}>
-      {/* The snapshot and its close button are separate elements for VoiceOver. */}
-      <ZStack
-        modifiers={[
-          frame({ width, height }),
-          background(terminal.background),
-          clipShape("roundedRectangle", CORNER),
-          strokeBorder({
-            content: colors.separator,
-            style: { lineWidth: 1 },
-            shape: "roundedRectangle",
-            cornerRadius: CORNER,
-          }),
-          contentShape(shapes.roundedRectangle({ cornerRadius: CORNER })),
-          onTapGesture(card.onPress),
-          accessibilityLabel(card.name),
-          accessibilityAddTraits(["isButton"]),
-        ]}
-      >
-        {card.split && (
-          <SplitView
-            split={card.split}
-            screens={screens}
-            terminal={terminal}
-            line={colors.separator}
-          />
-        )}
-      </ZStack>
-      <Button
-        onPress={card.onClose}
-        modifiers={[
-          buttonStyle("plain"),
-          padding({ all: CLOSE_INSET }),
-          accessibilityLabel(card.closeLabel),
-        ]}
-      >
-        <Image
-          systemName="xmark"
-          modifiers={[
-            font({ size: 11, weight: "bold" }),
-            foregroundStyle({ type: "color", color: "#FFFFFF" }),
-            frame({ width: CLOSE_SIZE, height: CLOSE_SIZE }),
-            background(Color.ios.systemGray3, shapes.circle()),
-          ]}
+    <ZStack
+      modifiers={[
+        frame({ width, height }),
+        background(terminal.background),
+        clipShape("roundedRectangle", CORNER),
+        strokeBorder({
+          content: colors.separator,
+          style: { lineWidth: 1 },
+          shape: "roundedRectangle",
+          cornerRadius: CORNER,
+        }),
+        contentShape(shapes.roundedRectangle({ cornerRadius: CORNER })),
+        onTapGesture(card.onPress),
+        accessibilityLabel(card.name),
+        accessibilityAddTraits(["isButton"]),
+      ]}
+    >
+      {card.split && (
+        <SplitView
+          split={card.split}
+          screens={screens}
+          terminal={terminal}
+          line={colors.separator}
         />
-      </Button>
+      )}
     </ZStack>
   );
 
   return (
     <VStack alignment="leading" spacing={CAPTION_GAP} modifiers={[frame({ width })]}>
-      <ContextMenu>
-        <ContextMenu.Items>{card.menu}</ContextMenu.Items>
-        <ContextMenu.Trigger>{snapshot}</ContextMenu.Trigger>
-      </ContextMenu>
+      {/* The close button sits beside the touch and hold menu, not in it, so the menu's press
+          does not take its taps and the lifted card shows without it. */}
+      <ZStack alignment="topTrailing" modifiers={[frame({ width, height })]}>
+        <ContextMenu>
+          <ContextMenu.Items>{card.menu}</ContextMenu.Items>
+          <ContextMenu.Trigger>{snapshot}</ContextMenu.Trigger>
+        </ContextMenu>
+        <Button
+          onPress={card.onClose}
+          modifiers={[buttonStyle("plain"), accessibilityLabel(card.closeLabel)]}
+        >
+          {/* The inset is part of the button, so it takes taps across the full 44 points. */}
+          <Image
+            systemName="xmark"
+            modifiers={[
+              font({ size: 11, weight: "bold" }),
+              foregroundStyle({ type: "color", color: "#FFFFFF" }),
+              frame({ width: CLOSE_SIZE, height: CLOSE_SIZE }),
+              background(Color.ios.systemGray3, shapes.circle()),
+              padding({ all: CLOSE_INSET }),
+              contentShape(shapes.rectangle()),
+            ]}
+          />
+        </Button>
+      </ZStack>
       <Text modifiers={[caption, lineLimit(1), padding({ horizontal: 4 })]}>{card.name}</Text>
     </VStack>
   );

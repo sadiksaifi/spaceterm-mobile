@@ -17,8 +17,8 @@ export type PickerState = {
   /** Changes each time the picker, not the person, sets the field, so the field shows it. */
   fieldVersion: number;
   /**
-   * Changes each time what shows below the field changes for another directory or the spinner. A
-   * refresh, which lists the same directory again, leaves it.
+   * Changes each time what shows below the field changes: another listing, or the spinner. A
+   * refresh, or an answer the same as the listing shown, leaves it.
    */
   shownVersion: number;
   confirm:
@@ -117,10 +117,13 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
       // which can be written differently from the one asked for.
       const typed = state.field !== state.listing.path;
       const field = typed ? state.field : event.listing.path;
+      // A Try Again that fails as before leaves the same listing showing.
+      const { previous, spinner } = state.listing;
+      const changed = spinner || previous === null || !sameListing(previous, event.listing);
       const listed: PickerState = {
         ...state,
         listing: event.listing,
-        shownVersion: state.shownVersion + 1,
+        shownVersion: changed ? state.shownVersion + 1 : state.shownVersion,
         field,
         fieldVersion: field === state.field ? state.fieldVersion : state.fieldVersion + 1,
       };
@@ -267,6 +270,16 @@ export function parentOf(path: string): string | null | undefined {
   // Only the Machine knows where `..` leads past a symbolic link, so the parent is one more.
   if (name === "..") return `${trimmed}/../`;
   return cut === 0 ? "/" : `${trimmed.slice(0, cut)}/`;
+}
+
+/** Whether two listings show the same below the field. */
+function sameListing(a: DirectoryListing, b: DirectoryListing): boolean {
+  if (a.path !== b.path || a.parent !== b.parent) return false;
+  if (a.kind === "unavailable" || b.kind === "unavailable") return a.kind === b.kind;
+  return (
+    a.directories.length === b.directories.length &&
+    a.directories.every((directory, index) => directory.path === b.directories[index]?.path)
+  );
 }
 
 function contentOf(listing: DirectoryListing): PickerView["content"] {

@@ -39,7 +39,7 @@ import {
   type ModifierConfig,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
@@ -166,17 +166,17 @@ export default function DirectoryStepScreen({
             {content.kind !== "directories" && (
               // The state scrolls, so a directory with no subdirectories can be listed again.
               <Refreshable onRefresh={picker.refresh} modifiers={[fillMaxWidth(), weight(1)]}>
-                <AnimatedVisibility
+                <Entering
                   key={entrance.key}
-                  visible={entrance.visible}
-                  enterTransition={STATE_ENTER}
+                  entrance={entrance}
+                  enter={STATE_ENTER}
                   modifiers={[fillMaxSize()]}
                 >
                   <ContentState
                     content={content}
                     onRetry={view.opening ? undefined : picker.navigate}
                   />
-                </AnimatedVisibility>
+                </Entering>
               </Refreshable>
             )}
           </Column>
@@ -196,28 +196,62 @@ export default function DirectoryStepScreen({
   );
 }
 
-/** How long new rows or a state stay hidden before they come in: two frames. */
+/** How long a new row or state stays hidden before it comes in: two frames. */
 const HIDDEN_MS = 32;
+/**
+ * How long after a change a row that mounts still comes in. The list mounts its rows as it lays
+ * them out, which can be a few frames late; a row that scrolls into view later just shows.
+ */
+const ENTERING_MS = 300;
 /** New rows open downward as they fade in, so the list grows to its new length. */
 const ROW_ENTER = EnterTransition.fadeIn().plus(EnterTransition.expandVertically());
 /** A state fades in where it stands. */
 const STATE_ENTER = EnterTransition.fadeIn();
 
 /**
- * Whether what shows below the field has come in. `key` remounts it, hidden, each time `version`
- * changes; it shows two frames later, so Compose draws it hidden first and animates it in. A view
- * that mounts shown does not animate.
+ * What shows below the field since it last changed. `key` changes with it, so each row and state
+ * mounts again; `entering` holds for a moment after the change, so whatever mounts meanwhile comes
+ * in.
  */
-type Entrance = { key: number; visible: boolean };
+type Entrance = { key: number; entering: boolean };
 
 function useEntrance(version: number): Entrance {
-  const [entered, setEntered] = useState(version);
+  const [settled, setSettled] = useState(version);
   useEffect(() => {
-    if (entered === version) return;
-    const timer = setTimeout(() => setEntered(version), HIDDEN_MS);
+    if (settled === version) return;
+    const timer = setTimeout(() => setSettled(version), ENTERING_MS);
     return () => clearTimeout(timer);
-  }, [entered, version]);
-  return { key: version, visible: entered === version };
+  }, [settled, version]);
+  return { key: version, entering: settled !== version };
+}
+
+/**
+ * A row or state that comes in from its own mount: hidden for two frames, so Compose draws it
+ * hidden first, then shown with `enter`. A view that mounts shown does not animate. Mount it with
+ * `key={entrance.key}`.
+ */
+function Entering({
+  entrance,
+  enter,
+  modifiers,
+  children,
+}: {
+  entrance: Entrance;
+  enter: typeof ROW_ENTER;
+  modifiers: ModifierConfig[];
+  children: ReactNode;
+}) {
+  const [visible, setVisible] = useState(!entrance.entering);
+  useEffect(() => {
+    if (visible) return;
+    const timer = setTimeout(() => setVisible(true), HIDDEN_MS);
+    return () => clearTimeout(timer);
+  }, [visible]);
+  return (
+    <AnimatedVisibility visible={visible} enterTransition={enter} modifiers={modifiers}>
+      {children}
+    </AnimatedVisibility>
+  );
 }
 
 /** The size of a row's Material symbol, its intrinsic size. */
@@ -382,14 +416,9 @@ function DirectoryRow({
   return entrance === undefined ? (
     row
   ) : (
-    <AnimatedVisibility
-      key={entrance.key}
-      visible={entrance.visible}
-      enterTransition={ROW_ENTER}
-      modifiers={[fillMaxWidth()]}
-    >
+    <Entering key={entrance.key} entrance={entrance} enter={ROW_ENTER} modifiers={[fillMaxWidth()]}>
       {row}
-    </AnimatedVisibility>
+    </Entering>
   );
 }
 

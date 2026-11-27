@@ -326,4 +326,22 @@ describe("the Directory Picker", () => {
     );
     expect(refreshed.shownVersion).toBe(listed.shownVersion);
   });
+
+  it("leaves what shows when Try Again answers as before, within the spinner's delay", () => {
+    const failed = run([
+      { type: "navigate", path: root.path },
+      { type: "answered", request: initialPicker.request + 1, listing: root },
+    ]);
+    const retried = run([{ type: "navigate", path: root.path }], failed);
+    const again = run(
+      [{ type: "answered", request: retried.request, listing: { ...root } }],
+      retried,
+    );
+    expect(again.shownVersion).toBe(failed.shownVersion);
+    const listed = run(
+      [{ type: "answered", request: retried.request, listing: { ...scratch, path: root.path } }],
+      retried,
+    );
+    expect(listed.shownVersion).toBe(failed.shownVersion + 1);
+  });
 });

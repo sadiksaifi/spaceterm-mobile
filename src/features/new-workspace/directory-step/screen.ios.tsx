@@ -73,8 +73,10 @@ export default function DirectoryStepScreen({
   // Where the list ends on screen, so a state can fill the space below the rows.
   const [listBottom, setListBottom] = useState<number | null>(null);
   // Where a state starts on screen, below Parent Directory or with no row above it. Kept across
-  // states, so each draws in its place from its first frame.
-  const [stateTops, setStateTops] = useState<StateTops>({});
+  // states, so each draws in its place from its first frame, until the text size moves the rows.
+  const { fontScale } = useWindowDimensions();
+  const [measuredTops, setStateTops] = useState<StateTops>({ fontScale });
+  const stateTops = measuredTops.fontScale === fontScale ? measuredTops : { fontScale };
   const parentShows = view.parent !== null || view.parentWaits;
   const field = useRef<FieldText>(null);
 
@@ -177,7 +179,7 @@ export default function DirectoryStepScreen({
                     top={stateTops[parentShows ? "belowParent" : "alone"]}
                     onTop={(top) =>
                       setStateTops((tops) => ({
-                        ...tops,
+                        ...(tops.fontScale === fontScale ? tops : { fontScale }),
                         [parentShows ? "belowParent" : "alone"]: top,
                       }))
                     }
@@ -304,8 +306,11 @@ function DirectoryRow({
   );
 }
 
-/** Where a state starts on screen, by what is above it, once a state has drawn there. */
-type StateTops = { belowParent?: number; alone?: number };
+/**
+ * Where a state starts on screen, by what is above it, once a state has drawn there at the text
+ * size `fontScale`.
+ */
+type StateTops = { fontScale: number; belowParent?: number; alone?: number };
 
 /** What shows below the rows while a directory loads, has no subdirectories, or cannot be listed. */
 function ContentState({
@@ -339,7 +344,9 @@ function ContentState({
             ? frame({ maxWidth: FILL })
             : frame({ maxWidth: FILL, minHeight: Math.max(fill, 0) }),
           // Until its place is known the state stays unseen, so it never draws where it then moves.
-          ...(fill === null ? [padding({ top: STATE_TOP }), opacity(0)] : []),
+          ...(fill === null
+            ? [padding({ top: STATE_TOP }), opacity(0), accessibilityHidden()]
+            : []),
           onGeometryChange((frame) => top === undefined && onTop(frame.y)),
           listRowBackground("clear"),
         ]}

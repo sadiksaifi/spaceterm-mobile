@@ -12,6 +12,7 @@ import {
 } from "@expo/ui/swift-ui";
 import {
   accessibilityAddTraits,
+  accessibilityElement,
   accessibilityLabel,
   background,
   bold,
@@ -159,6 +160,8 @@ function CardView({
         }),
         contentShape(shapes.roundedRectangle({ cornerRadius: CORNER })),
         onTapGesture(card.onPress),
+        // One element for the card, not one per Pane of a split.
+        accessibilityElement("ignore"),
         accessibilityLabel(card.name),
         accessibilityAddTraits(["isButton"]),
       ]}

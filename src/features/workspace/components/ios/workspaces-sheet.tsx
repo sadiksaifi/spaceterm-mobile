@@ -22,12 +22,13 @@ import {
   Animation,
   autocorrectionDisabled,
   background,
-  buttonBorderShape,
   buttonStyle,
+  contentShape,
   disabled,
   font,
   foregroundStyle,
   frame,
+  glassEffect,
   labelStyle,
   lineLimit,
   listStyle,
@@ -35,6 +36,7 @@ import {
   presentationDetents,
   presentationDragIndicator,
   rotationEffect,
+  scaleEffect,
   type PresentationDetent,
   shapes,
   textInputAutocapitalization,
@@ -137,20 +139,27 @@ export function WorkspacesSheet({
                       })
                 }
                 modifiers={[
-                  buttonStyle("glass"),
-                  buttonBorderShape("circle"),
+                  buttonStyle("plain"),
                   disabled(!searching && !onNewWorkspace),
                   accessibilityLabel(searching ? text.cancelSearch : text.newWorkspace),
                 ]}
               >
-                {/* A plus turned 45 degrees is the X, so the same symbol turns into it. */}
+                {/* A plus turned 45 degrees is the X, so the same symbol turns into it, a little
+                    smaller, as its arms then run corner to corner. The glass is a circle as tall
+                    as Search, so the two line up. */}
                 <Image
                   systemName="plus"
                   modifiers={[
                     font({ size: 20, weight: "medium" }),
-                    frame({ width: 32, height: 32 }),
                     rotationEffect(searching ? 45 : 0),
+                    scaleEffect(searching ? 0.85 : 1),
                     animation(Animation.snappy(), searching),
+                    frame({ width: FIELD_HEIGHT, height: FIELD_HEIGHT }),
+                    glassEffect({
+                      glass: { variant: "regular", interactive: true },
+                      shape: "circle",
+                    }),
+                    contentShape(shapes.circle()),
                   ]}
                 />
               </Button>
@@ -182,6 +191,9 @@ export function WorkspacesSheet({
   );
 }
 
+/** Search's height, which New Workspace's circle matches. */
+const FIELD_HEIGHT = 44;
+
 function SearchField({
   field,
   onChange,
@@ -196,7 +208,7 @@ function SearchField({
       spacing={8}
       modifiers={[
         padding({ horizontal: 14 }),
-        frame({ height: 44 }),
+        frame({ height: FIELD_HEIGHT }),
         background(Color.ios.tertiarySystemFill, shapes.capsule()),
       ]}
     >

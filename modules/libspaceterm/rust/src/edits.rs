@@ -63,7 +63,9 @@ impl Edits {
         // Try Again of an edit whose answer came back while another edit went out. An identical
         // edit still waiting in the journal is the later one, the one Try Again is for.
         if repeat == Repeat::Same
-            && pending.as_ref().is_none_or(|pending| pending.mutation != mutation)
+            && pending
+                .as_ref()
+                .is_none_or(|pending| pending.mutation != mutation)
             && let Some(outcome) = self.take_recovered(route, |recovered| *recovered == mutation)
         {
             return Some(outcome);
@@ -272,7 +274,10 @@ impl Recovered {
     ) -> Option<Outcome> {
         let kept = self.0.get_mut(&route)?;
         kept.retain(|(_, _, since)| now.saturating_duration_since(*since) <= RECOVERED_FOR);
-        let at = kept.iter().position(|(mutation, _, _)| matches(mutation))?;
+        // Of identical edits, the latest is the one whose failure shows, so Try Again is for it.
+        let at = kept
+            .iter()
+            .rposition(|(mutation, _, _)| matches(mutation))?;
         Some(kept.remove(at).1)
     }
 }
@@ -406,6 +411,27 @@ mod tests {
         assert_eq!(
             recovered.take(route, |m| *m == new_tab(1), start),
             Some(created(1))
+        );
+    }
+
+    #[test]
+    fn a_recovered_answer_of_identical_edits_is_the_latest_one() {
+        use spaceterm_client::hierarchy::CreateControl;
+        let new_tab = Mutation::CreateTab {
+            workspace: [1; 32],
+            source: None,
+            control: CreateControl::Unclaimed,
+        };
+        let created = |tab: u8| Outcome::Accepted { target: [tab; 32] };
+        let (route, start) = ([1; 32], Instant::now());
+        let mut recovered = Recovered::default();
+
+        // Try Again is for the failure shown, which is the later of two identical edits.
+        recovered.keep(route, new_tab.clone(), created(1), start);
+        recovered.keep(route, new_tab.clone(), created(2), start);
+        assert_eq!(
+            recovered.take(route, |m| *m == new_tab, start),
+            Some(created(2))
         );
     }
 

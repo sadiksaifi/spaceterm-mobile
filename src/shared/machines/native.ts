@@ -236,7 +236,7 @@ export function createNativeClient(
     },
     checkWorktreeRemoval: async (machineId, { root }, worktree) => {
       const check = await native.checkWorktreeRemoval(machineId, root, worktree.path);
-      if (check.kind === "failed") return check;
+      if (check.kind !== "review") return check;
       const { boot, confirmation, changes, submodules, tabs, sessions } = check;
       return {
         kind: "review",

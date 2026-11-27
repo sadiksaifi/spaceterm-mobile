@@ -35,15 +35,17 @@ async function render(
     removeWorktree: jest.fn(async (): Promise<WorktreeRemoval> => ({ kind: "removed" })),
     ...client,
   };
-  const hook = await renderHook(() =>
-    useRemoveWorktree({
-      client: full,
-      machineId: "m1",
-      workspaceId: "w1",
-      repository,
-      active,
-      connected,
-    }),
+  const hook = await renderHook(
+    ({ workspaceId }: { workspaceId: string }) =>
+      useRemoveWorktree({
+        client: full,
+        machineId: "m1",
+        workspaceId,
+        repository,
+        active,
+        connected,
+      }),
+    { initialProps: { workspaceId: "w1" } },
   );
   return { ...hook, client: full };
 }
@@ -96,5 +98,33 @@ describe("useRemoveWorktree", () => {
       checking: true,
     });
     expect(client.removeWorktree).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing when the check finds that a remove whose answer was lost went through", async () => {
+    const { result, client } = await render({
+      checkWorktreeRemoval: async () => ({ kind: "removed" }),
+    });
+
+    await act(async () => result.current.start?.());
+
+    expect(result.current.alert).toBeNull();
+    expect(client.removeWorktree).not.toHaveBeenCalled();
+  });
+
+  it("drops a check that answers after the person left its Workspace, and leaves others free", async () => {
+    let answer: (check: WorktreeRemovalCheck) => void = () => {};
+    const { result, rerender } = await render({
+      checkWorktreeRemoval: () => new Promise((resolve) => (answer = resolve)),
+    });
+
+    await act(async () => result.current.start?.());
+    await rerender({ workspaceId: "w2" });
+    expect(result.current.start).toBeDefined();
+
+    await rerender({ workspaceId: "w1" });
+    await act(async () => answer({ kind: "review", review }));
+
+    expect(result.current.alert).toBeNull();
+    expect(result.current.start).toBeDefined();
   });
 });

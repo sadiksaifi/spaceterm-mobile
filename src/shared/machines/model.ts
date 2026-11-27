@@ -157,11 +157,15 @@ export type WorktreeRemovalFailure =
   | "changed-after-closing"
   /** The Machine stopped before it confirmed the result. */
   | "interrupted"
+  /** The remove went out and no answer came back, so it may have removed the Worktree. */
+  | "unanswered"
   /** The Machine did not answer, or refused for another reason. */
   | "failed";
 
 export type WorktreeRemovalCheck =
   | { kind: "review"; review: WorktreeRemovalReview }
+  /** An earlier remove of it whose answer was lost went again and removed it. */
+  | { kind: "removed" }
   | { kind: "failed"; failure: WorktreeRemovalFailure };
 
 export type WorktreeRemoval =

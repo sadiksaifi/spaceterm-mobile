@@ -260,6 +260,7 @@ public class LibspacetermModule: Module {
           "tabs": review.tabs,
           "sessions": review.sessions,
         ]
+      case .removed: return ["kind": "removed"]
       case .failed(let failure): return ["kind": "failed", "failure": removalFailure(failure)]
       }
     }.runOnQueue(edits)
@@ -420,6 +421,7 @@ private func removalFailure(_ failure: WorktreeRemovalFailure) -> String {
   case .changed: return "changed"
   case .changedAfterClosing: return "changed-after-closing"
   case .interrupted: return "interrupted"
+  case .unanswered: return "unanswered"
   case .failed: return "failed"
   }
 }

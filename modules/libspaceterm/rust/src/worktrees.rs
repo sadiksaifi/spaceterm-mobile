@@ -92,6 +92,8 @@ pub enum WorktreeRemovalFailure {
     ChangedAfterClosing,
     /// The Machine stopped before it confirmed the result.
     Interrupted,
+    /// The remove went out and no answer came back, so it may have removed the Worktree.
+    Unanswered,
     /// The Machine did not answer, or refused for another reason.
     Failed,
 }
@@ -99,6 +101,8 @@ pub enum WorktreeRemovalFailure {
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum WorktreeRemovalCheck {
     Review { review: WorktreeRemovalReview },
+    /// An earlier remove of this Worktree whose answer was lost went again and removed it.
+    Removed,
     Failed { failure: WorktreeRemovalFailure },
 }
 
@@ -139,6 +143,9 @@ pub(crate) fn removal(outcome: Option<Outcome>) -> WorktreeRemoval {
         },
         Some(Outcome::Missing) => WorktreeRemoval::Failed {
             failure: WorktreeRemovalFailure::Missing,
+        },
+        None => WorktreeRemoval::Failed {
+            failure: WorktreeRemovalFailure::Unanswered,
         },
         _ => WorktreeRemoval::Failed {
             failure: WorktreeRemovalFailure::Failed,
@@ -321,7 +328,7 @@ mod tests {
         assert_eq!(
             removal(None),
             WorktreeRemoval::Failed {
-                failure: WorktreeRemovalFailure::Failed
+                failure: WorktreeRemovalFailure::Unanswered
             }
         );
     }

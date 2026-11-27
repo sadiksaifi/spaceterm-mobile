@@ -731,17 +731,37 @@ impl Machines {
     }
 
     /// What removing the Worktree at `path`, of the repository whose Main Worktree is `root`,
-    /// deletes and closes, for the person to confirm. Changes nothing.
+    /// deletes and closes, for the person to confirm. Changes nothing, except to send again a
+    /// remove of it whose answer was lost.
     pub fn check_worktree_removal(
         &self,
         machine_id: String,
         root: String,
         path: String,
     ) -> WorktreeRemovalCheck {
-        let read = Read::CheckRemoval {
-            root: PathBuf::from(root),
-            path: PathBuf::from(path),
-        };
+        let (root, path) = (PathBuf::from(root), PathBuf::from(path));
+        // A remove of this Worktree whose answer was lost may have removed it. It goes again
+        // first, as it would before any other edit: the same remove changes nothing more, so its
+        // answer is the lost one. Only a refusal leaves the Worktree to check again.
+        let resumed = self.resume(&machine_id, |pending| {
+            matches!(pending, Mutation::Worktree(worktree::Operation::Remove {
+                root: from,
+                path: removed,
+                ..
+            }) if *from == root && *removed == path)
+        });
+        match resumed.map(worktrees::removal) {
+            Some(WorktreeRemoval::Removed) => return WorktreeRemovalCheck::Removed,
+            Some(WorktreeRemoval::Failed {
+                failure: WorktreeRemovalFailure::Unanswered,
+            }) => {
+                return WorktreeRemovalCheck::Failed {
+                    failure: WorktreeRemovalFailure::Unanswered,
+                };
+            }
+            _ => {}
+        }
+        let read = Read::CheckRemoval { root, path };
         match self.read_worktree(&machine_id, read) {
             Some(Ok(ReadReply::Removal(removal))) => WorktreeRemovalCheck::Review {
                 review: worktrees::review(removal),
@@ -771,7 +791,8 @@ impl Machines {
                 failure: WorktreeRemovalFailure::Failed,
             };
         };
-        // Removing the same Worktree again changes nothing more, so a lost answer is this one's.
+        // Removing the same Worktree again changes nothing more, so a lost answer is this one's,
+        // and the next check sends it again before anything else.
         worktrees::removal(self.outcome(
             &machine_id,
             Mutation::Worktree(worktree::Operation::Remove {

@@ -123,6 +123,7 @@ export type NativeWorktreeRemovalFailure =
   | "changed"
   | "changed-after-closing"
   | "interrupted"
+  | "unanswered"
   | "failed";
 
 /** What removing a Worktree deletes and closes. `boot` and `confirmation` go back with the remove. */
@@ -136,6 +137,7 @@ export type NativeWorktreeRemovalCheck =
       tabs: number;
       sessions: number;
     }
+  | { kind: "removed" }
   | { kind: "failed"; failure: NativeWorktreeRemovalFailure };
 
 export type NativeWorktreeRemoval =

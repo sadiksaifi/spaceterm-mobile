@@ -207,6 +207,7 @@ class LibspacetermModule : Module() {
             "tabs" to check.review.tabs.toInt(),
             "sessions" to check.review.sessions.toInt(),
           )
+          is WorktreeRemovalCheck.Removed -> mapOf("kind" to "removed")
           is WorktreeRemovalCheck.Failed -> mapOf("kind" to "failed", "failure" to check.failure.toValue())
         }
       }
@@ -417,5 +418,6 @@ private fun WorktreeRemovalFailure.toValue() = when (this) {
   WorktreeRemovalFailure.CHANGED -> "changed"
   WorktreeRemovalFailure.CHANGED_AFTER_CLOSING -> "changed-after-closing"
   WorktreeRemovalFailure.INTERRUPTED -> "interrupted"
+  WorktreeRemovalFailure.UNANSWERED -> "unanswered"
   WorktreeRemovalFailure.FAILED -> "failed"
 }

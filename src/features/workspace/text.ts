@@ -120,13 +120,23 @@ export function removalAlertText(
       body: "SpaceTerm Core stopped before it confirmed the result. Check the Worktrees before trying again.",
     };
   }
+  if (failure === "unanswered") {
+    return {
+      title: "Check the Worktree",
+      body: "The Machine didn’t answer, so it may have removed the Worktree. Remove Worktree again to find out.",
+    };
+  }
   return {
     title: cased(`Couldn’t Remove “${worktree.name}”`, `Couldn’t remove ${worktree.name}`),
     body: removalFailureBody[failure],
   };
 }
 
-const removalFailureBody: Record<WorktreeRemovalFailure, string> = {
+/** The failures whose alert says the Worktree was not removed. */
+const removalFailureBody: Record<
+  Exclude<WorktreeRemovalFailure, "interrupted" | "unanswered">,
+  string
+> = {
   main: "The Main Worktree can’t be removed.",
   locked: "Unlock the Worktree with Git before removing it.",
   pinned: "Unpin the directory before removing it.",
@@ -135,7 +145,6 @@ const removalFailureBody: Record<WorktreeRemovalFailure, string> = {
     "Nothing was removed. Review the updated Worktree and Terminal Sessions before removing it.",
   "changed-after-closing":
     "Git kept the Worktree because it changed after its Tabs closed and their Terminal Sessions ended. Review it before removing it.",
-  interrupted: "SpaceTerm Core stopped before it confirmed the result.",
   failed: "The Machine didn’t remove it. Try again.",
 };
 

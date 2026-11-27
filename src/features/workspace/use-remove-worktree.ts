@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   MachineClient,
@@ -55,19 +55,37 @@ export function useRemoveWorktree({
   // The screen stays when it changes Workspace, so each alert names its own.
   const key = `${machineId}/${workspaceId}`;
   const [shown, setShown] = useState<Shown | null>(null);
-  const [underway, setUnderway] = useState(false);
+  // The Workspaces with a check or remove under way. Each Workspace waits only for its own.
+  const [underway, setUnderway] = useState<ReadonlySet<string>>(new Set());
   // As of the last event, so a second tap before the next render starts nothing.
-  const busy = useRef(false);
+  const busy = useRef(new Set<string>());
+  // Counts the visits to Workspaces, so a check that answers after its visit ended asks nothing.
+  const visit = useRef(0);
+  useEffect(() => {
+    visit.current += 1;
+  }, [key]);
   const alert = shown?.key === key ? shown.alert : null;
 
+  const mark = (on: boolean) =>
+    setUnderway((current) => {
+      const next = new Set(current);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
   const run = async (work: () => Promise<RemovalAlert | null>) => {
-    if (busy.current) return;
-    busy.current = true;
-    setUnderway(true);
+    if (busy.current.has(key)) return;
+    busy.current.add(key);
+    mark(true);
+    const started = visit.current;
     const next = await work();
-    busy.current = false;
-    setUnderway(false);
-    if (next !== null) setShown({ key, alert: next });
+    busy.current.delete(key);
+    mark(false);
+    // A refusal still says why when the person comes back. A question for a visit that ended
+    // would ask about what they may no longer be looking at.
+    if (next === null || (next.kind === "confirm" && visit.current !== started)) return;
+    setShown({ key, alert: next });
   };
 
   const removable =
@@ -76,10 +94,12 @@ export function useRemoveWorktree({
   return {
     alert,
     start:
-      removable && !underway && alert === null
+      removable && !underway.has(key) && alert === null
         ? () =>
             void run(async () => {
               const check = await client.checkWorktreeRemoval(machineId, repository, active);
+              // A remove whose answer was lost went again and removed it: the list shows that.
+              if (check.kind === "removed") return null;
               return check.kind === "review"
                 ? { kind: "confirm", review: check.review }
                 : { kind: "failed", worktree: active, failure: check.failure, checking: true };

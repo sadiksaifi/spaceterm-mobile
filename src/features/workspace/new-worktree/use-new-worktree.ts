@@ -101,7 +101,7 @@ export function useNewWorktree({
           // The new Tab is the one used last, so its Worktree is the active one once it is listed,
           // unless the person picked a Worktree or opened a Tab while Create was on its way.
           changeGridState(key, (grid) =>
-            grid.picked !== seen.picked || grid.used[0] !== seen.used[0]
+            grid.picks !== seen.picks || grid.used[0] !== seen.used[0]
               ? grid
               : {
                   ...grid,

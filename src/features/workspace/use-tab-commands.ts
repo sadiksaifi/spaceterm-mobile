@@ -15,6 +15,7 @@ import {
   closeTabStep,
   gridView,
   movePast,
+  pick,
   type GridState,
   type GridView,
 } from "./grid";
@@ -214,11 +215,11 @@ export function useTabCommands({
   const pickWorktree = (worktree: Worktree, again = false) => {
     const picked = { ...state, picked: worktree.path, expecting: null };
     const hasTabs = gridView(workspace, picked).active?.path === worktree.path;
-    if (hasTabs) return updateGrid((grid) => ({ ...grid, picked: worktree.path }));
+    if (hasTabs) return updateGrid((grid) => pick(grid, worktree.path));
     // Another New Tab is on its way; the grid keeps waiting for that one.
     if (underway({ command: "switch", worktree })) return;
     const before = state.picked;
-    updateGrid((grid) => ({ ...grid, picked: worktree.path, expecting: PENDING }));
+    updateGrid((grid) => ({ ...pick(grid, worktree.path), expecting: PENDING }));
     run(
       { command: "switch", worktree },
       () => client.newTab(machineId, workspace, worktree, again),

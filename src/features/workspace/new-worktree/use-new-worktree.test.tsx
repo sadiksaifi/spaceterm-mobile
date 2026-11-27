@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react-native";
 
 import type { Workspace, WorktreeContext, WorktreeCreation } from "@/shared/machines/model";
 
+import { pick } from "../grid";
 import { changeGridState, useGridState } from "../grid-store";
 import { useNewWorktree, type NewWorktreeClient } from "./use-new-worktree";
 
@@ -84,13 +85,30 @@ describe("useNewWorktree", () => {
 
     await unmount();
     const other = "/srv/api-other";
-    await act(async () =>
-      changeGridState(`${machineId}/w`, (grid) => ({ ...grid, picked: other })),
-    );
+    await act(async () => changeGridState(`${machineId}/w`, (grid) => pick(grid, other)));
     await act(async () => answer({ kind: "created", tab: "t9" }));
 
     const grid = await renderHook(() => useGridState(`${machineId}/w`));
     expect(grid.result.current[0]).toMatchObject({ picked: other, expecting: null });
+  });
+
+  it("leaves the Worktree picked again while Create was on its way, as it was before", async () => {
+    let answer: (creation: WorktreeCreation) => void = () => {};
+    const created = new Promise<WorktreeCreation>((resolve) => (answer = resolve));
+    const { result, machineId, unmount } = await render([created]);
+    const key = `${machineId}/w`;
+    const [first, other] = ["/srv/api-first", "/srv/api-other"];
+    await act(async () => changeGridState(key, (grid) => pick(grid, first)));
+    await act(async () => result.current.setName("topic"));
+    await act(async () => result.current.create());
+
+    await unmount();
+    await act(async () => changeGridState(key, (grid) => pick(grid, other)));
+    await act(async () => changeGridState(key, (grid) => pick(grid, first)));
+    await act(async () => answer({ kind: "created", tab: "t9" }));
+
+    const grid = await renderHook(() => useGridState(key));
+    expect(grid.result.current[0]).toMatchObject({ picked: first, expecting: null });
   });
 
   it("says a Location is not empty until the Location changes", async () => {

@@ -4,13 +4,23 @@ import type { Pane, Tab, Workspace, Worktree } from "@/shared/machines/model";
 export type GridState = {
   /** The Worktree the person picked, by path. */
   picked: string | null;
+  /**
+   * How many times the person picked a Worktree, so a change that waits on the Machine sees a
+   * pick even when it came back to the Worktree picked before.
+   */
+  picks: number;
   /** A Tab this device opened that the Machine has not listed yet. */
   expecting: string | null;
   /** Tab ids, the one used last first. */
   used: readonly string[];
 };
 
-export const NO_GRID_STATE: GridState = { picked: null, expecting: null, used: [] };
+export const NO_GRID_STATE: GridState = { picked: null, picks: 0, expecting: null, used: [] };
+
+/** `state` with the Worktree at `path` picked by the person. */
+export function pick(state: GridState, path: string): GridState {
+  return { ...state, picked: path, picks: state.picks + 1 };
+}
 
 export type WorktreeChoice = { worktree: Worktree; active: boolean };
 

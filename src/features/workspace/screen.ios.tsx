@@ -117,17 +117,17 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
       alignment="bottom"
       modifiers={[frame({ maxWidth: FILL, maxHeight: FILL }), ignoreSafeArea({ edges: "bottom" })]}
     >
-      {content}
-      <VStack modifiers={[padding({ bottom })]}>
-        <WorkspaceBar
-          rows={rows}
-          selected={row.key}
-          alerts={alerts}
-          onBack={props.onBack}
-          onSwitch={props.onSwitch}
-          onWorkspaces={() => setSheet(true)}
-        />
-      </VStack>
+      <WorkspaceBar
+        rows={rows}
+        selected={row.key}
+        alerts={alerts}
+        bottom={bottom}
+        onBack={props.onBack}
+        onSwitch={props.onSwitch}
+        onWorkspaces={() => setSheet(true)}
+      >
+        {content}
+      </WorkspaceBar>
       <WorkspacesSheet
         open={sheet}
         onClose={() => setSheet(false)}

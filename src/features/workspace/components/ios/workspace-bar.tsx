@@ -1,6 +1,6 @@
 import { Button } from "@expo/ui/swift-ui";
-import { disabled, frame, padding } from "@expo/ui/swift-ui/modifiers";
-import type { ComponentProps } from "react";
+import { disabled, frame } from "@expo/ui/swift-ui/modifiers";
+import type { ComponentProps, ReactNode } from "react";
 
 import { rowCommands, type Control, type RowCommands } from "@/features/home/actions";
 import type { WorkspaceRow } from "@/features/home/model";
@@ -16,12 +16,15 @@ const SIDE = 28;
 /**
  * Back at the left, the Workspaces Home lists as pills with the one on screen highlighted, then
  * Workspaces at the right. A tap or a drag of the highlight changes Workspace; the pills scroll
- * when they do not fit. Touch and hold a pill for the menu of its Workspace row.
+ * when they do not fit. Touch and hold a pill for the menu of its Workspace row. The Workspace's
+ * content fills the screen under the bar and comes in from the side of the pill it changed to.
  */
 export function WorkspaceBar({
   rows,
   selected,
   alerts,
+  bottom,
+  children,
   onBack,
   onSwitch,
   onWorkspaces,
@@ -29,6 +32,10 @@ export function WorkspaceBar({
   rows: readonly WorkspaceRow[];
   selected: string;
   alerts: RowAlerts;
+  /** The bar's distance from the bottom edge. */
+  bottom: number;
+  /** The selected Workspace's content. */
+  children: ReactNode;
   onBack: () => void;
   onSwitch: (row: WorkspaceRow) => void;
   onWorkspaces: () => void;
@@ -63,17 +70,16 @@ export function WorkspaceBar({
         const entry = MENU.find((each) => each.id === id);
         if (controls !== undefined && entry !== undefined) entry.control(controls).onPress?.();
       }}
-      modifiers={[
-        frame({
-          maxWidth: Number.POSITIVE_INFINITY,
-          minHeight: BAR_HEIGHT,
-          maxHeight: BAR_HEIGHT,
-        }),
-        padding({ horizontal: SIDE }),
-      ]}
-    />
+      bottom={bottom}
+      side={SIDE}
+      modifiers={[frame({ maxWidth: FILL, maxHeight: FILL })]}
+    >
+      {children}
+    </PillBar>
   );
 }
+
+const FILL = Number.POSITIVE_INFINITY;
 
 /** A pill's menu: that of its Workspace row. */
 const MENU: readonly (PillAction & { control: (commands: RowCommands) => Control })[] = [

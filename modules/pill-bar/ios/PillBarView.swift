@@ -30,6 +30,9 @@ final class PillBarProps: UIBaseViewProps {
   @Field var selected: String = ""
   @Field var leading: BarButton?
   @Field var trailing: BarButton?
+  /** The bar's distance from the bottom edge and from the sides. */
+  @Field var bottom: CGFloat = 0
+  @Field var side: CGFloat = 0
   var onSelect = EventDispatcher()
   var onAction = EventDispatcher()
   var onLeading = EventDispatcher()
@@ -43,6 +46,10 @@ final class PillBarProps: UIBaseViewProps {
  * glass lens in the middle of the capsule, which takes the buttons' room. A drag moves the row
  * under the lens with the finger, the lens takes the width of the name under it, and the pill
  * under it is picked when the finger lifts. Touch and hold any other pill for its menu.
+ *
+ * Children, when given, are the selected pill's content, and the bar sits over them at the
+ * bottom. When the selection changes, the content comes in from the side of the newly selected
+ * pill, so it follows the highlight.
  */
 struct PillBarView: ExpoSwiftUI.View {
   @ObservedObject var props: PillBarProps
@@ -59,6 +66,8 @@ struct PillBarView: ExpoSwiftUI.View {
   private static let gap: CGFloat = 12
   private static let motion = Animation.spring(response: 0.34, dampingFraction: 0.78)
   private static let row = "pills"
+  /** How far new content comes in from the side. */
+  private static let arrival: CGFloat = 56
 
   /** Each pill's frame in the row. */
   @State private var frames: [String: CGRect] = [:]
@@ -71,6 +80,8 @@ struct PillBarView: ExpoSwiftUI.View {
   @State private var past = Past()
   /** The row's scroll position, which a drag moves to keep the held highlight in the middle. */
   @State private var position = ScrollPosition(idType: String.self)
+  /** The last change of selection, which brings the content in from its side. */
+  @State private var arrived = Arrival()
 
   private struct Drag: Equatable {
     /** The point of the row under the lens. */
@@ -79,6 +90,12 @@ struct PillBarView: ExpoSwiftUI.View {
     var width: CGFloat
     /** The pill whose middle is nearest `middle`. */
     var over: String
+  }
+
+  private struct Arrival: Equatable {
+    var count = 0
+    /** 1 when the newly selected pill is after the one before, -1 when it is before it. */
+    var side: CGFloat = 0
   }
 
   private struct Past: Equatable {
@@ -96,8 +113,42 @@ struct PillBarView: ExpoSwiftUI.View {
   }
 
   var body: some View {
+    if let children = props.children, !children.isEmpty {
+      ZStack(alignment: .bottom) {
+        content(children)
+        bar
+      }
+    } else {
+      bar
+    }
+  }
+
+  private func content(_ children: [any ExpoSwiftUI.AnyChild]) -> some View {
+    ZStack {
+      ForEach(children, id: \.childIdentity) { child in
+        let view: any View = child.childView
+        AnyView(view)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .keyframeAnimator(initialValue: CGFloat(0), trigger: arrived) { view, away in
+      view
+        .offset(x: away * arrived.side * Self.arrival)
+        .opacity(1 - away * 0.6)
+    } keyframes: { _ in
+      MoveKeyframe(1)
+      SpringKeyframe(0, duration: 0.4, spring: .init(response: 0.4, dampingRatio: 0.9))
+    }
+    .onChange(of: props.selected) { old, new in
+      let keys = props.pills.map(\.key)
+      guard let from = keys.firstIndex(of: old), let to = keys.firstIndex(of: new) else { return }
+      arrived = Arrival(count: arrived.count + 1, side: to > from ? 1 : -1)
+    }
+  }
+
+  private var bar: some View {
     let held = drag != nil
-    HStack(spacing: 0) {
+    return HStack(spacing: 0) {
       if let leading = props.leading {
         button(leading) { props.onLeading() }
           .frame(width: held ? 0 : Self.height + Self.gap, alignment: .leading)
@@ -113,6 +164,10 @@ struct PillBarView: ExpoSwiftUI.View {
       }
     }
     .animation(Self.motion, value: held)
+    .frame(maxWidth: .infinity)
+    .frame(height: Self.height)
+    .padding(.horizontal, props.side)
+    .padding(.bottom, props.bottom)
   }
 
   /** A held capsule takes the buttons' room, so they slide off to the sides. */

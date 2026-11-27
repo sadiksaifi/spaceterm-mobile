@@ -1,5 +1,5 @@
 import addIcon from "@expo/material-symbols/add.xml";
-import dropDownIcon from "@expo/material-symbols/arrow_drop_down.xml";
+import dropDownIcon from "@expo/material-symbols/keyboard_arrow_down.xml";
 import checkIcon from "@expo/material-symbols/check.xml";
 import deleteIcon from "@expo/material-symbols/delete.xml";
 import branchIcon from "@expo/material-symbols/graph_1.xml";
@@ -107,7 +107,14 @@ export function WorkspaceTitle({
           >
             {active.worktree.name}
           </Text>
-          {connected && <Icon source={dropDownIcon} contentDescription={undefined} />}
+          {/* A chevron, as Material 3 Expressive's menu buttons have, quieter than the name. */}
+          {connected && (
+            <Icon
+              source={dropDownIcon}
+              tint={material.onSurfaceVariant}
+              contentDescription={undefined}
+            />
+          )}
         </Row>
       </DropdownMenu.Trigger>
       <DropdownMenu.Items>

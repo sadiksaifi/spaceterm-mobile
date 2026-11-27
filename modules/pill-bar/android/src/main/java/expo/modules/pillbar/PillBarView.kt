@@ -398,8 +398,9 @@ private fun Pills(
             } ?: return@awaitEachGesture
             if (pills.isEmpty()) return@awaitEachGesture
             menu = null
-            // From where the finger came down, so the indicator keeps up with it past the slop.
-            val start = fromStart(down.position.x)
+            // From where the finger came down, so the indicator keeps up with it past the slop. A
+            // finger that took over before the slop starts from where it was before its last move.
+            val start = fromStart(if (crossed.id == down.id) down.position.x else crossed.previousPosition.x)
             val first = Drag(start, start, lensMiddle.value, scroll.value, restingIndex, down.uptimeMillis)
             drag = first
             scope.launch {
@@ -414,8 +415,13 @@ private fun Pills(
               drag?.let { now ->
                 val at = fromStart(change.position.x)
                 // Another finger can carry on the drag when the first lifts. It moves the
-                // indicator from where it was, not by how far it is from the first finger.
-                val start = if (change.id == finger) now.start else at - (now.now - now.start)
+                // indicator on from where it was, by as far as it moved, not by how far it is
+                // from the first finger.
+                val start = if (change.id == finger) {
+                  now.start
+                } else {
+                  fromStart(change.previousPosition.x) - (now.now - now.start)
+                }
                 finger = change.id
                 follow(now.copy(start = start, now = at))
               }

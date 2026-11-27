@@ -88,6 +88,21 @@ export function WorkspacesSheet({
   const [searching, setSearching] = useState(false);
   // The height the person left the sheet at, which it comes back to after Search.
   const [browsing, setBrowsing] = useState<PresentationDetent>("medium");
+  // The system raises a sheet by the keyboard's height and to its tallest height, so Search
+  // offers only a short one, which rides above the keyboard with the grid in view. SwiftUI needs
+  // the selection among the heights offered, and Expo moves the selection after the heights, so
+  // for a frame a change between Search and browsing offers both.
+  const [settled, setSettled] = useState(false);
+  const search = (on: boolean) => {
+    setSearching(on);
+    requestAnimationFrame(() => setSettled(on));
+  };
+  const detents: PresentationDetent[] =
+    searching !== settled
+      ? [SEARCHING, "medium", "large"]
+      : searching
+        ? [SEARCHING]
+        : ["medium", "large"];
   const field = useRef<TextFieldRef>(null);
   const needle = query.trim().toLocaleLowerCase();
   const shown =
@@ -96,15 +111,16 @@ export function WorkspacesSheet({
       : rows.filter((row) => row.workspace.name.toLocaleLowerCase().includes(needle));
   // The field keeps its own text: the sheet's content stays mounted while it is closed, so it
   // would come back with the old query over every Workspace. Clearing it clears both.
-  const reset = () => {
+  // Cancel ends Search and leaves the sheet at the height it had before.
+  const cancel = () => {
     void field.current?.clear();
     void field.current?.blur();
     setQuery("");
-    setSearching(false);
-    setBrowsing("medium");
+    search(false);
   };
   const close = () => {
-    reset();
+    cancel();
+    setBrowsing("medium");
     onClose();
   };
 
@@ -112,11 +128,11 @@ export function WorkspacesSheet({
     <BottomSheet isPresented={open} onIsPresentedChange={(presented) => !presented && close()}>
       <Group
         modifiers={[
-          // The system raises a sheet by the keyboard's height and to its tallest height, so
-          // Search offers only a short one, which rides above the keyboard with the grid in view.
-          presentationDetents(searching ? [SEARCHING] : ["medium", "large"], {
+          presentationDetents(detents, {
             selection: searching ? SEARCHING : browsing,
-            onSelectionChange: (detent) => !searching && setBrowsing(detent),
+            onSelectionChange: (detent) => {
+              if (!searching && (detent === "medium" || detent === "large")) setBrowsing(detent);
+            },
           }),
           presentationDragIndicator("visible"),
         ]}
@@ -124,16 +140,11 @@ export function WorkspacesSheet({
         {alertsView(
           <VStack spacing={0}>
             <HStack spacing={12} modifiers={[padding({ top: 24, horizontal: 16, bottom: 4 })]}>
-              <SearchField
-                field={field}
-                query={query}
-                onChange={setQuery}
-                onFocusChange={setSearching}
-              />
+              <SearchField field={field} query={query} onChange={setQuery} onFocusChange={search} />
               <Button
                 onPress={
                   searching
-                    ? reset
+                    ? cancel
                     : onNewWorkspace &&
                       (() => {
                         close();

@@ -53,6 +53,24 @@ describe("New Worktree", () => {
     });
   });
 
+  it("lists a local branch named like a remote one once, as the local one Git starts from", () => {
+    const named = { ...context, local: [...context.local, "origin/main"] };
+    const shown = worktreeForm(
+      {
+        ...EMPTY_FORM,
+        newBranch: { ...EMPTY_FORM.newBranch, name: "fix", startFrom: "origin/main" },
+      },
+      named,
+      location,
+    );
+    expect(shown.view).toMatchObject({
+      startFrom: {
+        options: ["main", "feat/pairing", "docs/readme", "origin/main", "origin/feat/find"],
+      },
+    });
+    expect(shown.request?.branch).toMatchObject({ base: "origin/main", baseIsRemote: false });
+  });
+
   it("says why a branch name cannot be used while it is typed", () => {
     expect(newBranch("feat themes")).toMatchObject({ problem: "invalid-name", request: null });
     expect(newBranch("docs/readme")).toMatchObject({ problem: "branch-exists", request: null });

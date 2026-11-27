@@ -74,7 +74,11 @@ export function worktreeForm(
   switch (state.kind) {
     case "new": {
       const { name, startFrom: picked } = state.newBranch;
-      const options = [...context.local, ...context.remote];
+      // A local branch named like a remote one is the one Git starts from, so it shows once.
+      const options = [
+        ...context.local,
+        ...context.remote.filter((branch) => !context.local.includes(branch)),
+      ];
       const startFrom = pick(picked ?? context.startFrom, options);
       const where = placed(state.newBranch.location, name.trim());
       const problem = nameProblem(name.trim()) ?? notEmpty(where);

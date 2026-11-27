@@ -160,7 +160,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         }}
       />
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.View>
+        <Stack.Toolbar.View hidesSharedBackground>
           <WorkspaceTitle
             directory={view.workspace.directory}
             worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}

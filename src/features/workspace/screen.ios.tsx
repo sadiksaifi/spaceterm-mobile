@@ -3,7 +3,7 @@ import { ScrollView, VStack, ZStack } from "@expo/ui/swift-ui";
 import { frame, ignoreSafeArea, padding } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 import { useState, type ReactNode } from "react";
-import { PlatformColor, StyleSheet, Text, View } from "react-native";
+import { PlatformColor, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
@@ -31,6 +31,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const [sheet, setSheet] = useState(false);
   const bottom = Math.max(insets.bottom - INTO_SAFE_AREA, MIN_BOTTOM);
   const swipe = useBarSwipe(rows, row.key, props.onSwitch, bottom + BAR_HEIGHT);
+  const barTop = useWindowDimensions().height - bottom - BAR_HEIGHT;
   const connected = view.kind === "tabs";
   const panes = connected ? commands.panes : null;
 
@@ -129,8 +130,11 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
 
   return (
     <>
-      {/* The title names the screen for VoiceOver and the next screen's back button. */}
-      <Stack.Screen options={{ title: view.workspace.name }} />
+      {/* The title names the screen for VoiceOver and the next screen's back button. The swipe
+          back starts above the bar only, so a swipe to the right on the bar changes Workspace. */}
+      <Stack.Screen
+        options={{ title: view.workspace.name, gestureResponseDistance: { bottom: barTop } }}
+      />
       <Stack.Screen.Title asChild>
         <View style={styles.title} accessible accessibilityRole="header">
           <Text numberOfLines={1} style={styles.name}>

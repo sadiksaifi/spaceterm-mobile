@@ -1,33 +1,68 @@
 diff --git a/ios/Toolbar/RouterToolbarHostView.swift b/ios/Toolbar/RouterToolbarHostView.swift
-index b10810d4207786561e53aa93e77cfa0adb2d8d3f..13853875d8ef4470ab81ac91092f1c895512d745 100644
+index b10810d4207786561e53aa93e77cfa0adb2d8d3f..86f81b90f7dfabd97334f16419a9e858a053a1ff 100644
 --- a/ios/Toolbar/RouterToolbarHostView.swift
 +++ b/ios/Toolbar/RouterToolbarHostView.swift
-@@ -170,6 +170,12 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+@@ -49,8 +49,10 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+ 
+     hasPendingToolbarUpdate = true
+ 
+-    // Defer actual update to next run loop iteration
+-    DispatchQueue.main.async { [weak self] in
++    // Defer the update to the end of this run loop pass, before Core Animation commits it. A
++    // screen mounts inside a main queue block, so a block queued on the main queue would run
++    // after the screen's push has started, and UIKit would start the push without these items.
++    RunLoop.main.perform(inModes: [.common]) { [weak self] in
+       guard let self = self else { return }
+       self.hasPendingToolbarUpdate = false
+       self.performToolbarUpdate()
+@@ -170,6 +172,12 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
    override func didMoveToWindow() {
      super.didMoveToWindow()
      if window == nil {
 +      // A screen pushed over this one takes it off the window, but the toolbar still belongs to
 +      // it. Its items stay, so UIKit brings them back with the screen when the pushed one pops,
 +      // instead of the toolbar appearing once the pop has started.
-+      if let controller = cachedController, isDescendant(of: controller.view) {
++      if let view = cachedController?.viewIfLoaded, isDescendant(of: view) {
 +        return
 +      }
        // View was removed from window - hide toolbar and clear items
        // Use cached controller since responder chain may be broken
        if let controller = cachedController {
-@@ -182,6 +188,15 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+@@ -182,14 +190,36 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
      }
    }
  
 +  override func willMove(toSuperview newSuperview: UIView?) {
 +    super.willMove(toSuperview: newSuperview)
 +    // The toolbar leaves its screen while another screen covers it: no window change reports it.
-+    if newSuperview == nil, window == nil, let controller = cachedController {
-+      controller.setToolbarItems(nil, animated: false)
-+      cachedController = nil
++    if newSuperview == nil, window == nil {
++      clearToolbarItems()
 +    }
++  }
++
++  // React removed the toolbar, perhaps with a view around it that left the screen while another
++  // screen covered it, so no window or superview change reached this view.
++  override func prepareForRecycle() {
++    super.prepareForRecycle()
++    clearToolbarItems()
++  }
++
++  private func clearToolbarItems() {
++    cachedController?.setToolbarItems(nil, animated: false)
++    cachedController = nil
 +  }
 +
    func updateMenu() {
      updateToolbarItems()
    }
+ 
+   func findViewController() -> RNSScreen? {
+-    if let cached = cachedController {
++    // The toolbar may have left the screen it was cached for.
++    if let cached = cachedController, let view = cached.viewIfLoaded, isDescendant(of: view) {
+       return cached
+     }
++    cachedController = nil
+     var responder: UIResponder? = self
+     while let r = responder {
+       if let screen = r as? RNSScreen {

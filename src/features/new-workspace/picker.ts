@@ -16,6 +16,11 @@ export type PickerState = {
   request: number;
   /** Changes each time the picker, not the person, sets the field, so the field shows it. */
   fieldVersion: number;
+  /**
+   * Changes each time what shows below the field changes for another directory or the spinner. A
+   * refresh, which lists the same directory again, leaves it.
+   */
+  shownVersion: number;
   confirm:
     | { kind: "idle" }
     | { kind: "opening" }
@@ -72,6 +77,7 @@ export const initialPicker: PickerState = {
   listing: { kind: "loading", path: HOME, previous: null, spinner: false },
   request: 0,
   fieldVersion: 0,
+  shownVersion: 0,
   confirm: { kind: "idle" },
 };
 
@@ -114,6 +120,7 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
       const listed: PickerState = {
         ...state,
         listing: event.listing,
+        shownVersion: state.shownVersion + 1,
         field,
         fieldVersion: field === state.field ? state.fieldVersion : state.fieldVersion + 1,
       };
@@ -124,7 +131,12 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
     }
     case "slow":
       return event.request === state.request && state.listing.kind === "loading"
-        ? { ...state, listing: { ...state.listing, spinner: true } }
+        ? {
+            ...state,
+            listing: { ...state.listing, spinner: true },
+            // The spinner takes the place of the rows before, or of nothing at first.
+            shownVersion: state.listing.spinner ? state.shownVersion : state.shownVersion + 1,
+          }
         : state;
     case "refreshed":
       // The field stays as it is, typed or not.
@@ -194,6 +206,8 @@ export type PickerView = {
   parentWaits: boolean;
   /** An attempt is under way: the field and the rows take no input until the Machine answers. */
   opening: boolean;
+  /** Changes each time what shows below the field changes, so the screen can animate it. */
+  shownVersion: number;
   /**
    * Open works while the field holds a path and no attempt is under way. It opens a typed path
    * even where the directory shown cannot be listed. While the directory loads, it waits for the
@@ -205,7 +219,12 @@ export type PickerView = {
 export function pickerView(state: PickerState): PickerView {
   const { field, listing } = state;
   const ready = state.confirm.kind === "idle" || state.confirm.kind === "failed";
-  const base = { field, opening: opening(state), parentWaits: false };
+  const base = {
+    field,
+    opening: opening(state),
+    parentWaits: false,
+    shownVersion: state.shownVersion,
+  };
   if (listing.kind === "loading") {
     const canOpen = ready && field.trim() !== "";
     if (listing.spinner || listing.previous === null) {

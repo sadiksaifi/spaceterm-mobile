@@ -6,10 +6,12 @@ import refreshIcon from "@expo/material-symbols/refresh.xml";
 import warningIcon from "@expo/material-symbols/warning.xml";
 import {
   AlertDialog,
+  AnimatedVisibility,
   Box,
   Button,
   CircularProgressIndicator,
   Column,
+  EnterTransition,
   Icon,
   IconButton,
   LazyColumn,
@@ -37,7 +39,7 @@ import {
   type ModifierConfig,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
-import { useImperativeHandle, useRef, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
@@ -78,6 +80,7 @@ export default function DirectoryStepScreen({
   const insets = useSafeAreaInsets();
   const { view, askingCreate, failure } = picker;
   const { content, parent, parentWaits } = view;
+  const entrance = useEntrance(view.shownVersion);
   const field = useRef<FieldText>(null);
   // Android reports a refusal in a snackbar, which leaves the picker usable.
   const snackbar = useSnackbar(
@@ -144,22 +147,36 @@ export default function DirectoryStepScreen({
               onGo={picker.open}
             />
 
-            {content.kind === "directories" ? (
-              // Only a list of directories scrolls, so only it pulls to refresh.
-              <Refreshable onRefresh={picker.refresh} modifiers={[fillMaxWidth(), weight(1)]}>
-                <DirectoryList rows={rows} picker={picker} modifiers={[fillMaxSize()]} />
-              </Refreshable>
-            ) : (
-              <DirectoryList rows={rows} picker={picker} modifiers={[fillMaxWidth()]} />
-            )}
+            {/* The list stays mounted when a state replaces the directories, so Parent Directory
+                does not redraw. It fills the space only while it shows directories. */}
+            <Refreshable
+              onRefresh={picker.refresh}
+              modifiers={
+                content.kind === "directories" ? [fillMaxWidth(), weight(1)] : [fillMaxWidth()]
+              }
+            >
+              <DirectoryList
+                rows={rows}
+                picker={picker}
+                entrance={entrance}
+                modifiers={content.kind === "directories" ? [fillMaxSize()] : [fillMaxWidth()]}
+              />
+            </Refreshable>
 
             {content.kind !== "directories" && (
               // The state scrolls, so a directory with no subdirectories can be listed again.
               <Refreshable onRefresh={picker.refresh} modifiers={[fillMaxWidth(), weight(1)]}>
-                <ContentState
-                  content={content}
-                  onRetry={view.opening ? undefined : picker.navigate}
-                />
+                <AnimatedVisibility
+                  key={entrance.key}
+                  visible={entrance.visible}
+                  enterTransition={STATE_ENTER}
+                  modifiers={[fillMaxSize()]}
+                >
+                  <ContentState
+                    content={content}
+                    onRetry={view.opening ? undefined : picker.navigate}
+                  />
+                </AnimatedVisibility>
               </Refreshable>
             )}
           </Column>
@@ -179,6 +196,30 @@ export default function DirectoryStepScreen({
   );
 }
 
+/** How long new rows or a state stay hidden before they come in: two frames. */
+const HIDDEN_MS = 32;
+/** New rows open downward as they fade in, so the list grows to its new length. */
+const ROW_ENTER = EnterTransition.fadeIn().plus(EnterTransition.expandVertically());
+/** A state fades in where it stands. */
+const STATE_ENTER = EnterTransition.fadeIn();
+
+/**
+ * Whether what shows below the field has come in. `key` remounts it, hidden, each time `version`
+ * changes; it shows two frames later, so Compose draws it hidden first and animates it in. A view
+ * that mounts shown does not animate.
+ */
+type Entrance = { key: number; visible: boolean };
+
+function useEntrance(version: number): Entrance {
+  const [entered, setEntered] = useState(version);
+  useEffect(() => {
+    if (entered === version) return;
+    const timer = setTimeout(() => setEntered(version), HIDDEN_MS);
+    return () => clearTimeout(timer);
+  }, [entered, version]);
+  return { key: version, visible: entered === version };
+}
+
 /** The size of a row's Material symbol, its intrinsic size. */
 const ROW_ICON = 24;
 
@@ -191,10 +232,13 @@ type ListRow = { key: string; label: string; path: string | null };
 function DirectoryList({
   rows,
   picker,
+  entrance,
   modifiers,
 }: {
   rows: readonly ListRow[];
   picker: DirectoryStepProps["picker"];
+  /** How the directories come in; Parent Directory stays where it is. */
+  entrance: Entrance;
   modifiers: ModifierConfig[];
 }) {
   const { opening } = picker.view;
@@ -212,6 +256,7 @@ function DirectoryList({
             first={index === 0}
             last={index === rows.length - 1}
             enabled={!opening && item.path !== null}
+            entrance={item.key === "parent" ? undefined : entrance}
             onPress={() => item.path !== null && picker.navigate(item.path)}
           />
         )}
@@ -297,6 +342,7 @@ function DirectoryRow({
   first,
   last,
   enabled,
+  entrance,
   onPress,
 }: {
   label: string;
@@ -304,10 +350,12 @@ function DirectoryRow({
   first: boolean;
   last: boolean;
   enabled: boolean;
+  /** How the row comes in; `undefined` keeps it in place. */
+  entrance?: Entrance;
   onPress: () => void;
 }) {
   const colors = useColors();
-  return (
+  const row = (
     <Surface
       color={colors.groupedRow}
       contentColor={colors.text}
@@ -330,6 +378,18 @@ function DirectoryRow({
         </Text>
       </Row>
     </Surface>
+  );
+  return entrance === undefined ? (
+    row
+  ) : (
+    <AnimatedVisibility
+      key={entrance.key}
+      visible={entrance.visible}
+      enterTransition={ROW_ENTER}
+      modifiers={[fillMaxWidth()]}
+    >
+      {row}
+    </AnimatedVisibility>
   );
 }
 

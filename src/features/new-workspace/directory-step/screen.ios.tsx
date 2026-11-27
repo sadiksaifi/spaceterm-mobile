@@ -15,6 +15,8 @@ import {
 } from "@expo/ui/swift-ui";
 import {
   accessibilityHidden,
+  Animation,
+  animation,
   autocorrectionDisabled,
   disabled,
   font,
@@ -130,6 +132,8 @@ export default function DirectoryStepScreen({
                     listStyle("insetGrouped"),
                     onGeometryChange((list) => setListBottom(list.y + list.height)),
                     refreshable(picker.refresh),
+                    // Rows and states come and go with the list's own animation.
+                    animation(Animation.snappy(), view.shownVersion),
                   ]}
                 >
                   <Section header={<SectionHeader>{text.directoryOn(machineName)}</SectionHeader>}>

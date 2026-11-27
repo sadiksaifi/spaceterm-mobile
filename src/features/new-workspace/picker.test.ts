@@ -44,6 +44,7 @@ describe("the Directory Picker", () => {
       parent: null,
       parentWaits: true,
       opening: false,
+      shownVersion: 0,
       canOpen: true,
     });
     const slow = run([{ type: "slow", request: initialPicker.request }]);
@@ -61,6 +62,7 @@ describe("the Directory Picker", () => {
       parent: "/Users/",
       parentWaits: false,
       opening: false,
+      shownVersion: 1,
       canOpen: true,
     });
   });
@@ -172,6 +174,7 @@ describe("the Directory Picker", () => {
       parent: "/var/",
       parentWaits: false,
       opening: false,
+      shownVersion: 2,
       canOpen: false,
     });
     const typed = run([{ type: "edit", field: "~/notes " }], state);
@@ -307,5 +310,20 @@ describe("the Directory Picker", () => {
     expect(parentOf("~/")).toBeUndefined();
     expect(parentOf("~")).toBeUndefined();
     expect(parentOf("notes/")).toBeUndefined();
+  });
+
+  it("counts each change of what shows below the field, but not a refresh of the same directory", () => {
+    const loading = run([{ type: "navigate", path: "~/scratch/" }], atHome);
+    // The rows before stay while the directory loads.
+    expect(loading.shownVersion).toBe(atHome.shownVersion);
+    const slow = run([{ type: "slow", request: loading.request }], loading);
+    expect(slow.shownVersion).toBe(atHome.shownVersion + 1);
+    const listed = run([{ type: "answered", request: loading.request, listing: scratch }], slow);
+    expect(listed.shownVersion).toBe(atHome.shownVersion + 2);
+    const refreshed = run(
+      [{ type: "refreshed", request: listed.request, listing: scratch }],
+      listed,
+    );
+    expect(refreshed.shownVersion).toBe(listed.shownVersion);
   });
 });

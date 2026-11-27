@@ -1,8 +1,14 @@
 import { Host } from "@expo/ui";
 import { ScrollView, VStack, ZStack } from "@expo/ui/swift-ui";
-import { frame, ignoreSafeArea, padding, scrollEdgeEffectStyle } from "@expo/ui/swift-ui/modifiers";
+import {
+  frame,
+  ignoreSafeArea,
+  padding,
+  scrollEdgeEffectStyle,
+  useScrollGeometryChange,
+} from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { PlatformColor, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -30,6 +36,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState(false);
+  const scroll = useScrolled();
   const bottom = Math.max(insets.bottom - INTO_SAFE_AREA, MIN_BOTTOM);
   const window = useWindowDimensions();
   const barTop = window.height - bottom - BAR_HEIGHT;
@@ -48,10 +55,16 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const onScreen = !sheet && panes === null;
 
   const content = connected ? (
-    // A hard edge under the header: the soft one barely covers it over a SwiftUI scroll view,
-    // so a card scrolled under it would cross the title.
-    <ScrollView modifiers={[scrollEdgeEffectStyle("hard", "top")]}>
-      <VStack modifiers={[padding({ top: 2, bottom: bottom + BAR_HEIGHT + 24 })]}>
+    // A hard edge under the header once the grid scrolls: the soft one barely covers it over a
+    // SwiftUI scroll view, so a card scrolled under it would cross the title. At rest the hard
+    // edge would draw a band and a line over nothing.
+    <ScrollView
+      modifiers={[
+        ...(scroll.modifier ? [scroll.modifier] : []),
+        scrollEdgeEffectStyle(scroll.scrolled ? "hard" : "soft", "top"),
+      ]}
+    >
+      <VStack modifiers={[padding({ top: 10, bottom: bottom + BAR_HEIGHT + 24 })]}>
         <CardGrid
           screens={props.screens}
           cards={commands.grid.tabs.map((tab) => {
@@ -218,6 +231,17 @@ function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: Workspace
       </Stack.Toolbar.Menu>
     </Stack.Toolbar>
   );
+}
+
+/** Whether a scroll view has scrolled from where it first rested, with the modifier that tells. */
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+  const rest = useRef<number | null>(null);
+  const modifier = useScrollGeometryChange(({ contentOffsetY }) => {
+    rest.current ??= contentOffsetY;
+    setScrolled(contentOffsetY > rest.current + 1);
+  });
+  return { scrolled, modifier };
 }
 
 /** Lets a frame take all the space its container offers, like SwiftUI's `.infinity`. */

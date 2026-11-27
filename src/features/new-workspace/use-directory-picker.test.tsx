@@ -7,21 +7,12 @@ import type {
   CreateWorkspaceResult,
   DirectoryListing,
   MachineClient,
-  Workspace,
 } from "@/shared/machines/model";
 
-import { useDirectoryPicker } from "./use-directory-picker";
+import { SPINNER_DELAY_MS, useDirectoryPicker } from "./use-directory-picker";
 
 const home: DirectoryListing = { kind: "listed", path: "~/", parent: null, directories: [] };
-const notes: Workspace = {
-  id: "w1",
-  name: "notes",
-  directory: "~/notes",
-  terminalSessions: 1,
-  tabs: [],
-  repository: null,
-};
-const created: CreateWorkspaceResult = { kind: "created", workspace: notes };
+const created: CreateWorkspaceResult = { kind: "created", workspaceId: "w1" };
 
 /** A Machine that lists `home` and answers Create Workspace from `answers`, in order. */
 function machine(answers: CreateWorkspaceResult[]) {
@@ -85,9 +76,10 @@ it("creates the missing directory on Create, and Try Again asks for it again", a
   const failure = result.current.failure;
   await act(async () => failure && result.current.retry(failure));
   expect(createWorkspace.mock.calls).toEqual([
-    ["mac", "~/notes", { createDirectory: false }],
-    ["mac", "~/notes", { createDirectory: true }],
-    ["mac", "~/notes", { createDirectory: true }],
+    ["mac", "~/notes", { createDirectory: false, again: false }],
+    ["mac", "~/notes", { createDirectory: true, again: false }],
+    // Try Again: a create whose answer was lost made the Workspace, and it makes no second one.
+    ["mac", "~/notes", { createDirectory: true, again: true }],
   ]);
   expect(onOpened).toHaveBeenCalledTimes(1);
 });
@@ -154,19 +146,85 @@ it("opens the text Go sent, even before the field's last change has rendered", a
   const { result } = await render(client);
 
   await act(async () => result.current.open("~/notes"));
-  expect(createWorkspace.mock.calls).toEqual([["mac", "~/notes", { createDirectory: false }]]);
+  expect(createWorkspace.mock.calls).toEqual([
+    ["mac", "~/notes", { createDirectory: false, again: false }],
+  ]);
 });
 
-it("opens nothing when Open follows a tap on a directory before the next render", async () => {
+it("opens the tapped directory once listed when Open follows the tap before the next render", async () => {
   const { client, createWorkspace } = machine([]);
+  client.listDirectory = async (_machineId, path) => ({ ...home, path });
   const { result } = await render(client);
 
   const shown = result.current;
   await act(async () => {
     shown.navigate("~/Projects/");
-    // The field still shows the path from before the tap.
+    // The field still shows the path from before the tap, which Open drops.
     shown.open("~/");
   });
-  // The tapped directory is loading, so Open waits for it rather than opening the one before.
-  expect(createWorkspace).not.toHaveBeenCalled();
+  expect(createWorkspace.mock.calls).toEqual([
+    ["mac", "~/Projects/", { createDirectory: false, again: false }],
+  ]);
+});
+
+it("shows the spinner only once a directory is slow, and opens it once listed if Open came first", async () => {
+  jest.useFakeTimers();
+  try {
+    const { client, createWorkspace } = machine([]);
+    const listings: ((listing: DirectoryListing) => void)[] = [];
+    client.listDirectory = () => new Promise((resolve) => listings.push(resolve));
+    const { result } = await render(client);
+
+    expect(result.current.view.content).toEqual({ kind: "none" });
+    await act(async () => jest.advanceTimersByTime(SPINNER_DELAY_MS - 1));
+    expect(result.current.view.content).toEqual({ kind: "none" });
+    await act(async () => jest.advanceTimersByTime(1));
+    expect(result.current.view.content).toEqual({ kind: "loading" });
+
+    await act(async () => result.current.open());
+    expect(result.current.view.opening).toBe(true);
+    expect(createWorkspace).not.toHaveBeenCalled();
+    await act(async () => listings[0]?.(home));
+    expect(createWorkspace.mock.calls).toEqual([
+      ["mac", "~/", { createDirectory: false, again: false }],
+    ]);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+it("offers Try Again when a create fails without an answer, rather than staying locked", async () => {
+  const { client, createWorkspace } = machine([]);
+  createWorkspace.mockRejectedValueOnce(new Error("bridge"));
+  const { result } = await render(client);
+
+  await act(async () => result.current.open());
+  expect(result.current.view.opening).toBe(false);
+  expect(result.current.failure).toEqual({
+    kind: "failed",
+    directory: "~/",
+    createDirectory: false,
+  });
+});
+
+it("cannot list a directory whose listing fails without an answer, and lets a waiting Open lapse", async () => {
+  jest.useFakeTimers();
+  try {
+    const { client, createWorkspace } = machine([]);
+    const listings: ((error: Error) => void)[] = [];
+    client.listDirectory = () => new Promise((_, reject) => listings.push(reject));
+    const { result } = await render(client);
+
+    await act(async () => result.current.open());
+    expect(result.current.view.opening).toBe(true);
+    await act(async () => listings[0]?.(new Error("bridge")));
+    expect(result.current.view).toMatchObject({
+      content: { kind: "unavailable", retryPath: "~/" },
+      opening: false,
+      canOpen: false,
+    });
+    expect(createWorkspace).not.toHaveBeenCalled();
+  } finally {
+    jest.useRealTimers();
+  }
 });

@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { NativeJoinState, NativePairedMachine, NativeWorkspace } from "@/modules/libspaceterm";
+import type {
+  NativeJoinState,
+  NativePairedMachine,
+  NativeWorkspace,
+  NativeWorkspaceCreation,
+} from "@/modules/libspaceterm";
 
 import { createNativeClient, type NativeMachines } from "./native";
 
@@ -62,6 +67,12 @@ function fakeNative() {
       sessions: 3,
     })),
     removeWorktree: vi.fn(async () => ({ kind: "removed" as const })),
+    directoryHome: vi.fn(async (): Promise<string | null> => "/Users/ada"),
+    listDirectory: vi.fn(async (): Promise<string[] | null> => []),
+    createWorkspace: vi.fn(async (): Promise<NativeWorkspaceCreation> => ({
+      kind: "created",
+      workspaceId: "w-new",
+    })),
     addListener: (_event, listener) => {
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
@@ -631,5 +642,104 @@ describe("a Workspace's Tabs through libspaceterm", () => {
     expect(native.checkWorktreeRemoval).toHaveBeenCalledWith("m1", root, `${root}-fix`);
     expect(native.removeWorktree).toHaveBeenCalledWith("m1", root, `${root}-fix`, "b0", "c0");
     expect(removal).toEqual({ kind: "removed" });
+  });
+});
+
+describe("New Workspace through libspaceterm", () => {
+  it("lists a directory under the Machine's home as ~/, sorted, without hidden directories", async () => {
+    const { native } = fakeNative();
+    vi.mocked(native.listDirectory).mockResolvedValue(["src", ".git", "Apps", "docs"]);
+    const client = createNativeClient(native);
+
+    const listing = await client.listDirectory("m1", "~/Projects/");
+
+    expect(native.listDirectory).toHaveBeenCalledWith("m1", "/Users/ada/Projects");
+    expect(listing).toEqual({
+      kind: "listed",
+      path: "~/Projects/",
+      parent: "~/",
+      directories: [
+        { name: "Apps", path: "~/Projects/Apps/" },
+        { name: "docs", path: "~/Projects/docs/" },
+        { name: "src", path: "~/Projects/src/" },
+      ],
+    });
+  });
+
+  it("cannot list a directory the Machine does not list, or without its home", async () => {
+    const { native } = fakeNative();
+    vi.mocked(native.listDirectory).mockResolvedValue(null);
+    const client = createNativeClient(native);
+
+    expect(await client.listDirectory("m1", "~/private")).toEqual({
+      kind: "unavailable",
+      path: "~/private/",
+      parent: "~/",
+    });
+    vi.mocked(native.directoryHome).mockResolvedValue(null);
+    expect(await client.listDirectory("m2", "~/")).toMatchObject({ kind: "unavailable" });
+  });
+
+  it("creates a Workspace named after its directory", async () => {
+    const { native } = fakeNative();
+    const client = createNativeClient(native);
+
+    const result = await client.createWorkspace("m1", "~/Projects/app");
+
+    expect(native.createWorkspace).toHaveBeenCalledWith(
+      "m1",
+      "/Users/ada/Projects/app",
+      "app",
+      false,
+      false,
+    );
+    expect(result).toEqual({ kind: "created", workspaceId: "w-new" });
+  });
+
+  it("sends each .. to the Machine, which alone knows where it leads past a symbolic link", async () => {
+    const { native } = fakeNative();
+    const client = createNativeClient(native);
+
+    const listing = await client.listDirectory("m1", "~/link/../repo/");
+    await client.createWorkspace("m1", "~/link/../repo");
+    await client.createWorkspace("m1", "~/repo/app/..");
+
+    expect(native.listDirectory).toHaveBeenCalledWith("m1", "/Users/ada/link/../repo");
+    expect(listing).toMatchObject({ path: "~/link/../repo/", parent: "~/link/../" });
+    expect(native.createWorkspace).toHaveBeenCalledWith(
+      "m1",
+      "/Users/ada/link/../repo",
+      "repo",
+      false,
+      false,
+    );
+    expect(native.createWorkspace).toHaveBeenLastCalledWith(
+      "m1",
+      "/Users/ada/repo/app/..",
+      "repo",
+      false,
+      false,
+    );
+    expect(await client.listDirectory("m1", "~/repo/app/..")).toMatchObject({
+      parent: "~/repo/app/../../",
+    });
+  });
+
+  it("names a missing directory as the person sees it, and creates it only when asked", async () => {
+    const { native } = fakeNative();
+    vi.mocked(native.createWorkspace).mockResolvedValueOnce({ kind: "missing-directory" });
+    const client = createNativeClient(native);
+
+    const missing = await client.createWorkspace("m1", "~/Projects/notes");
+    await client.createWorkspace("m1", "~/Projects/notes", { createDirectory: true, again: true });
+
+    expect(missing).toEqual({ kind: "missing-directory", directory: "~/Projects/notes" });
+    expect(native.createWorkspace).toHaveBeenLastCalledWith(
+      "m1",
+      "/Users/ada/Projects/notes",
+      "notes",
+      true,
+      true,
+    );
   });
 });

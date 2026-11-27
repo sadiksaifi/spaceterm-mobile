@@ -5,6 +5,7 @@ import type { DirectoryListing } from "@/shared/machines/model";
 import {
   initialPicker,
   openPath,
+  parentOf,
   pickerView,
   reducePicker,
   type PickerEvent,
@@ -35,13 +36,22 @@ const run = (events: PickerEvent[], state: PickerState = initialPicker) =>
 const atHome = run([{ type: "answered", request: initialPicker.request, listing: home }]);
 
 describe("the Directory Picker", () => {
-  it("starts at the home directory, loading, with Open unavailable", () => {
+  it("starts at the home directory, showing nothing until the spinner, with Open waiting for it", () => {
     expect(pickerView(initialPicker)).toEqual({
       field: "~/",
+      content: { kind: "none" },
+      // `~/` does not tell where its parent is; the row shows and waits for the Machine.
+      parent: null,
+      parentWaits: true,
+      opening: false,
+      shownVersion: 0,
+      canOpen: true,
+    });
+    const slow = run([{ type: "slow", request: initialPicker.request }]);
+    expect(pickerView(slow)).toMatchObject({
       content: { kind: "loading" },
       parent: null,
-      opening: false,
-      canOpen: false,
+      parentWaits: true,
     });
   });
 
@@ -50,18 +60,20 @@ describe("the Directory Picker", () => {
       field: "~/",
       content: { kind: "directories", directories: home.directories },
       parent: "/Users/",
+      parentWaits: false,
       opening: false,
+      shownVersion: 1,
       canOpen: true,
     });
   });
 
-  it("loads a tapped directory in place, showing its path at once", () => {
+  it("loads a tapped directory in place, showing its path at once and the rows before it", () => {
     const loading = run([{ type: "navigate", path: "~/scratch/" }], atHome);
     expect(pickerView(loading)).toMatchObject({
       field: "~/scratch/",
-      content: { kind: "loading" },
-      parent: null,
-      canOpen: false,
+      content: { kind: "directories", directories: home.directories },
+      parent: "/Users/",
+      canOpen: true,
     });
     const listed = run([{ type: "answered", request: loading.request, listing: scratch }], loading);
     expect(pickerView(listed)).toMatchObject({
@@ -75,7 +87,56 @@ describe("the Directory Picker", () => {
     const first = run([{ type: "navigate", path: "~/scratch/" }], atHome);
     const second = run([{ type: "navigate", path: "~/" }], first);
     const late = run([{ type: "answered", request: first.request, listing: scratch }], second);
-    expect(pickerView(late)).toMatchObject({ field: "~/", content: { kind: "loading" } });
+    expect(late.listing).toMatchObject({ kind: "loading", path: "~/" });
+  });
+
+  it("shows the spinner only once the directory is slow, and keeps it for the next one", () => {
+    const loading = run([{ type: "navigate", path: "~/scratch/" }], atHome);
+    const stale = run([{ type: "slow", request: atHome.request }], loading);
+    expect(pickerView(stale).content).toEqual({
+      kind: "directories",
+      directories: home.directories,
+    });
+
+    const slow = run([{ type: "slow", request: loading.request }], loading);
+    // Parent Directory stays above the spinner, leading where the path tells.
+    expect(pickerView(slow)).toMatchObject({
+      content: { kind: "loading" },
+      parent: "~/",
+      parentWaits: false,
+    });
+    const next = run([{ type: "navigate", path: "~/Projects/" }], slow);
+    expect(pickerView(next).content).toEqual({ kind: "loading" });
+
+    const listed = run([{ type: "answered", request: loading.request, listing: scratch }], slow);
+    expect(pickerView(listed).content).toEqual({ kind: "empty" });
+    const after = run([{ type: "slow", request: loading.request }], listed);
+    expect(after).toBe(listed);
+  });
+
+  it("opens a directory pressed while it loads once the Machine lists it", () => {
+    const loading = run(
+      [{ type: "navigate", path: "~/scratch/" }, { type: "open-when-listed" }],
+      atHome,
+    );
+    expect(pickerView(loading)).toMatchObject({ opening: true, canOpen: false });
+    // Opening takes no other directory meanwhile.
+    expect(run([{ type: "navigate", path: "~/" }], loading)).toBe(loading);
+    expect(run([{ type: "edit", field: "~/x" }], loading)).toBe(loading);
+
+    const listed = run([{ type: "answered", request: loading.request, listing: scratch }], loading);
+    expect(listed.confirm).toEqual({ kind: "opening-when-listed" });
+    expect(openPath(listed)).toBe("~/scratch/");
+  });
+
+  it("lets an Open pressed while loading lapse where the Machine cannot list the directory", () => {
+    const loading = run(
+      [{ type: "navigate", path: "/var/root/" }, { type: "open-when-listed" }],
+      atHome,
+    );
+    const listed = run([{ type: "answered", request: loading.request, listing: root }], loading);
+    expect(listed.confirm).toEqual({ kind: "idle" });
+    expect(pickerView(listed)).toMatchObject({ opening: false, canOpen: false });
   });
 
   it("lists the directory again in place on refresh, keeping a typed path", () => {
@@ -96,7 +157,7 @@ describe("the Directory Picker", () => {
   it("drops a refresh of a directory it has since left", () => {
     const left = run([{ type: "navigate", path: "~/scratch/" }], atHome);
     const late = run([{ type: "refreshed", request: atHome.request, listing: home }], left);
-    expect(pickerView(late)).toMatchObject({ field: "~/scratch/", content: { kind: "loading" } });
+    expect(late.listing).toMatchObject({ kind: "loading", path: "~/scratch/" });
   });
 
   it("keeps Parent Directory and Try Again where the Machine cannot list, and opens only a typed path", () => {
@@ -111,7 +172,9 @@ describe("the Directory Picker", () => {
       field: "/var/root/",
       content: { kind: "unavailable", retryPath: "/var/root/" },
       parent: "/var/",
+      parentWaits: false,
       opening: false,
+      shownVersion: 2,
       canOpen: false,
     });
     const typed = run([{ type: "edit", field: "~/notes " }], state);
@@ -162,7 +225,12 @@ describe("the Directory Picker", () => {
       atScratch,
     );
     expect(created.confirm).toEqual({ kind: "idle" });
-    expect(created.listing).toEqual({ kind: "loading", path: "~/scratch/" });
+    expect(created.listing).toEqual({
+      kind: "loading",
+      path: "~/scratch/",
+      previous: scratch,
+      spinner: false,
+    });
 
     const notes = { name: "notes", path: "~/scratch/notes/" };
     const relisted = run(
@@ -230,5 +298,50 @@ describe("the Directory Picker", () => {
   it("leaves an attempt under way alone when a closing alert reports Cancel late", () => {
     const opening = run([{ type: "open" }], atHome);
     expect(run([{ type: "cancel" }], opening).confirm).toEqual({ kind: "opening" });
+  });
+
+  it("tells a loading directory's parent from its path where the path tells it", () => {
+    expect(parentOf("~/Projects/app/")).toBe("~/Projects/");
+    expect(parentOf("~/Projects/")).toBe("~/");
+    expect(parentOf("/var/log/")).toBe("/var/");
+    expect(parentOf("/var/")).toBe("/");
+    expect(parentOf("/")).toBeNull();
+    expect(parentOf("~/link/../")).toBe("~/link/../../");
+    expect(parentOf("~/")).toBeUndefined();
+    expect(parentOf("~")).toBeUndefined();
+    expect(parentOf("notes/")).toBeUndefined();
+  });
+
+  it("counts each change of what shows below the field, but not a refresh of the same directory", () => {
+    const loading = run([{ type: "navigate", path: "~/scratch/" }], atHome);
+    // The rows before stay while the directory loads.
+    expect(loading.shownVersion).toBe(atHome.shownVersion);
+    const slow = run([{ type: "slow", request: loading.request }], loading);
+    expect(slow.shownVersion).toBe(atHome.shownVersion + 1);
+    const listed = run([{ type: "answered", request: loading.request, listing: scratch }], slow);
+    expect(listed.shownVersion).toBe(atHome.shownVersion + 2);
+    const refreshed = run(
+      [{ type: "refreshed", request: listed.request, listing: scratch }],
+      listed,
+    );
+    expect(refreshed.shownVersion).toBe(listed.shownVersion);
+  });
+
+  it("leaves what shows when Try Again answers as before, within the spinner's delay", () => {
+    const failed = run([
+      { type: "navigate", path: root.path },
+      { type: "answered", request: initialPicker.request + 1, listing: root },
+    ]);
+    const retried = run([{ type: "navigate", path: root.path }], failed);
+    const again = run(
+      [{ type: "answered", request: retried.request, listing: { ...root } }],
+      retried,
+    );
+    expect(again.shownVersion).toBe(failed.shownVersion);
+    const listed = run(
+      [{ type: "answered", request: retried.request, listing: { ...scratch, path: root.path } }],
+      retried,
+    );
+    expect(listed.shownVersion).toBe(failed.shownVersion + 1);
   });
 });

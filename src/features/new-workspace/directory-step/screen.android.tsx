@@ -6,10 +6,12 @@ import refreshIcon from "@expo/material-symbols/refresh.xml";
 import warningIcon from "@expo/material-symbols/warning.xml";
 import {
   AlertDialog,
+  AnimatedVisibility,
   Box,
   Button,
   CircularProgressIndicator,
   Column,
+  EnterTransition,
   Icon,
   IconButton,
   LazyColumn,
@@ -37,7 +39,7 @@ import {
   type ModifierConfig,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { Stack } from "expo-router";
-import { useImperativeHandle, useRef, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/shared/theme/colors";
@@ -77,7 +79,8 @@ export default function DirectoryStepScreen({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { view, askingCreate, failure } = picker;
-  const { content, parent } = view;
+  const { content, parent, parentWaits } = view;
+  const entrance = useEntrance(view.shownVersion);
   const field = useRef<FieldText>(null);
   // Android reports a refusal in a snackbar, which leaves the picker usable.
   const snackbar = useSnackbar(
@@ -87,7 +90,9 @@ export default function DirectoryStepScreen({
     picker.dismissFailure,
   );
   const rows: ListRow[] = [
-    ...(parent === null ? [] : [{ key: "parent", label: text.parentDirectory, path: parent }]),
+    ...(parent === null && !parentWaits
+      ? []
+      : [{ key: "parent", label: text.parentDirectory, path: parent }]),
     ...(content.kind === "directories"
       ? content.directories.map((directory) => ({
           key: directory.path,
@@ -142,22 +147,36 @@ export default function DirectoryStepScreen({
               onGo={picker.open}
             />
 
-            {content.kind === "directories" ? (
-              // Only a list of directories scrolls, so only it pulls to refresh.
-              <Refreshable onRefresh={picker.refresh} modifiers={[fillMaxWidth(), weight(1)]}>
-                <DirectoryList rows={rows} picker={picker} modifiers={[fillMaxSize()]} />
-              </Refreshable>
-            ) : (
-              <DirectoryList rows={rows} picker={picker} modifiers={[fillMaxWidth()]} />
-            )}
+            {/* The list stays mounted when a state replaces the directories, so Parent Directory
+                does not redraw. It fills the space only while it shows directories. */}
+            <Refreshable
+              onRefresh={picker.refresh}
+              modifiers={
+                content.kind === "directories" ? [fillMaxWidth(), weight(1)] : [fillMaxWidth()]
+              }
+            >
+              <DirectoryList
+                rows={rows}
+                picker={picker}
+                entrance={entrance}
+                modifiers={content.kind === "directories" ? [fillMaxSize()] : [fillMaxWidth()]}
+              />
+            </Refreshable>
 
             {content.kind !== "directories" && (
               // The state scrolls, so a directory with no subdirectories can be listed again.
               <Refreshable onRefresh={picker.refresh} modifiers={[fillMaxWidth(), weight(1)]}>
-                <ContentState
-                  content={content}
-                  onRetry={view.opening ? undefined : picker.navigate}
-                />
+                <Entering
+                  key={entrance.key}
+                  entrance={entrance}
+                  enter={STATE_ENTER}
+                  modifiers={[fillMaxSize()]}
+                >
+                  <ContentState
+                    content={content}
+                    onRetry={view.opening ? undefined : picker.navigate}
+                  />
+                </Entering>
               </Refreshable>
             )}
           </Column>
@@ -177,16 +196,83 @@ export default function DirectoryStepScreen({
   );
 }
 
-/** Parent Directory and the directories, as rows. */
-type ListRow = { key: string; label: string; path: string };
+/** How long a new row or state stays hidden before it comes in: two frames. */
+const HIDDEN_MS = 32;
+/**
+ * How long after a change a row that mounts still comes in. The list mounts its rows as it lays
+ * them out, which can be a few frames late; a row that scrolls into view later just shows.
+ */
+const ENTERING_MS = 300;
+/** New rows open downward as they fade in, so the list grows to its new length. */
+const ROW_ENTER = EnterTransition.fadeIn().plus(EnterTransition.expandVertically());
+/** A state fades in where it stands. */
+const STATE_ENTER = EnterTransition.fadeIn();
+
+/**
+ * What shows below the field since it last changed. `key` changes with it, so each row and state
+ * mounts again; `entering` holds for a moment after the change, so whatever mounts meanwhile comes
+ * in.
+ */
+type Entrance = { key: number; entering: boolean };
+
+function useEntrance(version: number): Entrance {
+  const [settled, setSettled] = useState(version);
+  useEffect(() => {
+    if (settled === version) return;
+    const timer = setTimeout(() => setSettled(version), ENTERING_MS);
+    return () => clearTimeout(timer);
+  }, [settled, version]);
+  return { key: version, entering: settled !== version };
+}
+
+/**
+ * A row or state that comes in from its own mount: hidden for two frames, so Compose draws it
+ * hidden first, then shown with `enter`. A view that mounts shown does not animate. Mount it with
+ * `key={entrance.key}`.
+ */
+function Entering({
+  entrance,
+  enter,
+  modifiers,
+  children,
+}: {
+  entrance: Entrance;
+  enter: typeof ROW_ENTER;
+  modifiers: ModifierConfig[];
+  children: ReactNode;
+}) {
+  const [visible, setVisible] = useState(!entrance.entering);
+  useEffect(() => {
+    if (visible) return;
+    const timer = setTimeout(() => setVisible(true), HIDDEN_MS);
+    return () => clearTimeout(timer);
+  }, [visible]);
+  return (
+    <AnimatedVisibility visible={visible} enterTransition={enter} modifiers={modifiers}>
+      {children}
+    </AnimatedVisibility>
+  );
+}
+
+/** The size of a row's Material symbol, its intrinsic size. */
+const ROW_ICON = 24;
+
+/**
+ * Parent Directory and the directories, as rows. A row with no path, Parent Directory while the
+ * Machine has yet to say where it leads, takes no tap.
+ */
+type ListRow = { key: string; label: string; path: string | null };
 
 function DirectoryList({
   rows,
   picker,
+  entrance,
   modifiers,
 }: {
   rows: readonly ListRow[];
   picker: DirectoryStepProps["picker"];
+  /** How the directories come in; Parent Directory stays where it is. */
+  entrance: Entrance;
   modifiers: ModifierConfig[];
 }) {
   const { opening } = picker.view;
@@ -203,8 +289,9 @@ function DirectoryList({
             icon={item.key === "parent" ? arrowUpwardIcon : folderIcon}
             first={index === 0}
             last={index === rows.length - 1}
-            enabled={!opening}
-            onPress={() => picker.navigate(item.path)}
+            enabled={!opening && item.path !== null}
+            entrance={item.key === "parent" ? undefined : entrance}
+            onPress={() => item.path !== null && picker.navigate(item.path)}
           />
         )}
       </LazyColumn.Items>
@@ -289,6 +376,7 @@ function DirectoryRow({
   first,
   last,
   enabled,
+  entrance,
   onPress,
 }: {
   label: string;
@@ -296,10 +384,12 @@ function DirectoryRow({
   first: boolean;
   last: boolean;
   enabled: boolean;
+  /** How the row comes in; `undefined` keeps it in place. */
+  entrance?: Entrance;
   onPress: () => void;
 }) {
   const colors = useColors();
-  return (
+  const row = (
     <Surface
       color={colors.groupedRow}
       contentColor={colors.text}
@@ -313,12 +403,22 @@ function DirectoryRow({
         horizontalArrangement={{ spacedBy: 16 }}
         modifiers={[fillMaxWidth(), padding(16, 16, 16, 16)]}
       >
-        <Icon source={icon} tint={colors.secondaryText} />
+        {/* The Icon draws nothing until its symbol loads; the Box holds its place meanwhile. */}
+        <Box modifiers={[size(ROW_ICON, ROW_ICON)]}>
+          <Icon source={icon} tint={colors.secondaryText} size={ROW_ICON} />
+        </Box>
         <Text maxLines={1} overflow="ellipsis" style={{ typography: "bodyLarge" }}>
           {label}
         </Text>
       </Row>
     </Surface>
+  );
+  return entrance === undefined ? (
+    row
+  ) : (
+    <Entering key={entrance.key} entrance={entrance} enter={ROW_ENTER} modifiers={[fillMaxWidth()]}>
+      {row}
+    </Entering>
   );
 }
 
@@ -332,6 +432,8 @@ function ContentState({
   onRetry: ((path: string) => void) | undefined;
 }) {
   switch (content.kind) {
+    case "none":
+      return null;
     case "loading":
       return (
         <Centered bottom={STATE_BOTTOM}>

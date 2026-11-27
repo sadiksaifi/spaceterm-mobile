@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import uniffi.spaceterm_mobile.Changes
 import uniffi.spaceterm_mobile.Connection
+import uniffi.spaceterm_mobile.CreatedWorkspace
 import uniffi.spaceterm_mobile.InvitationReading
 import uniffi.spaceterm_mobile.InvitedMachine
 import uniffi.spaceterm_mobile.JoinState
@@ -134,6 +135,24 @@ class LibspacetermModule : Module() {
 
     AsyncFunction("killWorkspace") Coroutine { machineId: String, workspaceId: String, seen: String ->
       withContext(Dispatchers.IO) { machines().killWorkspace(machineId, workspaceId, seen) }
+    }
+
+    AsyncFunction("directoryHome") Coroutine { machineId: String ->
+      withContext(Dispatchers.IO) { machines().directoryHome(machineId) }
+    }
+
+    AsyncFunction("listDirectory") Coroutine { machineId: String, path: String ->
+      withContext(Dispatchers.IO) { machines().listDirectory(machineId, path) }
+    }
+
+    AsyncFunction("createWorkspace") Coroutine { machineId: String, path: String, name: String, createDirectory: Boolean, again: Boolean ->
+      withContext(Dispatchers.IO) {
+        when (val created = machines().createWorkspace(machineId, path, name, createDirectory, again)) {
+          is CreatedWorkspace.Created -> mapOf("kind" to "created", "workspaceId" to created.workspaceId)
+          CreatedWorkspace.MissingDirectory -> mapOf("kind" to "missing-directory")
+          CreatedWorkspace.Failed -> mapOf("kind" to "failed")
+        }
+      }
     }
 
     AsyncFunction("newTab") Coroutine { machineId: String, workspaceId: String, root: String?, path: String?, again: Boolean ->

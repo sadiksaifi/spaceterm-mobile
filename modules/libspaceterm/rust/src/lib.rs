@@ -20,6 +20,7 @@ use spaceterm_client::hierarchy::{
     Axis, CloseTarget, CreateControl, Id, Mutation, Outcome, TabPosition,
 };
 use spaceterm_client::pane::control::ClientName;
+use spaceterm_client::pane::directories;
 use spaceterm_client::protocol::capability::{Capability, Unavailable};
 use spaceterm_client::protocol::preview;
 use spaceterm_client::protocol::{InventoryRevision, Operation, ReplyBody};
@@ -160,6 +161,18 @@ pub struct WorktreeTarget {
 }
 
 /// The Machines this device has paired, and pairing with new ones.
+/// What creating a Workspace came to.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum CreatedWorkspace {
+    Created {
+        workspace_id: String,
+    },
+    /// The directory does not exist, so nothing was created.
+    MissingDirectory,
+    /// The Machine did not create it, or did not answer.
+    Failed,
+}
+
 #[derive(uniffi::Object)]
 pub struct Machines {
     connections: DirectConnections,
@@ -438,6 +451,90 @@ impl Machines {
                 confirmation,
             },
         )
+    }
+
+    /// The Machine's home directory, `None` without an answer.
+    pub fn directory_home(&self, machine_id: String) -> Option<String> {
+        match self.read_directory(&machine_id, directories::Operation::Home)? {
+            Ok(directories::Value::Directory(home)) => home.to_str().map(str::to_owned),
+            _ => None,
+        }
+    }
+
+    /// The names of the directories in `path`, an absolute path on the Machine, unsorted. `None`
+    /// when the Machine cannot list it or did not answer.
+    pub fn list_directory(&self, machine_id: String, path: String) -> Option<Vec<String>> {
+        let list = directories::Operation::List {
+            path: PathBuf::from(path),
+        };
+        match self.read_directory(&machine_id, list)? {
+            Ok(directories::Value::Listing { names, .. }) => Some(names),
+            _ => None,
+        }
+    }
+
+    /// Creates a Workspace named `name` in `path`, an absolute path on the Machine, with a shell
+    /// there in its first Tab. A missing directory is created first only with
+    /// `create_directory`. `again` is Try Again of a create that failed, which creates no second
+    /// Workspace if the first one was created with its answer lost.
+    pub fn create_workspace(
+        &self,
+        machine_id: String,
+        path: String,
+        name: String,
+        create_directory: bool,
+        again: bool,
+    ) -> CreatedWorkspace {
+        let directory = PathBuf::from(path);
+        // Try Again of a create whose answer was lost goes again before the directory is checked:
+        // the first one may have made the Workspace, and the directory may have moved since, which
+        // would ask to create it and send a second create.
+        if again {
+            let resumed = self.resume(&machine_id, |pending| {
+                matches!(pending, Mutation::CreateWorkspace {
+                    name: named,
+                    directory: Some(opened),
+                    ..
+                } if *named == name && *opened == directory)
+            });
+            if let Some(outcome) = resumed {
+                return match outcome {
+                    Some(Outcome::Accepted { target }) => CreatedWorkspace::Created {
+                        workspace_id: hex(&target),
+                    },
+                    _ => CreatedWorkspace::Failed,
+                };
+            }
+        }
+        let ready = if create_directory {
+            self.make_directory(&machine_id, directory.clone())
+        } else {
+            let validate = directories::Operation::Validate {
+                path: directory.clone(),
+            };
+            match self.read_directory(&machine_id, validate) {
+                Some(Err(directories::Error::Missing)) => {
+                    return CreatedWorkspace::MissingDirectory;
+                }
+                Some(Ok(_)) => true,
+                _ => false,
+            }
+        };
+        if !ready {
+            return CreatedWorkspace::Failed;
+        }
+        let mutation = Mutation::CreateWorkspace {
+            name,
+            directory: Some(directory),
+            // No device controls the new shell, so whichever opens it first takes it.
+            control: CreateControl::Unclaimed,
+        };
+        match self.outcome(&machine_id, mutation, repeat(again)) {
+            Some(Outcome::Accepted { target }) => CreatedWorkspace::Created {
+                workspace_id: hex(&target),
+            },
+            _ => CreatedWorkspace::Failed,
+        }
     }
 
     /// Opens a Tab with a shell as the Workspace's last Tab, in `worktree` when it is given: the
@@ -911,6 +1008,35 @@ impl Machines {
             .ok()
             .and_then(|route| self.connections.core(&route))
             .is_some_and(|machine| machine.work().capabilities().check(capability).is_ok())
+    }
+
+    /// Asks a connected Machine about its directories and waits for the answer, `None` without one.
+    fn read_directory(
+        &self,
+        machine_id: &str,
+        read: directories::Operation,
+    ) -> Option<Result<directories::Value, directories::Error>> {
+        self.directory_reply(machine_id, Operation::DirectoryRead(read))
+    }
+
+    /// Creates `path` on a connected Machine with any missing parents. Returns whether it is a
+    /// directory there now.
+    fn make_directory(&self, machine_id: &str, path: PathBuf) -> bool {
+        let create = Operation::DirectoryCreate(directories::Creation { path });
+        matches!(self.directory_reply(machine_id, create), Some(Ok(_)))
+    }
+
+    fn directory_reply(
+        &self,
+        machine_id: &str,
+        operation: Operation,
+    ) -> Option<Result<directories::Value, directories::Error>> {
+        let route = self.known(machine_id).ok()?;
+        let link = self.connections.core(&route)?.work().live_link()?;
+        match link.request(operation).ok()?.wait_for(READ_WAIT)? {
+            Ok(ReplyBody::Directory(reply)) => Some(reply),
+            _ => None,
+        }
     }
 
     /// Asks a connected Machine for Worktree facts and waits for the answer, `None` without one.

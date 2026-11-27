@@ -18,6 +18,11 @@ private let shared: Machines = {
 private let edits = DispatchQueue(
   label: "libspaceterm.edits", qos: .userInitiated, attributes: .concurrent)
 
+/// Directory reads wait up to ten seconds for a Machine, so they run off Expo's shared queue,
+/// where one that stalls would hold up every other call.
+private let reads = DispatchQueue(
+  label: "libspaceterm.reads", qos: .userInitiated, attributes: .concurrent)
+
 private let connections = FileManager.default
   .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
   .appendingPathComponent("connections", isDirectory: true)
@@ -168,6 +173,27 @@ public class LibspacetermModule: Module {
 
     AsyncFunction("killWorkspace") { (machineId: String, workspaceId: String, seen: String) -> Bool in
       shared.killWorkspace(machineId: machineId, workspaceId: workspaceId, seen: seen)
+    }.runOnQueue(edits)
+
+    AsyncFunction("directoryHome") { (machineId: String) -> String? in
+      shared.directoryHome(machineId: machineId)
+    }.runOnQueue(reads)
+
+    AsyncFunction("listDirectory") { (machineId: String, path: String) -> [String]? in
+      shared.listDirectory(machineId: machineId, path: path)
+    }.runOnQueue(reads)
+
+    AsyncFunction("createWorkspace") {
+      (machineId: String, path: String, name: String, createDirectory: Bool, again: Bool)
+        -> [String: Any] in
+      switch shared.createWorkspace(
+        machineId: machineId, path: path, name: name, createDirectory: createDirectory,
+        again: again)
+      {
+      case .created(let workspaceId): return ["kind": "created", "workspaceId": workspaceId]
+      case .missingDirectory: return ["kind": "missing-directory"]
+      case .failed: return ["kind": "failed"]
+      }
     }.runOnQueue(edits)
 
     AsyncFunction("newTab") {

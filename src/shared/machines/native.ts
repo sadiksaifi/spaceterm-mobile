@@ -19,6 +19,7 @@ import type {
   Tab,
   Workspace,
 } from "./model";
+import { basename, display, expand, join, parent, resolve } from "./paths";
 
 /** What the client asks of libspaceterm. */
 export type NativeMachines = Pick<
@@ -46,6 +47,9 @@ export type NativeMachines = Pick<
   | "createWorktree"
   | "checkWorktreeRemoval"
   | "removeWorktree"
+  | "directoryHome"
+  | "listDirectory"
+  | "createWorkspace"
 > & {
   addListener: (event: "onChange", listener: () => void) => { remove: () => void };
 };
@@ -58,9 +62,8 @@ const LIST_WAIT = 30_000;
 
 /**
  * The client for the Machines this device has paired through libspaceterm. Pairing, Saved
- * Connections, connecting, the Workspace list with its Tabs and Worktrees, and the commands on
- * them are real. Creating a Workspace, listing directories, and restarting SpaceTerm Core fail
- * until libspaceterm is wired for them.
+ * Connections, connecting, the Workspace list with its Tabs and Worktrees, the commands on them,
+ * and New Workspace are real. Restarting SpaceTerm Core fails until libspaceterm is wired for it.
  */
 export function createNativeClient(
   native: NativeMachines,
@@ -76,6 +79,15 @@ export function createNativeClient(
   const unlisted = new Set<string>();
   /** Each Machine's last Workspace list, kept while it is not connected. */
   const kept = new Map<string, readonly Workspace[]>();
+  /** Each Machine's home directory, once it has answered. */
+  const homes = new Map<string, string>();
+  async function homeOf(machineId: string): Promise<string | null> {
+    const known = homes.get(machineId);
+    if (known !== undefined) return known;
+    const home = await native.directoryHome(machineId);
+    if (home !== null) homes.set(machineId, home);
+    return home;
+  }
   let starting = true;
   let snapshot = read();
   let published = JSON.stringify(snapshot);
@@ -190,8 +202,51 @@ export function createNativeClient(
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    listDirectory: async (_machineId, path) => ({ kind: "unavailable", path, parent: null }),
-    createWorkspace: async () => ({ kind: "failed" }),
+    listDirectory: async (machineId, path) => {
+      const home = await homeOf(machineId);
+      if (home === null) return { kind: "unavailable", path, parent: null };
+      const absolute = expand(home, path);
+      const up = parent(absolute);
+      const shown = {
+        path: display(home, absolute, true),
+        parent: up === null ? null : display(home, up, true),
+      };
+      const names = await native.listDirectory(machineId, absolute);
+      if (names === null) return { kind: "unavailable", ...shown };
+      return {
+        kind: "listed",
+        ...shown,
+        // A hidden directory still opens when the person types its path.
+        directories: names
+          .filter((name) => !name.startsWith("."))
+          .sort((a, b) => a.localeCompare(b))
+          .map((name) => ({ name, path: display(home, join(absolute, name), true) })),
+      };
+    },
+    createWorkspace: async (
+      machineId,
+      directory,
+      { createDirectory = false, again = false } = {},
+    ) => {
+      const home = await homeOf(machineId);
+      if (home === null) return { kind: "failed" };
+      const absolute = expand(home, directory);
+      const created = await native.createWorkspace(
+        machineId,
+        absolute,
+        basename(resolve(home, directory)),
+        createDirectory,
+        again,
+      );
+      switch (created.kind) {
+        case "created":
+          return { kind: "created", workspaceId: created.workspaceId };
+        case "missing-directory":
+          return { kind: "missing-directory", directory: display(home, absolute, false) };
+        case "failed":
+          return created;
+      }
+    },
     renameWorkspace: async (machineId, { id, revision }, name) => {
       if (revision === undefined) return { kind: "failed" };
       return done(await native.renameWorkspace(machineId, id, revision, name));

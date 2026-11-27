@@ -22,6 +22,7 @@ import type {
   WorktreeRemovalCheck,
 } from "./model";
 import { invitationLinkIn } from "./invitation";
+import { basename, display, join, parent, resolve } from "./paths";
 
 /**
  * A Machine as the mock client knows it: its directories by absolute path, the branch of each
@@ -239,7 +240,7 @@ export function createMockClient(
         tabs: [shellTab(null)],
         repository: null,
       };
-      return answer<CreateWorkspaceResult>({ kind: "created", workspace }, () => {
+      return answer<CreateWorkspaceResult>({ kind: "created", workspaceId: workspace.id }, () => {
         if (children === undefined) makeDirectories(target, absolute);
         target.workspaces = [...(target.workspaces ?? []), workspace];
         changed();
@@ -615,45 +616,6 @@ function withChildEntries(directories: MockMachine["directories"]) {
     }
   }
   return all;
-}
-
-/** An absolute path without a trailing slash, `/` for the root. */
-function resolve(home: string, path: string): string {
-  const trimmed = path.trim();
-  const expanded = trimmed === "~" || trimmed.startsWith("~/") ? home + trimmed.slice(1) : trimmed;
-  const parts: string[] = [];
-  for (const part of expanded.split("/")) {
-    if (part === "" || part === ".") continue;
-    if (part === "..") parts.pop();
-    else parts.push(part);
-  }
-  return `/${parts.join("/")}`;
-}
-
-function parent(absolute: string): string | null {
-  if (absolute === "/") return null;
-  const cut = absolute.lastIndexOf("/");
-  return cut === 0 ? "/" : absolute.slice(0, cut);
-}
-
-function join(absolute: string, name: string): string {
-  return absolute === "/" ? `/${name}` : `${absolute}/${name}`;
-}
-
-function basename(absolute: string): string {
-  return absolute === "/" ? "/" : absolute.slice(absolute.lastIndexOf("/") + 1);
-}
-
-/** The path as the Machine shows it: `~` for the home directory, a trailing slash for a listing. */
-function display(home: string, absolute: string, trailingSlash: boolean): string {
-  const shown =
-    absolute === home
-      ? "~"
-      : absolute.startsWith(`${home}/`)
-        ? `~${absolute.slice(home.length)}`
-        : absolute;
-  if (!trailingSlash || shown === "/") return shown;
-  return `${shown}/`;
 }
 
 /** A shell's prompt in the Workspace's directory, waiting after the Pane's command. */

@@ -275,10 +275,13 @@ impl Recovered {
         let kept = self.0.get_mut(&route)?;
         kept.retain(|(_, _, since)| now.saturating_duration_since(*since) <= RECOVERED_FOR);
         // Of identical edits, the latest is the one whose failure shows, so Try Again is for it.
+        // The older ones' failures no longer show, so their answers go with it.
         let at = kept
             .iter()
             .rposition(|(mutation, _, _)| matches(mutation))?;
-        Some(kept.remove(at).1)
+        let (_, outcome, _) = kept.remove(at);
+        kept.retain(|(mutation, _, _)| !matches(mutation));
+        Some(outcome)
     }
 }
 
@@ -433,6 +436,8 @@ mod tests {
             recovered.take(route, |m| *m == new_tab, start),
             Some(created(2))
         );
+        // The older one's failure no longer shows, so no later Try Again takes it.
+        assert_eq!(recovered.take(route, |m| *m == new_tab, start), None);
     }
 
     #[test]

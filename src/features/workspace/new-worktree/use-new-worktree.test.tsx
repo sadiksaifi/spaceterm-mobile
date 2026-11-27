@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react-native";
 
 import type { Workspace, WorktreeContext, WorktreeCreation } from "@/shared/machines/model";
 
-import { useGridState } from "../grid-store";
+import { changeGridState, useGridState } from "../grid-store";
 import { useNewWorktree, type NewWorktreeClient } from "./use-new-worktree";
 
 const CONTEXT: WorktreeContext = {
@@ -73,6 +73,24 @@ describe("useNewWorktree", () => {
     expect(onCreated).not.toHaveBeenCalled();
     const grid = await renderHook(() => useGridState(`${machineId}/w`));
     expect(grid.result.current[0]).toMatchObject({ expecting: "t9", used: ["t9"] });
+  });
+
+  it("leaves the Worktree the person picked while Create was on its way", async () => {
+    let answer: (creation: WorktreeCreation) => void = () => {};
+    const created = new Promise<WorktreeCreation>((resolve) => (answer = resolve));
+    const { result, machineId, unmount } = await render([created]);
+    await act(async () => result.current.setName("topic"));
+    await act(async () => result.current.create());
+
+    await unmount();
+    const other = "/srv/api-other";
+    await act(async () =>
+      changeGridState(`${machineId}/w`, (grid) => ({ ...grid, picked: other })),
+    );
+    await act(async () => answer({ kind: "created", tab: "t9" }));
+
+    const grid = await renderHook(() => useGridState(`${machineId}/w`));
+    expect(grid.result.current[0]).toMatchObject({ picked: other, expecting: null });
   });
 
   it("says a Location is not empty until the Location changes", async () => {

@@ -14,6 +14,11 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/** `key`'s grid state now, for a change that waits on the Machine. */
+export function readGridState(key: string): GridState {
+  return states.get(key) ?? NO_GRID_STATE;
+}
+
 /** Changes `key`'s grid state from outside its screen, as New Worktree does once it opens a Tab. */
 export function changeGridState(key: string, change: (state: GridState) => GridState) {
   const before = states.get(key) ?? NO_GRID_STATE;

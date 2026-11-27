@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { MachineClient, Workspace, WorktreeContext } from "@/shared/machines/model";
 
-import { changeGridState } from "../grid-store";
+import { changeGridState, readGridState } from "../grid-store";
 import { EMPTY_FORM, worktreeForm, type Form, type FormState, type WorktreeKind } from "./form";
 
 export type NewWorktreeClient = Pick<
@@ -90,18 +90,26 @@ export function useNewWorktree({
     if (context === null || sending.current) return;
     sending.current = true;
     setCreating(true);
+    const key = `${machineId}/${workspace.id}`;
+    // What the grid showed when Create went, to tell whether the person chose a Worktree since.
+    const seen = readGridState(key);
     void client.createWorktree(machineId, workspace, context, request).then((result) => {
       sending.current = false;
       setCreating(false);
       switch (result.kind) {
         case "created":
-          // The new Tab is the one used last, so its Worktree is the active one once it is listed.
-          changeGridState(`${machineId}/${workspace.id}`, (grid) => ({
-            ...grid,
-            picked: null,
-            expecting: result.tab,
-            used: [result.tab, ...grid.used],
-          }));
+          // The new Tab is the one used last, so its Worktree is the active one once it is listed,
+          // unless the person picked a Worktree or opened a Tab while Create was on its way.
+          changeGridState(key, (grid) =>
+            grid.picked !== seen.picked || grid.used[0] !== seen.used[0]
+              ? grid
+              : {
+                  ...grid,
+                  picked: null,
+                  expecting: result.tab,
+                  used: [result.tab, ...grid.used],
+                },
+          );
           if (open.current) onCreated();
           return;
         case "not-empty":

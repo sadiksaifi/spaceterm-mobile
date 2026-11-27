@@ -5,6 +5,7 @@ import type { DirectoryListing } from "@/shared/machines/model";
 import {
   initialPicker,
   openPath,
+  parentOf,
   pickerView,
   reducePicker,
   type PickerEvent,
@@ -39,12 +40,18 @@ describe("the Directory Picker", () => {
     expect(pickerView(initialPicker)).toEqual({
       field: "~/",
       content: { kind: "none" },
+      // `~/` does not tell where its parent is; the row shows and waits for the Machine.
       parent: null,
+      parentWaits: true,
       opening: false,
       canOpen: true,
     });
     const slow = run([{ type: "slow", request: initialPicker.request }]);
-    expect(pickerView(slow)).toMatchObject({ content: { kind: "loading" }, parent: null });
+    expect(pickerView(slow)).toMatchObject({
+      content: { kind: "loading" },
+      parent: null,
+      parentWaits: true,
+    });
   });
 
   it("lists the directory that arrives, with Parent Directory, and offers Open", () => {
@@ -52,6 +59,7 @@ describe("the Directory Picker", () => {
       field: "~/",
       content: { kind: "directories", directories: home.directories },
       parent: "/Users/",
+      parentWaits: false,
       opening: false,
       canOpen: true,
     });
@@ -89,7 +97,12 @@ describe("the Directory Picker", () => {
     });
 
     const slow = run([{ type: "slow", request: loading.request }], loading);
-    expect(pickerView(slow)).toMatchObject({ content: { kind: "loading" }, parent: null });
+    // Parent Directory stays above the spinner, leading where the path tells.
+    expect(pickerView(slow)).toMatchObject({
+      content: { kind: "loading" },
+      parent: "~/",
+      parentWaits: false,
+    });
     const next = run([{ type: "navigate", path: "~/Projects/" }], slow);
     expect(pickerView(next).content).toEqual({ kind: "loading" });
 
@@ -157,6 +170,7 @@ describe("the Directory Picker", () => {
       field: "/var/root/",
       content: { kind: "unavailable", retryPath: "/var/root/" },
       parent: "/var/",
+      parentWaits: false,
       opening: false,
       canOpen: false,
     });
@@ -281,5 +295,17 @@ describe("the Directory Picker", () => {
   it("leaves an attempt under way alone when a closing alert reports Cancel late", () => {
     const opening = run([{ type: "open" }], atHome);
     expect(run([{ type: "cancel" }], opening).confirm).toEqual({ kind: "opening" });
+  });
+
+  it("tells a loading directory's parent from its path where the path tells it", () => {
+    expect(parentOf("~/Projects/app/")).toBe("~/Projects/");
+    expect(parentOf("~/Projects/")).toBe("~/");
+    expect(parentOf("/var/log/")).toBe("/var/");
+    expect(parentOf("/var/")).toBe("/");
+    expect(parentOf("/")).toBeNull();
+    expect(parentOf("~/link/../")).toBe("~/link/../../");
+    expect(parentOf("~/")).toBeUndefined();
+    expect(parentOf("~")).toBeUndefined();
+    expect(parentOf("notes/")).toBeUndefined();
   });
 });

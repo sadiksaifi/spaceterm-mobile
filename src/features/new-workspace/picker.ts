@@ -184,8 +184,14 @@ export type PickerView = {
     /** A directory with no subdirectories. Open still opens it. */
     | { kind: "empty" }
     | { kind: "unavailable"; retryPath: string };
-  /** Where Parent Directory leads, `null` while it does not show. */
+  /** Where Parent Directory leads, `null` while it does not show or does not lead anywhere yet. */
   parent: string | null;
+  /**
+   * Parent Directory shows but leads nowhere until the Machine answers: the directory is loading,
+   * and its path does not tell its parent, as `~/` does not. It shows anyway, so the rows below it
+   * do not move when the answer arrives.
+   */
+  parentWaits: boolean;
   /** An attempt is under way: the field and the rows take no input until the Machine answers. */
   opening: boolean;
   /**
@@ -199,14 +205,16 @@ export type PickerView = {
 export function pickerView(state: PickerState): PickerView {
   const { field, listing } = state;
   const ready = state.confirm.kind === "idle" || state.confirm.kind === "failed";
-  const base = { field, opening: opening(state) };
+  const base = { field, opening: opening(state), parentWaits: false };
   if (listing.kind === "loading") {
     const canOpen = ready && field.trim() !== "";
     if (listing.spinner || listing.previous === null) {
+      const parent = parentOf(listing.path);
       return {
         ...base,
         content: { kind: listing.spinner ? "loading" : "none" },
-        parent: null,
+        parent: parent ?? null,
+        parentWaits: parent === undefined,
         canOpen,
       };
     }
@@ -223,6 +231,23 @@ export function pickerView(state: PickerState): PickerView {
     parent: listing.parent,
     canOpen: ready && openPath(state) !== null,
   };
+}
+
+/**
+ * The parent of a directory the Machine has yet to list, as its path tells it: `null` for the
+ * root, `undefined` where the path does not tell, as `~/` does not. The Machine's answer then
+ * says it.
+ */
+export function parentOf(path: string): string | null | undefined {
+  const trimmed = path.trim().replace(/\/+$/, "");
+  if (trimmed === "" && path.trim().startsWith("/")) return null;
+  if (!trimmed.startsWith("/") && !trimmed.startsWith("~/")) return undefined;
+  const cut = trimmed.lastIndexOf("/");
+  const name = trimmed.slice(cut + 1);
+  if (name === "" || name === ".") return undefined;
+  // Only the Machine knows where `..` leads past a symbolic link, so the parent is one more.
+  if (name === "..") return `${trimmed}/../`;
+  return cut === 0 ? "/" : `${trimmed.slice(0, cut)}/`;
 }
 
 function contentOf(listing: DirectoryListing): PickerView["content"] {

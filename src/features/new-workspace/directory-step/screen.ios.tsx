@@ -25,6 +25,7 @@ import {
   listRowBackground,
   listStyle,
   onGeometryChange,
+  opacity,
   onSubmit,
   padding,
   refreshable,
@@ -69,6 +70,10 @@ export default function DirectoryStepScreen({
   const { view, askingCreate, failure } = picker;
   // Where the list ends on screen, so a state can fill the space below the rows.
   const [listBottom, setListBottom] = useState<number | null>(null);
+  // Where a state starts on screen, below Parent Directory or with no row above it. Kept across
+  // states, so each draws in its place from its first frame.
+  const [stateTops, setStateTops] = useState<StateTops>({});
+  const parentShows = view.parent !== null || view.parentWaits;
   const field = useRef<FieldText>(null);
 
   return (
@@ -138,13 +143,13 @@ export default function DirectoryStepScreen({
                       onSubmit={picker.open}
                     />
                   </Section>
-                  {view.parent !== null || view.content.kind === "directories" ? (
+                  {parentShows || view.content.kind === "directories" ? (
                     <Section>
-                      {view.parent !== null && (
+                      {parentShows && (
                         <DirectoryRow
                           label={text.parentDirectory}
                           symbol="arrow.turn.left.up"
-                          enabled={!view.opening}
+                          enabled={!view.opening && view.parent !== null}
                           onPress={() => view.parent !== null && picker.navigate(view.parent)}
                         />
                       )}
@@ -165,6 +170,13 @@ export default function DirectoryStepScreen({
                     key={view.content.kind}
                     content={view.content}
                     listBottom={listBottom}
+                    top={stateTops[parentShows ? "belowParent" : "alone"]}
+                    onTop={(top) =>
+                      setStateTops((tops) => ({
+                        ...tops,
+                        [parentShows ? "belowParent" : "alone"]: top,
+                      }))
+                    }
                     onRetry={view.opening ? undefined : picker.navigate}
                   />
                 </List>
@@ -288,24 +300,32 @@ function DirectoryRow({
   );
 }
 
+/** Where a state starts on screen, by what is above it, once a state has drawn there. */
+type StateTops = { belowParent?: number; alone?: number };
+
 /** What shows below the rows while a directory loads, has no subdirectories, or cannot be listed. */
 function ContentState({
   content,
   listBottom,
+  top,
+  onTop,
   onRetry,
 }: {
   content: PickerView["content"];
   /** Where the list ends on screen, `null` until it is known. */
   listBottom: number | null;
+  /**
+   * Where the state starts on screen, taken once: scrolling moves it, and the state must not grow
+   * with the scroll. `undefined` until it is known.
+   */
+  top: number | undefined;
+  onTop: (top: number) => void;
   /** Try Again, where the Machine cannot list; unavailable while `undefined`. */
   onRetry: ((path: string) => void) | undefined;
 }) {
-  // Where the state starts on screen, taken once: scrolling moves it, and the state must not
-  // grow with the scroll.
-  const [top, setTop] = useState<number | null>(null);
   if (content.kind === "directories" || content.kind === "none") return null;
   const fill =
-    top === null || listBottom === null ? null : listBottom - top - STATE_BOTTOM[content.kind];
+    top === undefined || listBottom === null ? null : listBottom - top - STATE_BOTTOM[content.kind];
   return (
     <Section>
       <VStack
@@ -314,8 +334,9 @@ function ContentState({
           fill === null
             ? frame({ maxWidth: FILL })
             : frame({ maxWidth: FILL, minHeight: Math.max(fill, 0) }),
-          ...(fill === null ? [padding({ top: STATE_TOP })] : []),
-          onGeometryChange((frame) => top === null && setTop(frame.y)),
+          // Until its place is known the state stays unseen, so it never draws where it then moves.
+          ...(fill === null ? [padding({ top: STATE_TOP }), opacity(0)] : []),
+          onGeometryChange((frame) => top === undefined && onTop(frame.y)),
           listRowBackground("clear"),
         ]}
       >

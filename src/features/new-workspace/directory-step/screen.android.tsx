@@ -77,7 +77,7 @@ export default function DirectoryStepScreen({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { view, askingCreate, failure } = picker;
-  const { content, parent } = view;
+  const { content, parent, parentWaits } = view;
   const field = useRef<FieldText>(null);
   // Android reports a refusal in a snackbar, which leaves the picker usable.
   const snackbar = useSnackbar(
@@ -87,7 +87,9 @@ export default function DirectoryStepScreen({
     picker.dismissFailure,
   );
   const rows: ListRow[] = [
-    ...(parent === null ? [] : [{ key: "parent", label: text.parentDirectory, path: parent }]),
+    ...(parent === null && !parentWaits
+      ? []
+      : [{ key: "parent", label: text.parentDirectory, path: parent }]),
     ...(content.kind === "directories"
       ? content.directories.map((directory) => ({
           key: directory.path,
@@ -180,8 +182,11 @@ export default function DirectoryStepScreen({
 /** The size of a row's Material symbol, its intrinsic size. */
 const ROW_ICON = 24;
 
-/** Parent Directory and the directories, as rows. */
-type ListRow = { key: string; label: string; path: string };
+/**
+ * Parent Directory and the directories, as rows. A row with no path, Parent Directory while the
+ * Machine has yet to say where it leads, takes no tap.
+ */
+type ListRow = { key: string; label: string; path: string | null };
 
 function DirectoryList({
   rows,
@@ -206,8 +211,8 @@ function DirectoryList({
             icon={item.key === "parent" ? arrowUpwardIcon : folderIcon}
             first={index === 0}
             last={index === rows.length - 1}
-            enabled={!opening}
-            onPress={() => picker.navigate(item.path)}
+            enabled={!opening && item.path !== null}
+            onPress={() => item.path !== null && picker.navigate(item.path)}
           />
         )}
       </LazyColumn.Items>

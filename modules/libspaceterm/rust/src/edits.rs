@@ -57,15 +57,18 @@ impl Edits {
     ) -> Option<Outcome> {
         let slot = self.slot(route)?;
         let mut slot = slot.lock().ok()?;
-        // Try Again of an edit whose answer came back while another edit went out.
+        let deadline = Instant::now() + EDIT_WAIT;
+        let editor = self.editor(&mut slot, route, machine)?;
+        let pending = editor.journal().pending().cloned();
+        // Try Again of an edit whose answer came back while another edit went out. An identical
+        // edit still waiting in the journal is the later one, the one Try Again is for.
         if repeat == Repeat::Same
+            && pending.as_ref().is_none_or(|pending| pending.mutation != mutation)
             && let Some(outcome) = self.take_recovered(route, |recovered| *recovered == mutation)
         {
             return Some(outcome);
         }
-        let deadline = Instant::now() + EDIT_WAIT;
-        let editor = self.editor(&mut slot, route, machine)?;
-        if let Some(pending) = editor.journal().pending().cloned() {
+        if let Some(pending) = pending {
             // An edit whose answer was lost goes first, again under its own sequence, so the
             // Machine applies it at most once: it may have run already, be queued there, or never
             // have arrived. Its name version or Kill confirmation keeps it from acting on a
@@ -118,16 +121,16 @@ impl Edits {
     ) -> Option<Option<Outcome>> {
         let slot = self.slot(route)?;
         let mut slot = slot.lock().ok()?;
-        if let Some(outcome) = self.take_recovered(route, |recovered| matches(recovered)) {
-            return Some(Some(outcome));
-        }
         let editor = self.editor(&mut slot, route, machine)?;
+        // A matching edit still waiting in the journal is the later one, the one asked for now.
         if !editor
             .journal()
             .pending()
             .is_some_and(|pending| matches(&pending.mutation))
         {
-            return None;
+            return self
+                .take_recovered(route, |recovered| matches(recovered))
+                .map(Some);
         }
         Some(match editor.retry(Instant::now() + EDIT_WAIT) {
             Ok(Some(outcome)) => {

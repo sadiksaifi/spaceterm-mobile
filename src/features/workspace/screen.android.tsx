@@ -16,10 +16,12 @@ import {
 import {
   align,
   background,
+  clip,
   defaultMinSize,
   fillMaxSize,
   fillMaxWidth,
   padding,
+  Shapes,
   verticalScroll,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
@@ -54,6 +56,8 @@ const BAR_MARGIN = 16;
 const MENU_CORNER = 16;
 const MENU_ELEVATION = 3;
 const MENU_WIDTH = 220;
+/** The active Worktree's band, inset 4 dp in the menu. */
+const BAND_CORNER = 12;
 
 export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
@@ -288,8 +292,10 @@ function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: Workspace
               enabled={connected}
               modifiers={[
                 defaultMinSize({ minWidth: MENU_WIDTH }),
-                padding(8, 0, 8, 0),
-                ...(active ? [background(material.primaryContainer)] : []),
+                padding(4, 0, 4, 0),
+                ...(active
+                  ? [clip(Shapes.RoundedCorner(BAND_CORNER)), background(material.primaryContainer)]
+                  : []),
               ]}
               onClick={() => {
                 setExpanded(false);

@@ -260,7 +260,7 @@ public class LibspacetermModule: Module {
           "tabs": review.tabs,
           "sessions": review.sessions,
         ]
-      case .removed: return ["kind": "removed"]
+      case .resumed(let removal): return ["kind": "resumed", "removal": removalAnswer(removal)]
       case .failed(let failure): return ["kind": "failed", "failure": removalFailure(failure)]
       }
     }.runOnQueue(edits)
@@ -268,12 +268,9 @@ public class LibspacetermModule: Module {
     AsyncFunction("removeWorktree") {
       (machineId: String, root: String, path: String, boot: String, confirmation: String)
         -> [String: Any] in
-      switch shared.removeWorktree(
-        machineId: machineId, root: root, path: path, boot: boot, confirmation: confirmation)
-      {
-      case .removed: return ["kind": "removed"]
-      case .failed(let failure): return ["kind": "failed", "failure": removalFailure(failure)]
-      }
+      removalAnswer(
+        shared.removeWorktree(
+          machineId: machineId, root: root, path: path, boot: boot, confirmation: confirmation))
     }.runOnQueue(edits)
   }
 
@@ -409,6 +406,13 @@ private func connection(_ connection: Connection) -> String {
   case .connecting: return "connecting"
   case .disconnected: return "disconnected"
   case .unavailable: return "unavailable"
+  }
+}
+
+private func removalAnswer(_ removal: WorktreeRemoval) -> [String: Any] {
+  switch removal {
+  case .removed: return ["kind": "removed"]
+  case .failed(let failure): return ["kind": "failed", "failure": removalFailure(failure)]
   }
 }
 

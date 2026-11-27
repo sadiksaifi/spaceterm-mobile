@@ -3,13 +3,15 @@ import { AlertDialog, Button, OutlinedButton, Text } from "@expo/ui/jetpack-comp
 /**
  * A dialog that asks before an action: an outlined Cancel and a filled action button. Material
  * keeps the action in the primary color, even when it removes something. Without `cancel`, it
- * tells something and its one button, such as OK, closes it.
+ * tells something and its one button, such as OK, closes it. `enabled` false holds the action
+ * until it can run.
  */
 export function ConfirmDialog({
   title,
   body,
   cancel,
   action,
+  enabled = true,
   onCancel,
   onConfirm,
 }: {
@@ -17,6 +19,7 @@ export function ConfirmDialog({
   body?: string | null;
   cancel?: string;
   action: string;
+  enabled?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -38,7 +41,7 @@ export function ConfirmDialog({
         </AlertDialog.DismissButton>
       )}
       <AlertDialog.ConfirmButton>
-        <Button onClick={onConfirm}>
+        <Button enabled={enabled} onClick={onConfirm}>
           <Text>{action}</Text>
         </Button>
       </AlertDialog.ConfirmButton>

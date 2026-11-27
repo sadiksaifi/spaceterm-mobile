@@ -63,7 +63,7 @@ describe("useRemoveWorktree", () => {
     await act(async () => result.current.start?.());
     expect(result.current.alert).toEqual({ kind: "confirm", review });
 
-    await act(async () => result.current.confirm());
+    await act(async () => result.current.confirm?.());
     expect(client.removeWorktree).toHaveBeenCalledWith("m1", repository, review);
     expect(result.current.alert).toBeNull();
   });
@@ -74,7 +74,7 @@ describe("useRemoveWorktree", () => {
     });
 
     await act(async () => result.current.start?.());
-    await act(async () => result.current.confirm());
+    await act(async () => result.current.confirm?.());
 
     expect(result.current.alert).toEqual({
       kind: "failed",
@@ -102,13 +102,31 @@ describe("useRemoveWorktree", () => {
 
   it("shows nothing when the check finds that a remove whose answer was lost went through", async () => {
     const { result, client } = await render({
-      checkWorktreeRemoval: async () => ({ kind: "removed" }),
+      checkWorktreeRemoval: async () => ({ kind: "resumed", removal: { kind: "removed" } }),
     });
 
     await act(async () => result.current.start?.());
 
     expect(result.current.alert).toBeNull();
     expect(client.removeWorktree).not.toHaveBeenCalled();
+  });
+
+  it("says why when the check finds that a remove whose answer was lost was refused", async () => {
+    const { result } = await render({
+      checkWorktreeRemoval: async () => ({
+        kind: "resumed",
+        removal: { kind: "failed", failure: "failed" },
+      }),
+    });
+
+    await act(async () => result.current.start?.());
+
+    expect(result.current.alert).toEqual({
+      kind: "failed",
+      worktree: fix,
+      failure: "failed",
+      checking: false,
+    });
   });
 
   it("drops a check that answers after the person left its Workspace", async () => {
@@ -158,7 +176,7 @@ describe("useRemoveWorktree", () => {
     });
 
     await act(async () => result.current.start?.());
-    await act(async () => result.current.confirm());
+    await act(async () => result.current.confirm?.());
     await rerender({ workspaceId: "w2" });
     await act(async () => result.current.start?.());
     await rerender({ workspaceId: "w1" });
@@ -175,18 +193,42 @@ describe("useRemoveWorktree", () => {
     const checkWorktreeRemoval = jest
       .fn<RemovalClient["checkWorktreeRemoval"]>()
       .mockResolvedValueOnce({ kind: "review", review })
-      .mockResolvedValueOnce({ kind: "removed" });
+      .mockResolvedValueOnce({ kind: "resumed", removal: { kind: "removed" } });
     const { result, client } = await render({
       checkWorktreeRemoval,
       removeWorktree: async () => ({ kind: "failed", failure: "unanswered" }),
     });
 
     await act(async () => result.current.start?.());
-    await act(async () => result.current.confirm());
+    await act(async () => result.current.confirm?.());
     expect(result.current.alert).toMatchObject({ kind: "failed", failure: "unanswered" });
 
-    await act(async () => result.current.confirm());
+    await act(async () => result.current.confirm?.());
     expect(client.checkWorktreeRemoval).toHaveBeenLastCalledWith("m1", repository, fix);
     expect(result.current.alert).toBeNull();
+  });
+
+  it("holds Try Again while another Workspace's check is under way on the Machine", async () => {
+    let answer: (check: WorktreeRemovalCheck) => void = () => {};
+    const checkWorktreeRemoval = jest
+      .fn<RemovalClient["checkWorktreeRemoval"]>()
+      .mockResolvedValueOnce({ kind: "review", review })
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const { result, rerender } = await render({
+      checkWorktreeRemoval,
+      removeWorktree: async () => ({ kind: "failed", failure: "unanswered" }),
+    });
+
+    await act(async () => result.current.start?.());
+    await act(async () => result.current.confirm?.());
+    await rerender({ workspaceId: "w2" });
+    await act(async () => result.current.start?.());
+    await rerender({ workspaceId: "w1" });
+
+    expect(result.current.confirm).toBeUndefined();
+    expect(result.current.alert).toMatchObject({ kind: "failed", failure: "unanswered" });
+
+    await act(async () => answer({ kind: "review", review }));
+    expect(result.current.confirm).toBeDefined();
   });
 });

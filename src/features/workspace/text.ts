@@ -148,7 +148,8 @@ const removalFailureBody: Record<
     "Nothing was removed. Review the updated Worktree and Terminal Sessions before removing it.",
   "changed-after-closing":
     "Git kept the Worktree because it changed after its Tabs closed and their Terminal Sessions ended. Review it before removing it.",
-  failed: "The Machine didn’t remove it. Try again.",
+  failed:
+    "The Machine didn’t remove it, but may have closed its Tabs and ended their Terminal Sessions. Try again.",
 };
 
 /** `1 Tab`, `2 Tabs`. */

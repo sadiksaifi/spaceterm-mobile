@@ -207,7 +207,7 @@ class LibspacetermModule : Module() {
             "tabs" to check.review.tabs.toInt(),
             "sessions" to check.review.sessions.toInt(),
           )
-          is WorktreeRemovalCheck.Removed -> mapOf("kind" to "removed")
+          is WorktreeRemovalCheck.Resumed -> mapOf("kind" to "resumed", "removal" to removalAnswer(check.removal))
           is WorktreeRemovalCheck.Failed -> mapOf("kind" to "failed", "failure" to check.failure.toValue())
         }
       }
@@ -215,10 +215,7 @@ class LibspacetermModule : Module() {
 
     AsyncFunction("removeWorktree") Coroutine { machineId: String, root: String, path: String, boot: String, confirmation: String ->
       withContext(Dispatchers.IO) {
-        when (val removal = machines().removeWorktree(machineId, root, path, boot, confirmation)) {
-          WorktreeRemoval.Removed -> mapOf("kind" to "removed")
-          is WorktreeRemoval.Failed -> mapOf("kind" to "failed", "failure" to removal.failure.toValue())
-        }
+        removalAnswer(machines().removeWorktree(machineId, root, path, boot, confirmation))
       }
     }
 
@@ -409,6 +406,11 @@ private fun RepositorySummary.toMap() = mapOf(
   "root" to root,
   "worktrees" to worktrees.map { mapOf("path" to it.path, "name" to it.name) }
 )
+
+private fun removalAnswer(removal: WorktreeRemoval): Map<String, Any> = when (removal) {
+  WorktreeRemoval.Removed -> mapOf("kind" to "removed")
+  is WorktreeRemoval.Failed -> mapOf("kind" to "failed", "failure" to removal.failure.toValue())
+}
 
 private fun WorktreeRemovalFailure.toValue() = when (this) {
   WorktreeRemovalFailure.MAIN -> "main"

@@ -137,7 +137,7 @@ export type NativeWorktreeRemovalCheck =
       tabs: number;
       sessions: number;
     }
-  | { kind: "removed" }
+  | { kind: "resumed"; removal: NativeWorktreeRemoval }
   | { kind: "failed"; failure: NativeWorktreeRemovalFailure };
 
 export type NativeWorktreeRemoval =

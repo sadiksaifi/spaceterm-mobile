@@ -103,8 +103,10 @@ pub enum WorktreeRemovalCheck {
     Review {
         review: WorktreeRemovalReview,
     },
-    /// An earlier remove of this Worktree whose answer was lost went again and removed it.
-    Removed,
+    /// An earlier remove of this Worktree whose answer was lost went again, and this is its answer.
+    Resumed {
+        removal: WorktreeRemoval,
+    },
     Failed {
         failure: WorktreeRemovalFailure,
     },

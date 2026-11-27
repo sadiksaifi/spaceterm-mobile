@@ -1,4 +1,5 @@
 import { Alert, Button, Text } from "@expo/ui/swift-ui";
+import { disabled } from "@expo/ui/swift-ui/modifiers";
 import type { ReactNode } from "react";
 
 import { removalAlertText, text } from "../../text";
@@ -40,6 +41,7 @@ export function RemovalAlertsView({
               label={shown.action}
               role={shown.destructive ? "destructive" : undefined}
               onPress={removal.confirm}
+              modifiers={[disabled(!removal.confirm)]}
             />
           </>
         )}

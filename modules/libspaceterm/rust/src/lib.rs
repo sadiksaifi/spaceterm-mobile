@@ -742,9 +742,9 @@ impl Machines {
         let (root, path) = (PathBuf::from(root), PathBuf::from(path));
         // A remove of this Worktree whose answer was lost may have removed it. It goes again
         // first, as it would before any other edit: the same remove changes nothing more, so its
-        // answer is the lost one. An answer that says what became of the Worktree, its Tabs, or
-        // their Terminal Sessions is the person's to see. Only a refusal that left them as they
-        // were leaves the Worktree to check again.
+        // answer is the lost one. The Machine closes the Tabs and ends their Terminal Sessions
+        // before Git removes the Worktree, so that answer is the person's to see. Only a refusal
+        // that comes before anything closes leaves the Worktree to check again.
         let resumed = self.resume(&machine_id, |pending| {
             matches!(pending, Mutation::Worktree(worktree::Operation::Remove {
                 root: from,
@@ -753,15 +753,15 @@ impl Machines {
             }) if *from == root && *removed == path)
         });
         match resumed.map(worktrees::removal) {
-            Some(WorktreeRemoval::Removed) => return WorktreeRemovalCheck::Removed,
-            Some(WorktreeRemoval::Failed {
+            None
+            | Some(WorktreeRemoval::Failed {
                 failure:
-                    failure @ (WorktreeRemovalFailure::Unanswered
-                    | WorktreeRemovalFailure::ChangedAfterClosing
-                    | WorktreeRemovalFailure::Interrupted
-                    | WorktreeRemovalFailure::Missing),
-            }) => return WorktreeRemovalCheck::Failed { failure },
-            _ => {}
+                    WorktreeRemovalFailure::Main
+                    | WorktreeRemovalFailure::Locked
+                    | WorktreeRemovalFailure::Pinned
+                    | WorktreeRemovalFailure::Changed,
+            }) => {}
+            Some(removal) => return WorktreeRemovalCheck::Resumed { removal },
         }
         let read = Read::CheckRemoval { root, path };
         match self.read_worktree(&machine_id, read) {

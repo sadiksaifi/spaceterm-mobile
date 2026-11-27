@@ -4,6 +4,7 @@ import type {
   MachineClient,
   Repository,
   Worktree,
+  WorktreeRemoval,
   WorktreeRemovalFailure,
   WorktreeRemovalReview,
 } from "@/shared/machines/model";
@@ -23,8 +24,11 @@ export type RemoveWorktree = {
    * while the Machine is not connected, and while a removal is under way on the Machine.
    */
   start: (() => void) | undefined;
-  /** Remove in the alert, or Try Again after the Machine didn't answer a remove. */
-  confirm: () => void;
+  /**
+   * Remove in the alert, or Try Again after the Machine didn't answer a remove. Absent while the
+   * Machine is not connected or has another removal under way.
+   */
+  confirm: (() => void) | undefined;
   /** Cancel or OK in the alert, or the alert closing by itself. */
   dismiss: () => void;
 };
@@ -94,48 +98,49 @@ export function useRemoveWorktree({
     setShown((current) => new Map(current).set(key, { machine, alert: next }));
   };
 
+  /** The alert a remove's answer leaves: none when it removed the Worktree, which the list shows. */
+  const answered = (removal: WorktreeRemoval, worktree: Worktree): RemovalAlert | null =>
+    removal.kind === "removed"
+      ? null
+      : { kind: "failed", worktree, failure: removal.failure, checking: false };
+
   const check = (root: Repository, worktree: Worktree) =>
     void run(async () => {
-      // This check undoes the Machine's earlier ones, so the questions they asked go.
-      keep((_, each) => each.machine !== machineId || each.alert.kind !== "confirm");
+      // This check undoes the Machine's earlier ones, so the questions they asked go, and so does
+      // this Workspace's alert, which a retry answers.
+      keep(
+        (other, each) =>
+          other !== key && (each.machine !== machineId || each.alert.kind !== "confirm"),
+      );
       const check = await client.checkWorktreeRemoval(machineId, root, worktree);
-      // A remove whose answer was lost went again and removed it: the list shows that.
-      if (check.kind === "removed") return null;
+      if (check.kind === "resumed") return answered(check.removal, worktree);
       return check.kind === "review"
         ? { kind: "confirm", review: check.review }
         : { kind: "failed", worktree, failure: check.failure, checking: true };
     });
 
-  const removable =
-    repository !== null && active !== null && active.path !== repository.root && connected;
+  const free = connected && !underway.has(machineId);
+  const removable = repository !== null && active !== null && active.path !== repository.root;
+
+  const confirm = (() => {
+    if (alert === null || repository === null || !free) return undefined;
+    // The check sends a lost remove again first, which finds out what became of it.
+    if (alert.kind === "failed") {
+      return alert.failure === "unanswered" ? () => check(repository, alert.worktree) : undefined;
+    }
+    const { review } = alert;
+    return () =>
+      void run(async () => {
+        keep((other) => other !== key);
+        const removal = await client.removeWorktree(machineId, repository, review);
+        return answered(removal, review.worktree);
+      });
+  })();
 
   return {
     alert,
-    start:
-      removable && !underway.has(machineId) && alert === null
-        ? () => check(repository, active)
-        : undefined,
-    confirm() {
-      if (alert === null || repository === null) return;
-      keep((other) => other !== key);
-      if (alert.kind === "failed") {
-        // The check sends a lost remove again first, which finds out what became of it.
-        if (alert.failure === "unanswered") check(repository, alert.worktree);
-        return;
-      }
-      const { review } = alert;
-      void run(async () => {
-        const removal = await client.removeWorktree(machineId, repository, review);
-        return removal.kind === "removed"
-          ? null
-          : {
-              kind: "failed",
-              worktree: review.worktree,
-              failure: removal.failure,
-              checking: false,
-            };
-      });
-    },
+    start: removable && free && alert === null ? () => check(repository, active) : undefined,
+    confirm,
     dismiss: () => keep((other) => other !== key),
   };
 }

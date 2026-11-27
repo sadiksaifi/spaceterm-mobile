@@ -25,8 +25,9 @@ export function RemovalDialogs({ removal, machine }: { removal: RemoveWorktree; 
       body={body}
       cancel={text.cancel}
       action={action}
+      enabled={removal.confirm !== undefined}
       onCancel={removal.dismiss}
-      onConfirm={removal.confirm}
+      onConfirm={() => removal.confirm?.()}
     />
   );
 }

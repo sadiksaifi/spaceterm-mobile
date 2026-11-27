@@ -164,8 +164,8 @@ export type WorktreeRemovalFailure =
 
 export type WorktreeRemovalCheck =
   | { kind: "review"; review: WorktreeRemovalReview }
-  /** An earlier remove of it whose answer was lost went again and removed it. */
-  | { kind: "removed" }
+  /** An earlier remove of it whose answer was lost went again, and this is its answer. */
+  | { kind: "resumed"; removal: WorktreeRemoval }
   | { kind: "failed"; failure: WorktreeRemovalFailure };
 
 export type WorktreeRemoval =

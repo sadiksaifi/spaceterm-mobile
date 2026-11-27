@@ -1,0 +1,14 @@
+diff --git a/ios/ExpoSQLite.podspec b/ios/ExpoSQLite.podspec
+index 2acb8defeae98f1a89a2326bd4a51ac50828af8f..29a1e9dc1d4bd0bdad8522905b086f9861e6fe3f 100644
+--- a/ios/ExpoSQLite.podspec
++++ b/ios/ExpoSQLite.podspec
+@@ -69,6 +69,9 @@ Pod::Spec.new do |s|
+     'DEFINES_MODULE' => 'YES',
+     'OTHER_CFLAGS' => '$(inherited) ' + sqlite_cflags,
+     'OTHER_SWIFT_FLAGS' => '$(inherited) ' + swift_flags,
++    # The vendored sqlite3.h fails under Swift explicit modules, which Xcode 27.2 turns on:
++    # "module '_Builtin_stdarg' is needed but has not been provided".
++    'SWIFT_ENABLE_EXPLICIT_MODULES' => 'NO',
+   }
+   s.source_files = "**/*.{c,h,m,swift}"
+   s.exclude_files = ['Tests', 'Benchmarks']

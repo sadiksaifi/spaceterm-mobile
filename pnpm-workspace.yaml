@@ -2,6 +2,7 @@ allowBuilds:
   "@parcel/watcher": false
 patchedDependencies:
   expo-device: patches/expo-device.patch
+  expo-sqlite: patches/expo-sqlite.patch
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - "ua-parser-js@0.7.41 || 1.0.41"

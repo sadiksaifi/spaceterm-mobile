@@ -13,6 +13,7 @@ import {
 import {
   accessibilityAddTraits,
   accessibilityElement,
+  accessibilityHidden,
   accessibilityLabel,
   background,
   bold,
@@ -204,7 +205,12 @@ function CardView({
           />
         </Button>
       </ZStack>
-      <Text modifiers={[caption, lineLimit(1), padding({ horizontal: 4 })]}>{card.name}</Text>
+      {/* The card already says the name, so VoiceOver does not stop on it twice. */}
+      <Text
+        modifiers={[caption, lineLimit(1), padding({ horizontal: 4 }), accessibilityHidden(true)]}
+      >
+        {card.name}
+      </Text>
     </VStack>
   );
 }

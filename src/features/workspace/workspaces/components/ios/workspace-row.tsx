@@ -7,6 +7,7 @@ import {
   Spacer,
   SwipeActions,
   Text,
+  VStack,
 } from "@expo/ui/swift-ui";
 import {
   accessibilityLabel,
@@ -54,17 +55,21 @@ export function WorkspaceRowView({
   const button = (
     <Button onPress={onPick} modifiers={[disabled(commands.underway !== null)]}>
       <HStack spacing={8} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
-        <Text
-          modifiers={[
-            font({ textStyle: "headline" }),
-            lineLimit(1),
-            ...(connected ? [] : [secondary]),
-          ]}
-        >
-          {row.workspace.name}
-        </Text>
+        <VStack alignment="leading" spacing={2}>
+          <Text
+            modifiers={[
+              font({ textStyle: "headline" }),
+              lineLimit(1),
+              ...(connected ? [] : [secondary]),
+            ]}
+          >
+            {row.workspace.name}
+          </Text>
+          <Text modifiers={[font({ textStyle: "subheadline" }), secondary, lineLimit(1)]}>
+            {detail}
+          </Text>
+        </VStack>
         <Spacer minLength={8} />
-        <Text modifiers={[secondary, lineLimit(1)]}>{detail}</Text>
         {checked && (
           <Image
             systemName="checkmark"

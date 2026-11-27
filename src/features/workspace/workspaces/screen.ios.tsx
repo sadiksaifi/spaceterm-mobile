@@ -12,7 +12,7 @@ import { WorkspaceRowView } from "./components/ios/workspace-row";
 import type ScreenContract from "./screen";
 import type { WorkspacesScreenProps } from "./screen";
 
-/** The system's search field and New Workspace in the sheet's bar, over the Workspaces. */
+/** The Workspaces, with the system's search field and New Workspace in the bottom bar. */
 export default function WorkspacesScreen({
   rows,
   selected,
@@ -33,12 +33,16 @@ export default function WorkspacesScreen({
         onChangeText={(event) => onSearch(event.nativeEvent.text)}
         onCancelButtonPress={() => onSearch("")}
       />
-      <Stack.Toolbar placement="right">
+      {/* New Workspace sits beside the search, both within reach of the thumb. */}
+      <Stack.Toolbar placement="bottom">
+        <Stack.Toolbar.SearchBarSlot />
+        <Stack.Toolbar.Spacer width={8} />
         <Stack.Toolbar.Button
           icon="plus"
           accessibilityLabel={text.newWorkspace}
           disabled={!onNewWorkspace}
           onPress={onNewWorkspace}
+          separateBackground
         />
       </Stack.Toolbar>
       <Host style={styles.fill}>

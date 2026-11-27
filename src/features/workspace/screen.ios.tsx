@@ -1,6 +1,6 @@
 import { Host } from "@expo/ui";
 import { ScrollView, VStack, ZStack } from "@expo/ui/swift-ui";
-import { clipped, frame, ignoreSafeArea, padding } from "@expo/ui/swift-ui/modifiers";
+import { frame, ignoreSafeArea, padding, scrollEdgeEffectStyle } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 import { useState, type ReactNode } from "react";
 import { PlatformColor, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -44,9 +44,9 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const onScreen = !sheet && panes === null;
 
   const content = connected ? (
-    // Cards stop at the header: the header's scroll edge effect does not reach a SwiftUI scroll
-    // view, so a card scrolled under it would cross the title. They still pass under the bar.
-    <ScrollView modifiers={[ignoreSafeArea({ edges: "bottom" }), clipped()]}>
+    // A hard edge under the header: the soft one barely covers it over a SwiftUI scroll view,
+    // so a card scrolled under it would cross the title.
+    <ScrollView modifiers={[scrollEdgeEffectStyle("hard", "top")]}>
       <VStack modifiers={[padding({ top: 2, bottom: bottom + BAR_HEIGHT + 24 })]}>
         <CardGrid
           screens={props.screens}

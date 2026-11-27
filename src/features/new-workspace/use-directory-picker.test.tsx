@@ -7,21 +7,12 @@ import type {
   CreateWorkspaceResult,
   DirectoryListing,
   MachineClient,
-  Workspace,
 } from "@/shared/machines/model";
 
 import { useDirectoryPicker } from "./use-directory-picker";
 
 const home: DirectoryListing = { kind: "listed", path: "~/", parent: null, directories: [] };
-const notes: Workspace = {
-  id: "w1",
-  name: "notes",
-  directory: "~/notes",
-  terminalSessions: 1,
-  tabs: [],
-  repository: null,
-};
-const created: CreateWorkspaceResult = { kind: "created", workspace: notes };
+const created: CreateWorkspaceResult = { kind: "created", workspaceId: "w1" };
 
 /** A Machine that lists `home` and answers Create Workspace from `answers`, in order. */
 function machine(answers: CreateWorkspaceResult[]) {
@@ -85,9 +76,10 @@ it("creates the missing directory on Create, and Try Again asks for it again", a
   const failure = result.current.failure;
   await act(async () => failure && result.current.retry(failure));
   expect(createWorkspace.mock.calls).toEqual([
-    ["mac", "~/notes", { createDirectory: false }],
-    ["mac", "~/notes", { createDirectory: true }],
-    ["mac", "~/notes", { createDirectory: true }],
+    ["mac", "~/notes", { createDirectory: false, again: false }],
+    ["mac", "~/notes", { createDirectory: true, again: false }],
+    // Try Again: a create whose answer was lost made the Workspace, and it makes no second one.
+    ["mac", "~/notes", { createDirectory: true, again: true }],
   ]);
   expect(onOpened).toHaveBeenCalledTimes(1);
 });
@@ -154,7 +146,9 @@ it("opens the text Go sent, even before the field's last change has rendered", a
   const { result } = await render(client);
 
   await act(async () => result.current.open("~/notes"));
-  expect(createWorkspace.mock.calls).toEqual([["mac", "~/notes", { createDirectory: false }]]);
+  expect(createWorkspace.mock.calls).toEqual([
+    ["mac", "~/notes", { createDirectory: false, again: false }],
+  ]);
 });
 
 it("opens nothing when Open follows a tap on a directory before the next render", async () => {

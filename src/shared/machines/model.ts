@@ -215,7 +215,7 @@ export type DirectoryListing =
   | { kind: "unavailable"; path: string; parent: string | null };
 
 export type CreateWorkspaceResult =
-  | { kind: "created"; workspace: Workspace }
+  | { kind: "created"; workspaceId: string }
   /** The directory does not exist. Asking again with `createDirectory` creates it first. */
   | { kind: "missing-directory"; directory: string }
   | { kind: "failed" };
@@ -268,10 +268,15 @@ export type MachineClient = {
   subscribe: (listener: () => void) => () => void;
   /** Lists `path`, which can start with `~` for the home directory. */
   listDirectory: (machineId: string, path: string) => Promise<DirectoryListing>;
+  /**
+   * Opens a Workspace in `directory`, which can start with `~`. `again` is Try Again of a create
+   * that failed: the Machine may have created that Workspace with its answer lost, and then
+   * creates no second one.
+   */
   createWorkspace: (
     machineId: string,
     directory: string,
-    options?: { createDirectory?: boolean },
+    options?: { createDirectory?: boolean; again?: boolean },
   ) => Promise<CreateWorkspaceResult>;
   /**
    * `workspace` is as the person saw it, from a snapshot. The Machine refuses a Rename when the

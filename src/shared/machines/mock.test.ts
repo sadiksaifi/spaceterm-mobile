@@ -50,11 +50,14 @@ describe("the mock client", () => {
 
     const result = await client.createWorkspace("mac", "~/Projects/app/");
 
-    expect(result).toMatchObject({
-      kind: "created",
-      workspace: { name: "app", directory: "~/Projects/app", branch: "main" },
+    const workspaces = client.getSnapshot().machines[0]?.workspaces;
+    expect(workspaces).toHaveLength(1);
+    expect(result).toEqual({ kind: "created", workspaceId: workspaces?.[0]?.id });
+    expect(workspaces?.[0]).toMatchObject({
+      name: "app",
+      directory: "~/Projects/app",
+      branch: "main",
     });
-    expect(client.getSnapshot().machines[0]?.workspaces).toHaveLength(1);
     expect(changes).toBe(1);
   });
 

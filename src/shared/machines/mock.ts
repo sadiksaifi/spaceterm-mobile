@@ -240,7 +240,7 @@ export function createMockClient(
         tabs: [shellTab(null)],
         repository: null,
       };
-      return answer<CreateWorkspaceResult>({ kind: "created", workspace }, () => {
+      return answer<CreateWorkspaceResult>({ kind: "created", workspaceId: workspace.id }, () => {
         if (children === undefined) makeDirectories(target, absolute);
         target.workspaces = [...(target.workspaces ?? []), workspace];
         changed();

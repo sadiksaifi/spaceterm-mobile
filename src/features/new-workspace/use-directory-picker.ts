@@ -76,10 +76,10 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
       .then((answer) => send({ type: "answered", request, listing: answer }));
   }, [client, machineId, loadingPath, request]);
 
-  function attempt(directory: string, createDirectory: boolean) {
+  function attempt(directory: string, createDirectory: boolean, again = false) {
     // Opening takes no second attempt until the Machine answers the first.
     send({ type: createDirectory ? "create" : "open" });
-    void client.createWorkspace(machineId, directory, { createDirectory }).then((result) => {
+    void client.createWorkspace(machineId, directory, { createDirectory, again }).then((result) => {
       // The picker takes no other directory meanwhile, so only a closed step drops the answer.
       if (!mounted.current) return;
       switch (result.kind) {
@@ -119,7 +119,9 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
     },
     cancel: () => send({ type: "cancel" }),
     retry(failure) {
-      if (failure === latest.current.confirm) attempt(failure.directory, failure.createDirectory);
+      if (failure === latest.current.confirm) {
+        attempt(failure.directory, failure.createDirectory, true);
+      }
     },
     dismissFailure: (failure) => send({ type: "dismiss-failure", failure }),
   };

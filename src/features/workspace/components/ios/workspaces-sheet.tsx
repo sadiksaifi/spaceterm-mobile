@@ -34,8 +34,7 @@ import {
   padding,
   presentationDetents,
   presentationDragIndicator,
-  rotationEffect,
-  scaleEffect,
+  contentTransition,
   type PresentationDetent,
   shapes,
   submitLabel,
@@ -145,15 +144,13 @@ export function WorkspacesSheet({
                   accessibilityLabel(searching ? text.cancelSearch : text.newWorkspace),
                 ]}
               >
-                {/* A plus turned 45 degrees is the X, so the same symbol turns into it, a little
-                    smaller, as its arms then run corner to corner. The glass is a circle as tall
-                    as Search, so the two line up. */}
+                {/* As the system's bar: the plus gives way to the X with the system's symbol
+                    transition. The glass is a circle as tall as Search, so the two line up. */}
                 <Image
-                  systemName="plus"
+                  systemName={searching ? "xmark" : "plus"}
                   modifiers={[
-                    font({ size: 20, weight: "medium" }),
-                    rotationEffect(searching ? 45 : 0),
-                    scaleEffect(searching ? 0.95 : 1),
+                    font({ size: 22, weight: "medium" }),
+                    contentTransition("symbolEffect"),
                     animation(Animation.snappy(), searching),
                     frame({ width: FIELD_HEIGHT, height: FIELD_HEIGHT }),
                     glassEffect({
@@ -192,8 +189,8 @@ export function WorkspacesSheet({
   );
 }
 
-/** Search's height, which New Workspace's circle matches. */
-const FIELD_HEIGHT = 44;
+/** The height of the system's search field in a bar, which New Workspace's circle matches. */
+const FIELD_HEIGHT = 48;
 
 /** As the system's search field: glass, Search on the keyboard, and Clear while it has text. */
 function SearchField({
@@ -211,7 +208,7 @@ function SearchField({
     <HStack
       spacing={8}
       modifiers={[
-        padding({ horizontal: 14 }),
+        padding({ horizontal: 11.5 }),
         frame({ height: FIELD_HEIGHT }),
         // Glass, as the system's search field in a bar.
         glassEffect({ glass: { variant: "regular", interactive: true }, shape: "capsule" }),
@@ -219,12 +216,11 @@ function SearchField({
     >
       <Image
         systemName="magnifyingglass"
-        // The size and weight of the system search field's glass.
-        modifiers={[font({ size: 16, weight: "medium" }), secondary, accessibilityHidden()]}
+        // The size, weight, and color of the system search field's glass.
+        modifiers={[font({ size: 17, weight: "medium" }), accessibilityHidden()]}
       />
       <TextField
         ref={field}
-        placeholder={text.searchWorkspaces}
         onTextChange={onChange}
         onFocusChange={onFocusChange}
         modifiers={[
@@ -232,7 +228,14 @@ function SearchField({
           autocorrectionDisabled(),
           submitLabel("search"),
         ]}
-      />
+      >
+        {/* As bright as the system's placeholder; the default is dimmer. */}
+        <TextField.Placeholder>
+          <Text modifiers={[foregroundStyle({ type: "color", color: Color.ios.secondaryLabel })]}>
+            {text.searchWorkspaces}
+          </Text>
+        </TextField.Placeholder>
+      </TextField>
       {query !== "" && (
         <Button
           onPress={() => {
@@ -241,7 +244,7 @@ function SearchField({
           }}
           modifiers={[buttonStyle("plain"), accessibilityLabel(text.clearText)]}
         >
-          <Image systemName="xmark.circle.fill" modifiers={[secondary]} />
+          <Image systemName="xmark.circle.fill" modifiers={[font({ size: 17 })]} />
         </Button>
       )}
     </HStack>

@@ -208,11 +208,20 @@ export function useTabCommands({
     if (hasTabs) return updateGrid((grid) => ({ ...grid, picked: worktree.path }));
     // Another New Tab is on its way; the grid keeps waiting for that one.
     if (underway({ command: "switch", worktree })) return;
+    const before = state.picked;
     updateGrid((grid) => ({ ...grid, picked: worktree.path, expecting: PENDING }));
     run(
       { command: "switch", worktree },
       () => client.newTab(machineId, workspace, worktree),
-      opened,
+      (result) =>
+        result.kind === "done"
+          ? opened(result)
+          : // The grid goes back to the Worktree picked before, unless another was picked since.
+            updateGrid((grid) => ({
+              ...grid,
+              picked: grid.picked === worktree.path ? before : grid.picked,
+              expecting: null,
+            })),
     );
   };
 
@@ -264,11 +273,8 @@ export function useTabCommands({
             ? sendClosePane(tab, pane, true)
             : closePane(tab, pane);
         }
-        case "new-tab": {
-          const { worktree } = shown;
-          const listed = grid.worktrees.some((each) => each.worktree.path === worktree?.path);
-          return worktree !== null && listed ? newTabIn(worktree) : newTab();
-        }
+        case "new-tab":
+          return shown.worktree === null ? newTab() : newTabIn(shown.worktree);
         case "new-pane": {
           const tab = listedTab(shown.tab.id);
           return tab && newPane(tab);
@@ -312,6 +318,14 @@ function flightId(failure: TabFailure): string {
 
 /** A refusal for a Tab or Pane that has gone offers nothing to try again. */
 function stillListed(workspace: Workspace, failure: TabFailure): boolean {
+  if (failure.command === "new-tab" || failure.command === "switch") {
+    const { worktree } = failure;
+    // A Tab for a Worktree that is gone would open in another, so its failure goes too.
+    return (
+      worktree === null ||
+      (workspace.repository?.worktrees.some((each) => each.path === worktree.path) ?? false)
+    );
+  }
   if (!("tab" in failure)) return true;
   const tab = workspace.tabs.find((each) => each.id === failure.tab.id);
   if (tab === undefined) return false;

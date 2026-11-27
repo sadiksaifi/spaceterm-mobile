@@ -177,6 +177,22 @@ describe("picking a Worktree", () => {
     expect(result.current.grid.tabs.map((each) => each.id)).toEqual(["fresh"]);
   });
 
+  it("goes back to the Worktree picked before when the Tab cannot be opened", async () => {
+    const review = "/srv/api-review";
+    const tabs = [idle, tab("f", undefined, FIX)];
+    const listed = workspace(tabs);
+    const worktrees = [...listed.repository!.worktrees, { path: review, name: "review" }];
+    listed.repository = { root: MAIN, worktrees };
+    const newTab = async (): Promise<NewTabResult> => ({ kind: "failed" });
+    const { result, rerender } = await render({ newTab }, tabs);
+    await rerender({ listed });
+
+    await act(async () => result.current.pickWorktree({ path: FIX, name: "fix" }));
+    await act(async () => result.current.pickWorktree({ path: review, name: "review" }));
+    expect(result.current.failure).toMatchObject({ command: "switch" });
+    expect(result.current.grid.active?.name).toBe("fix");
+  });
+
   it("goes back to the Worktree it showed when the Tab cannot be opened", async () => {
     const { result } = await render({ newTab: async () => ({ kind: "failed" }) });
     const fix = { path: FIX, name: "fix" };
@@ -200,6 +216,25 @@ describe("New Tab", () => {
     await act(async () => result.current.pickWorktree({ path: MAIN, name: "main" }));
     await act(async () => result.current.retry(result.current.failure!));
     expect(newTab).toHaveBeenLastCalledWith(expect.any(String), expect.anything(), fix);
+  });
+
+  it("drops a New Tab failure whose Worktree is gone, rather than open the Tab elsewhere", async () => {
+    const newTab = jest.fn<TabClient["newTab"]>(async () => ({ kind: "failed" }));
+    const tabs = [idle, tab("f", undefined, FIX)];
+    const { result, rerender } = await render({ newTab }, tabs);
+    const fix = { path: FIX, name: "fix" };
+
+    await act(async () => result.current.pickWorktree(fix));
+    await act(async () => result.current.newTab());
+    const shown = result.current.failure!;
+    expect(shown).toEqual({ command: "new-tab", worktree: fix });
+
+    const gone = workspace([idle]);
+    gone.repository = { root: MAIN, worktrees: [{ path: MAIN, name: "main" }] };
+    await rerender({ listed: gone });
+    expect(result.current.failure).toBeNull();
+    await act(async () => result.current.retry(shown));
+    expect(newTab).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a Workspace's New Tab failure for when the person comes back to it", async () => {

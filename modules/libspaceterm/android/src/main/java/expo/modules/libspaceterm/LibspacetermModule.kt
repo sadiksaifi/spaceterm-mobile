@@ -29,6 +29,7 @@ import uniffi.spaceterm_mobile.PaneScreen
 import uniffi.spaceterm_mobile.PaneSide
 import uniffi.spaceterm_mobile.PaneSummary
 import uniffi.spaceterm_mobile.RepositorySummary
+import uniffi.spaceterm_mobile.RunColor
 import uniffi.spaceterm_mobile.ScreenRun
 import uniffi.spaceterm_mobile.TabSummary
 import uniffi.spaceterm_mobile.WorkspaceSummary
@@ -343,8 +344,8 @@ private fun PaneScreen.toMap() = mapOf(
 
 private fun ScreenRun.toMap() = mapOf(
   "text" to text,
-  "foreground" to foreground,
-  "background" to background,
+  "foreground" to foreground?.toValue(),
+  "background" to background?.toValue(),
   "inverse" to inverse,
   "bold" to bold,
   "faint" to faint,
@@ -352,6 +353,12 @@ private fun ScreenRun.toMap() = mapOf(
   "underline" to underline,
   "strikethrough" to strikethrough
 )
+
+/** `#rrggbb` as a string, a palette entry as its index. */
+private fun RunColor.toValue(): Any = when (this) {
+  is RunColor.Rgb -> hex
+  is RunColor.Palette -> index.toInt()
+}
 
 private fun PaneSummary.toMap() = mapOf(
   "id" to id,

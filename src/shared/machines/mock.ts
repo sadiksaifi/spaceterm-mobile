@@ -12,6 +12,7 @@ import type {
   PairingOutcome,
   Pane,
   PaneScreen,
+  RunColor,
   ScreenRun,
   Tab,
   Workspace,
@@ -605,7 +606,7 @@ function display(home: string, absolute: string, trailingSlash: boolean): string
 
 /** A shell's prompt in the Workspace's directory, waiting after the Pane's command. */
 function promptScreen(workspace: Workspace, pane: Pane): PaneScreen {
-  const run = (text: string, foreground: string | null = null): ScreenRun => ({
+  const run = (text: string, foreground: RunColor | null = null): ScreenRun => ({
     text,
     foreground,
     background: null,
@@ -616,9 +617,10 @@ function promptScreen(workspace: Workspace, pane: Pane): PaneScreen {
     underline: false,
     strikethrough: false,
   });
-  const prompt = [run(`${workspace.directory} `, "#6ca8f5")];
-  if (workspace.branch !== undefined) prompt.push(run(workspace.branch, "#c58ae0"));
+  // Palette blue, magenta and green, which the Terminal Theme colors, as from a Work 1.7 Machine.
+  const prompt = [run(`${workspace.directory} `, 4)];
+  if (workspace.branch !== undefined) prompt.push(run(workspace.branch, 5));
   return {
-    rows: [prompt, [run("❯ ", "#7bc47f"), run(pane.name)], [], prompt, [run("❯ ", "#7bc47f")]],
+    rows: [prompt, [run("❯ ", 2), run(pane.name)], [], prompt, [run("❯ ", 2)]],
   };
 }

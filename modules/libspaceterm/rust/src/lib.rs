@@ -582,7 +582,7 @@ impl Machines {
 
     /// The last screens of `panes` on a connected Machine, for their cards. A Pane that has not
     /// started or whose screen did not arrive in time has none, as has every Pane of a Machine
-    /// before work 1.6.
+    /// before work 1.6. A Machine on work 1.7 leaves palette colors to the device's Terminal Theme.
     pub fn pane_previews(&self, machine_id: String, panes: Vec<String>) -> Vec<PaneScreen> {
         let Some(link) = self
             .known(&machine_id)
@@ -602,7 +602,7 @@ impl Machines {
         let deadline = Instant::now() + PREVIEW_WAIT;
         let pending: Vec<_> = ids
             .chunks(preview::MAX_PANES)
-            .filter_map(|chunk| link.read_pane_previews(chunk.to_vec()).ok())
+            .filter_map(|chunk| link.read_pane_previews_with_palette(chunk.to_vec()).ok())
             .collect();
         pending
             .into_iter()

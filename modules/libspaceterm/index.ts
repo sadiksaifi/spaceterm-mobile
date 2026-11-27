@@ -53,11 +53,14 @@ export type NativeWorkspace = {
 /** A Pane's last screen, top-left first. A row with no runs is blank. */
 export type NativePaneScreen = { pane: string; rows: NativeScreenRun[][] };
 
-/** Consecutive cells drawn alike. Colors are `#rrggbb`; `null` is the terminal's own. */
+/**
+ * Consecutive cells drawn alike. A color is `#rrggbb` or a 256-color palette index; `null` is the
+ * terminal's own.
+ */
 export type NativeScreenRun = {
   text: string;
-  foreground: string | null;
-  background: string | null;
+  foreground: string | number | null;
+  background: string | number | null;
   /** Foreground and background trade places. */
   inverse: boolean;
   bold: boolean;

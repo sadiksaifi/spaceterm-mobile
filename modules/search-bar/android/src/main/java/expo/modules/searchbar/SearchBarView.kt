@@ -20,7 +20,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import expo.modules.kotlin.views.ComposeProps
@@ -60,6 +62,7 @@ fun FunctionalComposableScope.SearchBarContent(
   val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
   // The focus of the window the collapsed bar is in, not the full-screen search's.
   val barFocus = LocalFocusManager.current
+  val inputModeManager = LocalInputModeManager.current
 
   LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
@@ -71,8 +74,9 @@ fun FunctionalComposableScope.SearchBarContent(
   LaunchedEffect(expanded) {
     currentOnExpandedChange(GenericEventPayload1(expanded))
     // The tap that opens the search focuses the collapsed bar's input. Left focused, it takes the
-    // keyboard as the full-screen search closes, and the keyboard flashes.
-    barFocus.clearFocus()
+    // keyboard as the full-screen search closes, and the keyboard flashes. Someone using a
+    // keyboard or D-pad keeps their place on the bar, as Material intends.
+    if (inputModeManager.inputMode == InputMode.Touch) barFocus.clearFocus()
   }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.

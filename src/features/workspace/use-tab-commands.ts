@@ -287,7 +287,7 @@ export function useTabCommands({
           return newTabIn(shown.worktree ?? grid.active, true);
         case "new-pane": {
           const tab = listedTab(shown.tab.id);
-          // The same split, though its Pane closed since: the Machine may have run it already.
+          // The same split, which the Machine may have run already, though Panes were added since.
           return tab && sendNewPane(tab, shown.source, true);
         }
         case "move-tab": {
@@ -340,5 +340,8 @@ function stillListed(workspace: Workspace, failure: TabFailure): boolean {
   if (!("tab" in failure)) return true;
   const tab = workspace.tabs.find((each) => each.id === failure.tab.id);
   if (tab === undefined) return false;
+  // A split whose Pane is gone has nothing to split; if it ran, its Pane is listed already.
+  if (failure.command === "new-pane")
+    return tab.panes.some((each) => each.id === failure.source.id);
   return failure.command !== "close-pane" || tab.panes.some((each) => each.id === failure.pane.id);
 }

@@ -231,23 +231,15 @@ describe("New Pane", () => {
     );
   });
 
-  it("asks for the same split on Try Again after its Pane closed elsewhere", async () => {
-    const newPane = jest.fn<TabClient["newPane"]>(refused);
-    const { result, rerender } = await render({ newPane });
-    const [first, last] = busy.panes;
+  it("lets go of a failed split once its Pane closed elsewhere", async () => {
+    const { result, rerender } = await render({ newPane: refused });
+    const [first] = busy.panes;
 
     await act(async () => result.current.newPane(busy));
-    // The split ran and its answer was lost, then another device closed the Pane it split.
-    const changed = { ...busy, panes: [first, pane("z", { source: last.id })] };
-    await rerender({ listed: workspace([idle, changed]) });
-    await act(async () => result.current.retry(result.current.failure!));
-    expect(newPane).toHaveBeenLastCalledWith(
-      expect.any(String),
-      expect.anything(),
-      changed,
-      last,
-      true,
-    );
+    expect(result.current.failure).not.toBeNull();
+    // Another device closed the Pane it split, so Try Again has no Pane to split.
+    await rerender({ listed: workspace([idle, { ...busy, panes: [first] }]) });
+    expect(result.current.failure).toBeNull();
   });
 });
 

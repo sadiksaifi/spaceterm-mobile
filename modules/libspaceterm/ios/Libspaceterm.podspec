@@ -11,6 +11,8 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  # The model name the Machine calls this device, patched public in patches/expo-device.patch.
+  s.dependency 'ExpoDevice'
 
   generated = File.join(__dir__, 'generated')
   unless File.exist?(File.join(generated, 'SpacetermMobile.xcframework'))

@@ -1,0 +1,14 @@
+diff --git a/ios/UIDevice.swift b/ios/UIDevice.swift
+index 07da058e46bf33a636e37ce715dc6f179a7c2849..dfc7b9e4ac4966bbf9b67a17b6735f12cbbbd6ae 100644
+--- a/ios/UIDevice.swift
++++ b/ios/UIDevice.swift
+@@ -21,6 +21,9 @@ public extension UIDevice {
+     }
+   }()
+ 
++  /// The marketing name of this device's model, such as "iPhone 17 Pro".
++  static var modelName: String { DeviceMap.modelName }
++
+   // swiftlint:disable closure_body_length
+   static internal let DeviceMap: ExpoDeviceType = {
+     func mapToDevice(identifier: String) -> ExpoDeviceType {

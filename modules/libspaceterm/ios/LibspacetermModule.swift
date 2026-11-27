@@ -1,3 +1,4 @@
+import ExpoDevice
 import ExpoModulesCore
 import UIKit
 
@@ -36,11 +37,16 @@ private func keepConnectionsOutOfBackup() -> Bool {
   }
 }
 
+/// What Machines call this device: its model, such as "iPhone 17 Pro". iOS gives apps only a
+/// generic "iPhone" for the name the person set, without an entitlement Apple must grant.
 private func deviceName() -> String {
-  if Thread.isMainThread {
-    return MainActor.assumeIsolated { UIDevice.current.name }
-  }
-  return DispatchQueue.main.sync { UIDevice.current.name }
+  #if targetEnvironment(simulator)
+    // A simulator's model reads as "Simulator iOS"; its own name says which iPhone it plays.
+    if let name = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"], !name.isEmpty {
+      return name
+    }
+  #endif
+  return UIDevice.modelName
 }
 
 public class LibspacetermModule: Module {

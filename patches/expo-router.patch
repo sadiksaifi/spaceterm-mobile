@@ -1,0 +1,33 @@
+diff --git a/ios/Toolbar/RouterToolbarHostView.swift b/ios/Toolbar/RouterToolbarHostView.swift
+index b10810d4207786561e53aa93e77cfa0adb2d8d3f..13853875d8ef4470ab81ac91092f1c895512d745 100644
+--- a/ios/Toolbar/RouterToolbarHostView.swift
++++ b/ios/Toolbar/RouterToolbarHostView.swift
+@@ -170,6 +170,12 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+   override func didMoveToWindow() {
+     super.didMoveToWindow()
+     if window == nil {
++      // A screen pushed over this one takes it off the window, but the toolbar still belongs to
++      // it. Its items stay, so UIKit brings them back with the screen when the pushed one pops,
++      // instead of the toolbar appearing once the pop has started.
++      if let controller = cachedController, isDescendant(of: controller.view) {
++        return
++      }
+       // View was removed from window - hide toolbar and clear items
+       // Use cached controller since responder chain may be broken
+       if let controller = cachedController {
+@@ -182,6 +188,15 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+     }
+   }
+ 
++  override func willMove(toSuperview newSuperview: UIView?) {
++    super.willMove(toSuperview: newSuperview)
++    // The toolbar leaves its screen while another screen covers it: no window change reports it.
++    if newSuperview == nil, window == nil, let controller = cachedController {
++      controller.setToolbarItems(nil, animated: false)
++      cachedController = nil
++    }
++  }
++
+   func updateMenu() {
+     updateToolbarItems()
+   }

@@ -13,12 +13,16 @@ use std::time::{Duration, Instant};
 
 /// How long an edit waits for the Machine before it counts as failed.
 const EDIT_WAIT: Duration = Duration::from_secs(10);
+/// How long the answer to a lost edit, recovered while another edit went out, stands in for Try
+/// Again of the lost one. Past it, the same edit asked again counts as new.
+const RECOVERED_FOR: Duration = Duration::from_secs(120);
 
 type Slot = Arc<Mutex<Option<(PairedMachine, WorkspaceEditor)>>>;
 
 pub(crate) struct Edits {
     directory: PathBuf,
     editors: Mutex<HashMap<DirectRouteId, Slot>>,
+    recovered: Mutex<Recovered>,
 }
 
 impl Edits {
@@ -26,6 +30,7 @@ impl Edits {
         Self {
             directory,
             editors: Mutex::default(),
+            recovered: Mutex::default(),
         }
     }
 
@@ -39,6 +44,10 @@ impl Edits {
     ) -> Option<Outcome> {
         let slot = self.slot(route)?;
         let mut slot = slot.lock().ok()?;
+        // Try Again of an edit whose answer came back while another edit went out.
+        if let Some(outcome) = self.take_recovered(route, |recovered| *recovered == mutation) {
+            return Some(outcome);
+        }
         let deadline = Instant::now() + EDIT_WAIT;
         let editor = self.editor(&mut slot, route, machine)?;
         if let Some(pending) = editor.journal().pending().cloned() {
@@ -52,6 +61,10 @@ impl Edits {
                     // Try Again of that same edit: its answer is this one's.
                     if pending.mutation == mutation {
                         return Some(outcome.outcome);
+                    }
+                    // Its own Try Again may still come, and must not apply it twice.
+                    if let Ok(mut recovered) = self.recovered.lock() {
+                        recovered.keep(route, pending.mutation, outcome.outcome, Instant::now());
                     }
                 }
                 Ok(None) => {}
@@ -86,10 +99,13 @@ impl Edits {
         &self,
         route: DirectRouteId,
         machine: &PairedMachine,
-        matches: impl FnOnce(&Mutation) -> bool,
+        matches: impl Fn(&Mutation) -> bool,
     ) -> Option<Option<Outcome>> {
         let slot = self.slot(route)?;
         let mut slot = slot.lock().ok()?;
+        if let Some(outcome) = self.take_recovered(route, |recovered| matches(recovered)) {
+            return Some(Some(outcome));
+        }
         let editor = self.editor(&mut slot, route, machine)?;
         if !editor
             .journal()
@@ -157,6 +173,17 @@ impl Edits {
         }
     }
 
+    fn take_recovered(
+        &self,
+        route: DirectRouteId,
+        matches: impl Fn(&Mutation) -> bool,
+    ) -> Option<Outcome> {
+        self.recovered
+            .lock()
+            .ok()?
+            .take(route, matches, Instant::now())
+    }
+
     fn slot(&self, route: DirectRouteId) -> Option<Slot> {
         let mut editors = self.editors.lock().ok()?;
         Some(Arc::clone(editors.entry(route).or_default()))
@@ -201,6 +228,34 @@ impl Edits {
             directory: self.directory.clone(),
             name: journal_name(&route),
         }
+    }
+}
+
+/// Each pairing's last answer to a lost edit that another edit recovered, kept for that edit's
+/// own Try Again. It answers once, and only within `RECOVERED_FOR`.
+#[derive(Default)]
+struct Recovered(HashMap<DirectRouteId, (Mutation, Outcome, Instant)>);
+
+impl Recovered {
+    fn keep(&mut self, route: DirectRouteId, mutation: Mutation, outcome: Outcome, at: Instant) {
+        self.0.insert(route, (mutation, outcome, at));
+    }
+
+    fn take(
+        &mut self,
+        route: DirectRouteId,
+        matches: impl Fn(&Mutation) -> bool,
+        now: Instant,
+    ) -> Option<Outcome> {
+        let (mutation, _, at) = self.0.get(&route)?;
+        if now.saturating_duration_since(*at) > RECOVERED_FOR {
+            self.0.remove(&route);
+            return None;
+        }
+        if !matches(mutation) {
+            return None;
+        }
+        self.0.remove(&route).map(|(_, outcome, _)| outcome)
     }
 }
 
@@ -275,6 +330,32 @@ mod tests {
         journal.replace(b"second").unwrap();
         assert_eq!(journal.read(), Ok(Some(b"second".to_vec())));
         let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn a_recovered_answer_answers_its_own_edit_once_and_only_for_a_while() {
+        use spaceterm_client::hierarchy::CreateControl;
+        let new_tab = |workspace: u8| Mutation::CreateTab {
+            workspace: [workspace; 32],
+            source: None,
+            control: CreateControl::Unclaimed,
+        };
+        let created = Outcome::Accepted { target: [7; 32] };
+        let (route, start) = ([1; 32], Instant::now());
+        let mut recovered = Recovered::default();
+
+        recovered.keep(route, new_tab(1), created.clone(), start);
+        assert_eq!(recovered.take([2; 32], |m| *m == new_tab(1), start), None);
+        assert_eq!(recovered.take(route, |m| *m == new_tab(2), start), None);
+        assert_eq!(
+            recovered.take(route, |m| *m == new_tab(1), start),
+            Some(created.clone())
+        );
+        assert_eq!(recovered.take(route, |m| *m == new_tab(1), start), None);
+
+        recovered.keep(route, new_tab(1), created, start);
+        let later = start + RECOVERED_FOR + Duration::from_secs(1);
+        assert_eq!(recovered.take(route, |m| *m == new_tab(1), later), None);
     }
 
     #[test]

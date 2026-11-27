@@ -801,7 +801,7 @@ impl Machines {
     fn resume(
         &self,
         machine_id: &str,
-        matches: impl FnOnce(&Mutation) -> bool,
+        matches: impl Fn(&Mutation) -> bool,
     ) -> Option<Option<Outcome>> {
         let route = self.known(machine_id).ok()?;
         let machine = self.connections.core(&route)?;

@@ -115,6 +115,9 @@ export function WorkspacesSheet({
       onDismissRequest={onClose}
       containerColor={material.surfaceContainerLow}
       skipPartiallyExpanded
+      // The only keyboard is the full-screen search's. Material would grow the sheet under it and
+      // learn it closed only after it slid away, so the search would collapse to a raised bar.
+      keyboardInsets={false}
     >
       <Box modifiers={[fillMaxWidth()]}>
         <Column modifiers={[fillMaxWidth(), padding(16, 0, 16, SHEET_BOTTOM)]}>

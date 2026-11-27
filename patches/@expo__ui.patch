@@ -1,0 +1,70 @@
+diff --git a/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt b/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt
+index 9ca09321e7068ced9a490fdd06dac7a2d8ec3949..439d7e0aaf66216cc2b87238d65db610cd577898 100644
+--- a/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt
++++ b/android/src/main/java/expo/modules/ui/ModalBottomSheetView.kt
+@@ -2,6 +2,9 @@
+ 
+ package expo.modules.ui
+ 
++import androidx.compose.foundation.layout.WindowInsets
++import androidx.compose.foundation.layout.exclude
++import androidx.compose.foundation.layout.ime
+ import android.app.Activity
+ import android.app.Dialog
+ import android.content.Context
+@@ -49,6 +52,7 @@ data class ModalBottomSheetViewProps(
+   val scrimColor: Color? = null,
+   val showDragHandle: Boolean = true,
+   val sheetGesturesEnabled: Boolean = true,
++  val keyboardInsets: Boolean = true,
+   val properties: ModalBottomSheetPropertiesRecord = ModalBottomSheetPropertiesRecord(),
+   val modifiers: ModifierList = emptyList()
+ ) : ComposeProps
+@@ -161,6 +165,13 @@ fun FunctionalComposableScope.ModalBottomSheetContent(
+     contentColor = resolvedContentColor,
+     scrimColor = resolvedScrimColor,
+     sheetGesturesEnabled = props.sheetGesturesEnabled,
++    contentWindowInsets = {
++      if (props.keyboardInsets) {
++        BottomSheetDefaults.modalWindowInsets
++      } else {
++        BottomSheetDefaults.modalWindowInsets.exclude(WindowInsets.ime)
++      }
++    },
+     dragHandle = when {
+       dragHandleSlotView != null -> {
+         { with(UIComposableScope()) { with(dragHandleSlotView) { Content() } } }
+diff --git a/build/jetpack-compose/ModalBottomSheet/index.d.ts b/build/jetpack-compose/ModalBottomSheet/index.d.ts
+index 6d3806c8213034310a304287da1e609453d30243..267ecb4a1667085ac50bc29f5d3ea05ef60ff562 100644
+--- a/build/jetpack-compose/ModalBottomSheet/index.d.ts
++++ b/build/jetpack-compose/ModalBottomSheet/index.d.ts
+@@ -78,6 +78,12 @@ export interface ModalBottomSheetProps {
+      * @default true
+      */
+     sheetGesturesEnabled?: boolean;
++    /**
++     * Whether the sheet makes room for the keyboard. Turn it off for a sheet whose only keyboard
++     * belongs to a window over it, such as a full-screen search.
++     * @default true
++     */
++    keyboardInsets?: boolean;
+     /**
+      * Properties for the modal window behavior.
+      */
+diff --git a/src/jetpack-compose/ModalBottomSheet/index.tsx b/src/jetpack-compose/ModalBottomSheet/index.tsx
+index c3225b1d9c7c0636d366203e2b23f536fec9e54e..d11bdf1a23a5cad35c04ee5bbfd08365a4095d33 100644
+--- a/src/jetpack-compose/ModalBottomSheet/index.tsx
++++ b/src/jetpack-compose/ModalBottomSheet/index.tsx
+@@ -92,6 +92,12 @@ export interface ModalBottomSheetProps {
+    * @default true
+    */
+   sheetGesturesEnabled?: boolean;
++  /**
++   * Whether the sheet makes room for the keyboard. Turn it off for a sheet whose only keyboard
++   * belongs to a window over it, such as a full-screen search.
++   * @default true
++   */
++  keyboardInsets?: boolean;
+   /**
+    * Properties for the modal window behavior.
+    */

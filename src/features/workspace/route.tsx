@@ -7,7 +7,7 @@ import { newWorkspaceHref } from "@/features/new-workspace/entry";
 import { useMachineClient, useMachines } from "@/shared/machines/client";
 import type { Workspace } from "@/shared/machines/model";
 
-import { NEW_TAB } from "./entry";
+import { newTabAction, takeNewTab } from "./entry";
 import { workspaceView } from "./model";
 import WorkspaceScreen from "./screen";
 import { usePanePreviews } from "./use-pane-previews";
@@ -38,7 +38,11 @@ export default function WorkspaceRoute() {
       killWorkspace: client.killWorkspace,
       // New Tab in another Workspace's menu changes to it and opens the Tab there.
       onNewTab: (rowMachine, rowWorkspace) =>
-        router.setParams({ machineId: rowMachine, workspaceId: rowWorkspace, action: NEW_TAB }),
+        router.setParams({
+          machineId: rowMachine,
+          workspaceId: rowWorkspace,
+          action: newTabAction(),
+        }),
     },
     snapshot,
   );
@@ -71,8 +75,8 @@ export default function WorkspaceRoute() {
   );
   const newTab = useEffectEvent(() => commands.newTab());
   useEffect(() => {
-    if (action !== NEW_TAB || !tabsShow) return;
-    newTab();
+    if (action === undefined || !tabsShow) return;
+    if (takeNewTab(action)) newTab();
     router.setParams({ action: undefined });
   }, [action, tabsShow, router]);
 

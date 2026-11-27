@@ -1,17 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { linkFromOutside } from "./entry";
+import { newTabAction, takeNewTab, workspaceHref } from "./entry";
 
-describe("a Workspace link from another app", () => {
-  it("opens the Workspace without New Tab, which only the app asks for", () => {
-    expect(linkFromOutside("/workspace/mac/w1?action=new-tab")).toBe("/workspace/mac/w1");
-    expect(linkFromOutside("spaceterm://workspace/mac/w1?action=new-tab&x=1")).toBe(
-      "spaceterm://workspace/mac/w1?x=1",
-    );
+describe("New Tab through a Workspace link", () => {
+  it("opens once for an action the app made", () => {
+    const href = workspaceHref("mac", "w1", true);
+    const action = typeof href === "object" ? href.params?.action : undefined;
+
+    expect(typeof action).toBe("string");
+    expect(takeNewTab(action as string)).toBe(true);
+    expect(takeNewTab(action as string)).toBe(false);
   });
 
-  it("leaves every other link as it is", () => {
-    expect(linkFromOutside("/workspace/mac/w1")).toBe("/workspace/mac/w1");
-    expect(linkFromOutside("/settings?action=new-tab")).toBe("/settings?action=new-tab");
+  it("opens for none the app did not make, as a link from another app carries", () => {
+    expect(takeNewTab("new-tab")).toBe(false);
+    expect(takeNewTab(undefined)).toBe(false);
+  });
+
+  it("makes a different action each time", () => {
+    expect(newTabAction()).not.toBe(newTabAction());
   });
 });

@@ -39,6 +39,8 @@ struct PillBarView: ExpoSwiftUI.View {
   private static let inset: CGFloat = 6
   /** An edge with pills past it fades over this width. */
   private static let fade: CGFloat = 14
+  /** Room the row keeps for scrolling beside a highlight that would otherwise take every swipe. */
+  private static let scrollRoom: CGFloat = 44
   /** How much the highlight grows under a finger. */
   private static let lift: CGFloat = 1.12
   private static let motion = Animation.spring(response: 0.34, dampingFraction: 0.78)
@@ -67,8 +69,20 @@ struct PillBarView: ExpoSwiftUI.View {
     var end = false
   }
 
-  /** The pill the highlight rests on, which a drag starts from. */
-  private var resting: String { picked ?? props.selected }
+  /** The pill the highlight rests on, which a drag starts from. A pick of a pill that is gone
+   * falls back to the selection. */
+  private var resting: String {
+    guard let picked, props.pills.contains(where: { $0.key == picked }) else {
+      return props.selected
+    }
+    return picked
+  }
+
+  /** A drag moves the highlight unless the highlight fills the row, which then could not scroll. */
+  private var slides: Bool {
+    guard let frame = frames[resting] else { return false }
+    return frame.width <= width - Self.scrollRoom
+  }
 
   var body: some View {
     ScrollViewReader { proxy in
@@ -93,8 +107,17 @@ struct PillBarView: ExpoSwiftUI.View {
       }
       .mask { edges }
       .clipShape(.capsule)
-      .onChange(of: width) { old, _ in
-        if old == 0 { proxy.scrollTo(props.selected, anchor: .center) }
+      // The selected pill stays in view when it first lays out and when other pills change
+      // around it, such as a rename that makes the row scroll.
+      .onChange(of: frames[props.selected]) { old, _ in
+        if old == nil {
+          proxy.scrollTo(props.selected, anchor: .center)
+        } else {
+          withAnimation(Self.motion) { proxy.scrollTo(props.selected, anchor: .center) }
+        }
+      }
+      .onChange(of: props.pills.map(\.key)) { _, keys in
+        frames = frames.filter { keys.contains($0.key) }
       }
       .onChange(of: props.selected) { _, selected in
         withAnimation(Self.motion) {
@@ -129,7 +152,7 @@ struct PillBarView: ExpoSwiftUI.View {
       frames[pill.key] = frame
     }
     // The highlighted pill takes the finger, so a drag from it moves the highlight, not the row.
-    .highPriorityGesture(slide, including: pill.key == resting ? .all : .subviews)
+    .highPriorityGesture(slide, including: pill.key == resting && slides ? .all : .subviews)
     .contextMenu { menu(pill) }
   }
 
@@ -203,7 +226,7 @@ struct PillBarView: ExpoSwiftUI.View {
 
   /** `middle`, kept so a highlight `width` wide stays inside the row. */
   private func clamped(_ middle: CGFloat, width: CGFloat) -> CGFloat {
-    let end = frames.values.map(\.maxX).max() ?? width
+    let end = props.pills.compactMap { frames[$0.key]?.maxX }.max() ?? width
     return min(max(middle, width / 2), max(end - width / 2, width / 2))
   }
 }

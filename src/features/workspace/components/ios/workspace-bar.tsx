@@ -23,20 +23,22 @@ const SIDE = 28;
 const GAP = 12;
 
 /**
- * The Workspaces Home lists as pills, with the one on screen highlighted, then Workspaces at the
- * right. A tap or a drag of the highlight changes Workspace; the pills scroll when they do not
- * fit. Touch and hold a pill for the menu of its Workspace row.
+ * Back at the left, the Workspaces Home lists as pills with the one on screen highlighted, then
+ * Workspaces at the right. A tap or a drag of the highlight changes Workspace; the pills scroll
+ * when they do not fit. Touch and hold a pill for the menu of its Workspace row.
  */
 export function WorkspaceBar({
   rows,
   selected,
   alerts,
+  onBack,
   onSwitch,
   onWorkspaces,
 }: {
   rows: readonly WorkspaceRow[];
   selected: string;
   alerts: RowAlerts;
+  onBack: () => void;
   onSwitch: (row: WorkspaceRow) => void;
   onWorkspaces: () => void;
 }) {
@@ -57,6 +59,7 @@ export function WorkspaceBar({
 
   return (
     <HStack spacing={GAP} modifiers={[padding({ horizontal: SIDE })]}>
+      {roundButton("chevron.left", text.back, onBack)}
       <PillBar
         pills={pills}
         selected={selected}
@@ -77,23 +80,30 @@ export function WorkspaceBar({
           }),
         ]}
       />
-      <Button
-        onPress={onWorkspaces}
-        modifiers={[
-          buttonStyle("glass"),
-          buttonBorderShape("circle"),
-          accessibilityLabel(text.workspaces),
-        ]}
-      >
-        <Image
-          systemName="rectangle.stack"
-          modifiers={[
-            font({ size: 20, weight: "medium" }),
-            frame({ width: BAR_HEIGHT - 16, height: BAR_HEIGHT - 16 }),
-          ]}
-        />
-      </Button>
+      {roundButton("rectangle.stack", text.workspaces, onWorkspaces)}
     </HStack>
+  );
+}
+
+/** A glass circle as tall as the bar, holding a symbol. */
+function roundButton(
+  symbol: NonNullable<ComponentProps<typeof Image>["systemName"]>,
+  label: string,
+  onPress: () => void,
+) {
+  return (
+    <Button
+      onPress={onPress}
+      modifiers={[buttonStyle("glass"), buttonBorderShape("circle"), accessibilityLabel(label)]}
+    >
+      <Image
+        systemName={symbol}
+        modifiers={[
+          font({ size: 20, weight: "medium" }),
+          frame({ width: BAR_HEIGHT - 16, height: BAR_HEIGHT - 16 }),
+        ]}
+      />
+    </Button>
   );
 }
 

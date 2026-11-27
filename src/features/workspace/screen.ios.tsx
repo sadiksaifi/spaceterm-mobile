@@ -23,13 +23,16 @@ import { text } from "./text";
 /** The bar's bottom edge sits this far into the bottom safe area, as the mockups place it. */
 const INTO_SAFE_AREA = 6;
 const MIN_BOTTOM = 16;
+/** Width the header keeps beside the names for its margins and the menu button. */
+const TITLE_ROOM = 120;
 
 export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState(false);
   const bottom = Math.max(insets.bottom - INTO_SAFE_AREA, MIN_BOTTOM);
-  const barTop = useWindowDimensions().height - bottom - BAR_HEIGHT;
+  const window = useWindowDimensions();
+  const barTop = window.height - bottom - BAR_HEIGHT;
   const connected = view.kind === "tabs";
   const panes = connected ? commands.panes : null;
 
@@ -107,6 +110,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
           rows={rows}
           selected={row.key}
           alerts={alerts}
+          onBack={props.onBack}
           onSwitch={props.onSwitch}
           onWorkspaces={() => setSheet(true)}
         />
@@ -132,21 +136,31 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
 
   return (
     <>
-      {/* The title names the screen for VoiceOver and the next screen's back button. The swipe
-          back starts above the bar only, so a swipe to the right on the bar changes Workspace. */}
+      {/* Back sits in the bar, so the names take its place at the top left and the middle stays
+          empty. The swipe back starts above the bar only, so a swipe on the bar stays there. */}
       <Stack.Screen
-        options={{ title: view.workspace.name, gestureResponseDistance: { bottom: barTop } }}
+        options={{
+          title: view.workspace.name,
+          headerTitle: "",
+          gestureResponseDistance: { bottom: barTop },
+        }}
       />
-      <Stack.Screen.Title asChild>
-        <View style={styles.title} accessible accessibilityRole="header">
-          <Text numberOfLines={1} style={styles.name}>
-            {view.workspace.name}
-          </Text>
-          <Text numberOfLines={1} style={styles.machine}>
-            {view.machine.name}
-          </Text>
-        </View>
-      </Stack.Screen.Title>
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.View hidesSharedBackground>
+          <View
+            style={[styles.title, { maxWidth: window.width - TITLE_ROOM }]}
+            accessible
+            accessibilityRole="header"
+          >
+            <Text numberOfLines={1} style={styles.name}>
+              {view.workspace.name}
+            </Text>
+            <Text numberOfLines={1} style={styles.machine}>
+              {view.machine.name}
+            </Text>
+          </View>
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
       <WorkspaceMenu {...props} />
       <Host style={styles.fill}>{alertsView(onScreen)(body)}</Host>
     </>
@@ -211,7 +225,7 @@ const FILL = Number.POSITIVE_INFINITY;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  title: { alignItems: "center", maxWidth: 240 },
+  title: { alignItems: "flex-start" },
   name: { fontSize: 17, fontWeight: "600", color: PlatformColor("label") },
   machine: { fontSize: 13, color: PlatformColor("secondaryLabel") },
 });

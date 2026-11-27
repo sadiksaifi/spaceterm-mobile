@@ -2,8 +2,7 @@
 
 package expo.modules.searchbar
 
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.ExpandedFullScreenSearchBar
@@ -21,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -35,12 +33,7 @@ import expo.modules.ui.UIComposableScope
 import expo.modules.ui.findChildSlotView
 import expo.modules.ui.isSlotWithName
 import expo.modules.ui.renderSlot
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-
-/** The longest the back button waits for the keyboard to close before the search collapses. */
-private const val KEYBOARD_WAIT_MS = 500L
 
 @OptimizedComposeProps
 data class SearchBarProps(
@@ -65,6 +58,8 @@ fun FunctionalComposableScope.SearchBarContent(
   val expanded = searchBarState.targetValue == SearchBarValue.Expanded
   val currentOnQueryChange by rememberUpdatedState(onQueryChange)
   val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
+  // The focus of the window the collapsed bar is in, not the full-screen search's.
+  val barFocus = LocalFocusManager.current
 
   LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
@@ -75,6 +70,9 @@ fun FunctionalComposableScope.SearchBarContent(
   // snackbar, has to move into it while it is open.
   LaunchedEffect(expanded) {
     currentOnExpandedChange(GenericEventPayload1(expanded))
+    // The tap that opens the search focuses the collapsed bar's input. Left focused, it takes the
+    // keyboard as the full-screen search closes, and the keyboard flashes.
+    barFocus.clearFocus()
   }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.
@@ -85,11 +83,15 @@ fun FunctionalComposableScope.SearchBarContent(
   }
 
   val inputField =
-    @Composable {
+    @Composable { inBar: Boolean ->
       SearchBarDefaults.InputField(
         searchBarState = searchBarState,
         textFieldState = textFieldState,
         onSearch = {},
+        // A tap on the collapsed bar only opens the search, whose own input takes the keyboard.
+        // Android gives the keyboard back to a window that asked for it, so a collapsed bar that
+        // asked would get it again as the search closes, and the keyboard would flash.
+        keyboardOptions = KeyboardOptions(showKeyboardOnFocus = !inBar),
         placeholder = {
           Children(UIComposableScope(), filter = { isSlotWithName(it, "placeholder") })
         },
@@ -97,19 +99,11 @@ fun FunctionalComposableScope.SearchBarContent(
           if (expanded) {
             val keyboard = LocalSoftwareKeyboardController.current
             val focus = LocalFocusManager.current
-            val density = LocalDensity.current
-            val ime = WindowInsets.ime
-            // The collapsed bar sits in a view the keyboard lifts, so the search collapses once
-            // the keyboard is down; otherwise it shrinks toward where the bar was and then jumps.
+            // The keyboard closes as the search collapses, not after.
             IconButton(onClick = {
-              scope.launch {
-                focus.clearFocus()
-                keyboard?.hide()
-                withTimeoutOrNull(KEYBOARD_WAIT_MS) {
-                  snapshotFlow { ime.getBottom(density) }.first { it == 0 }
-                }
-                searchBarState.animateToCollapsed()
-              }
+              focus.clearFocus()
+              keyboard?.hide()
+              scope.launch { searchBarState.animateToCollapsed() }
             }) {
               Icon(painterResource(R.drawable.search_bar_arrow_back), contentDescription = props.backLabel)
             }
@@ -131,14 +125,14 @@ fun FunctionalComposableScope.SearchBarContent(
 
   SearchBar(
     state = searchBarState,
-    inputField = inputField,
+    inputField = { inputField(true) },
     modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher)
   )
 
   findChildSlotView(view, "results")?.let { results ->
     ExpandedFullScreenSearchBar(
       state = searchBarState,
-      inputField = inputField,
+      inputField = { inputField(false) },
       // The full-screen search takes the page color, so results look as they do on the page.
       colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
     ) {

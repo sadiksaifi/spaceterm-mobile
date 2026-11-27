@@ -34,7 +34,7 @@ import { useWindowDimensions, type ColorValue } from "react-native";
 import type { PaneScreen } from "@/shared/machines/model";
 import type { TerminalColors } from "@/shared/preferences/model";
 import { useColors } from "@/shared/theme/colors";
-import { hiddenFromAccessibility } from "@/modules/compose-modifiers";
+import { absolutePadding, hiddenFromAccessibility } from "@/modules/compose-modifiers";
 
 import type { Control } from "@/features/home/actions";
 
@@ -282,6 +282,9 @@ function SplitView({
   );
 }
 
+/** U+200E, which starts a paragraph left to right and draws nothing. */
+const LEFT_TO_RIGHT = "\u200E";
+
 /** A Pane's screen from the top-left, cropped where the part ends. */
 function PaneSnapshot({
   screen,
@@ -290,9 +293,12 @@ function PaneSnapshot({
   screen: PaneScreen | undefined;
   terminal: TerminalColors;
 }) {
+  // A terminal runs left to right in every language. A right-to-left layout gives each line a
+  // right-to-left direction, so a left-to-right mark at either end of a line keeps a path or a
+  // prompt in order and the prompt's arrow unmirrored.
   const lines =
     screen?.rows.flatMap((row, at) => [
-      ...(at === 0 ? [] : ["\n"]),
+      at === 0 ? LEFT_TO_RIGHT : `\n${LEFT_TO_RIGHT}`,
       ...row.map((run, index) => {
         const { foreground, background: fill } = runColors(run, terminal, true);
         return (
@@ -314,6 +320,7 @@ function PaneSnapshot({
           </Text>
         );
       }),
+      LEFT_TO_RIGHT,
     ]) ?? [];
   return (
     // The card's name speaks for it; TalkBack does not read the screen's text.
@@ -331,6 +338,7 @@ function PaneSnapshot({
           overflow="clip"
           color={terminal.foreground}
           style={{
+            textAlign: "left",
             fontFamily: "monospace",
             fontSize: SNAPSHOT_TEXT.size,
             lineHeight: SNAPSHOT_TEXT.lineHeight,
@@ -338,7 +346,7 @@ function PaneSnapshot({
           // Only the top-left is inset, so the text is cut at the part's own edges.
           modifiers={[
             fillMaxSize(),
-            padding(SNAPSHOT_TEXT.horizontal, SNAPSHOT_TEXT.vertical, 0, 0),
+            absolutePadding(SNAPSHOT_TEXT.horizontal, SNAPSHOT_TEXT.vertical, 0, 0),
           ]}
         >
           {lines}

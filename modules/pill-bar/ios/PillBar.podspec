@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
-  s.name           = 'SwiftUIModifiers'
+  s.name           = 'PillBar'
   s.version        = '0.0.0'
-  s.summary        = 'SwiftUI modifiers Expo UI leaves out'
+  s.summary        = 'The Workspace pill bar, in SwiftUI'
   s.license        = 'GPL-3.0-or-later'
   s.author         = 'SpaceTerm'
   s.homepage       = 'https://github.com/sadiksaifi/spaceterm-mobile'

@@ -115,6 +115,35 @@ export type NativeWorktreeCreation =
   | { kind: "not-empty" }
   | { kind: "failed" };
 
+export type NativeWorktreeRemovalFailure =
+  | "main"
+  | "locked"
+  | "pinned"
+  | "missing"
+  | "changed"
+  | "changed-after-closing"
+  | "interrupted"
+  | "unanswered"
+  | "failed";
+
+/** What removing a Worktree deletes and closes. `boot` and `confirmation` go back with the remove. */
+export type NativeWorktreeRemovalCheck =
+  | {
+      kind: "review";
+      boot: string;
+      confirmation: string;
+      changes: boolean;
+      submodules: boolean;
+      tabs: number;
+      sessions: number;
+    }
+  | { kind: "resumed"; removal: NativeWorktreeRemoval }
+  | { kind: "failed"; failure: NativeWorktreeRemovalFailure };
+
+export type NativeWorktreeRemoval =
+  | { kind: "removed" }
+  | { kind: "failed"; failure: NativeWorktreeRemovalFailure };
+
 export type NativePairedMachine = {
   id: string;
   name: string;
@@ -234,6 +263,20 @@ export declare class LibspacetermModule extends NativeModule<LibspacetermEvents>
     name: string,
     base: string,
   ): Promise<NativeWorktreeCreation>;
+  /** Changes nothing. */
+  checkWorktreeRemoval(
+    machineId: string,
+    root: string,
+    path: string,
+  ): Promise<NativeWorktreeRemovalCheck>;
+  /** `boot` and `confirmation` are from the `checkWorktreeRemoval` the person confirmed. */
+  removeWorktree(
+    machineId: string,
+    root: string,
+    path: string,
+    boot: string,
+    confirmation: string,
+  ): Promise<NativeWorktreeRemoval>;
 }
 
 export default requireNativeModule<LibspacetermModule>("Libspaceterm");

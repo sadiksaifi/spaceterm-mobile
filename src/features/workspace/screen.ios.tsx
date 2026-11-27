@@ -1,9 +1,15 @@
 import { Host } from "@expo/ui";
 import { ScrollView, VStack, ZStack } from "@expo/ui/swift-ui";
-import { frame, ignoreSafeArea, padding, scrollEdgeEffectStyle } from "@expo/ui/swift-ui/modifiers";
+import {
+  frame,
+  ignoreSafeArea,
+  padding,
+  scrollEdgeEffectStyle,
+  useScrollGeometryChange,
+} from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import { useState, type ReactNode } from "react";
-import { PlatformColor, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useRef, useState, type ReactNode } from "react";
+import { StyleSheet, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
@@ -14,38 +20,55 @@ import { splitOf } from "./layout";
 import type { WorkspaceScreenProps } from "./props";
 import { CardGrid } from "./components/ios/card-grid";
 import { PanesSheet } from "./components/ios/panes-sheet";
+import { RemovalAlertsView } from "./components/ios/removal-alerts";
 import { TabAlertsView } from "./components/ios/tab-alerts";
 import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-bar";
 import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
+import { WorkspaceTitle } from "./components/ios/workspace-title";
 import type ScreenContract from "./screen";
 import { text } from "./text";
 
 /** The bar's bottom edge sits this far into the bottom safe area, as the mockups place it. */
 const INTO_SAFE_AREA = 6;
 const MIN_BOTTOM = 16;
+/** The most of the screen's width the header's top left takes. */
+const TITLE_SHARE = 0.6;
 
 export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState(false);
+  const scroll = useScrolled();
   const bottom = Math.max(insets.bottom - INTO_SAFE_AREA, MIN_BOTTOM);
-  const barTop = useWindowDimensions().height - bottom - BAR_HEIGHT;
+  const window = useWindowDimensions();
+  const barTop = window.height - bottom - BAR_HEIGHT;
   const connected = view.kind === "tabs";
   const panes = connected ? commands.panes : null;
 
-  // A system alert shows over the topmost view: an open sheet, else the screen.
-  const alertsView = (children: ReactNode) => (
-    <RowAlertsView alerts={alerts}>
-      <TabAlertsView commands={commands}>{children}</TabAlertsView>
+  // A system alert shows over the topmost view: an open sheet, else the screen. Each view always
+  // carries the alerts, so a sheet that closes leaves every view in place.
+  const alertsView = (active: boolean) => (children: ReactNode) => (
+    <RowAlertsView alerts={alerts} active={active}>
+      <TabAlertsView commands={commands} active={active}>
+        <RemovalAlertsView removal={props.removal} machine={row.machineName} active={active}>
+          {children}
+        </RemovalAlertsView>
+      </TabAlertsView>
     </RowAlertsView>
   );
   const onScreen = !sheet && panes === null;
 
   const content = connected ? (
-    // A hard edge under the header: the soft one barely covers it over a SwiftUI scroll view,
-    // so a card scrolled under it would cross the title.
-    <ScrollView modifiers={[scrollEdgeEffectStyle("hard", "top")]}>
-      <VStack modifiers={[padding({ top: 2, bottom: bottom + BAR_HEIGHT + 24 })]}>
+    // A hard edge under the header once the grid scrolls: the soft one barely covers it over a
+    // SwiftUI scroll view, so a card scrolled under it would cross the title. At rest the hard
+    // edge would draw a band and a line over nothing.
+    <ScrollView
+      modifiers={[
+        ...(scroll.modifier ? [scroll.modifier] : []),
+        scrollEdgeEffectStyle(scroll.scrolled ? "hard" : "soft", "top"),
+      ]}
+    >
+      <VStack modifiers={[padding({ top: 10, bottom: bottom + BAR_HEIGHT + 24 })]}>
         <CardGrid
           screens={props.screens}
           cards={commands.grid.tabs.map((tab) => {
@@ -98,24 +121,24 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
       alignment="bottom"
       modifiers={[frame({ maxWidth: FILL, maxHeight: FILL }), ignoreSafeArea({ edges: "bottom" })]}
     >
-      {content}
-      <VStack modifiers={[padding({ bottom })]}>
-        <WorkspaceBar
-          rows={rows}
-          selected={row.key}
-          alerts={alerts}
-          onSwitch={props.onSwitch}
-          onWorkspaces={() => setSheet(true)}
-          onNewWorkspace={props.onNewWorkspace}
-        />
-      </VStack>
+      <WorkspaceBar
+        rows={rows}
+        selected={row.key}
+        alerts={alerts}
+        bottom={bottom}
+        onBack={props.onBack}
+        onSwitch={props.onSwitch}
+        onWorkspaces={() => setSheet(true)}
+      >
+        {content}
+      </WorkspaceBar>
       <WorkspacesSheet
         open={sheet}
         onClose={() => setSheet(false)}
         rows={rows}
         selected={row.key}
         alerts={alerts}
-        alertsView={(children) => (sheet ? alertsView(children) : children)}
+        alertsView={alertsView(sheet)}
         onSwitch={props.onSwitch}
         onNewWorkspace={props.onNewWorkspace}
       />
@@ -123,74 +146,56 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         screens={props.screens}
         tab={panes}
         commands={commands}
-        alertsView={(children) => (panes !== null && !sheet ? alertsView(children) : children)}
+        alertsView={alertsView(panes !== null && !sheet)}
       />
     </ZStack>
   );
 
   return (
     <>
-      {/* The title names the screen for VoiceOver and the next screen's back button. The swipe
-          back starts above the bar only, so a swipe to the right on the bar changes Workspace. */}
+      {/* Back sits in the bar, so the Worktree takes its place at the top left and the middle stays
+          empty. The swipe back starts above the bar only, so a swipe on the bar stays there. */}
       <Stack.Screen
-        options={{ title: view.workspace.name, gestureResponseDistance: { bottom: barTop } }}
+        options={{
+          title: view.workspace.name,
+          headerTitle: "",
+          gestureResponseDistance: { bottom: barTop },
+        }}
       />
-      <Stack.Screen.Title asChild>
-        <View style={styles.title} accessible accessibilityRole="header">
-          <Text numberOfLines={1} style={styles.name}>
-            {view.workspace.name}
-          </Text>
-          <Text numberOfLines={1} style={styles.machine}>
-            {view.machine.name}
-          </Text>
-        </View>
-      </Stack.Screen.Title>
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.View hidesSharedBackground>
+          <WorkspaceTitle
+            directory={view.workspace.directory}
+            worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}
+            connected={connected}
+            width={window.width * TITLE_SHARE}
+            onPickWorktree={({ worktree }) => commands.pickWorktree(worktree)}
+            onNewWorktree={props.onNewWorktree}
+            onRemoveWorktree={props.removal.start}
+          />
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
       <WorkspaceMenu {...props} />
-      <Host style={styles.fill}>{onScreen ? alertsView(body) : body}</Host>
+      <Host style={styles.fill}>{alertsView(onScreen)(body)}</Host>
     </>
   );
 }
 
-/**
- * The Workspace menu: its Worktrees with the active one checked and New Worktree, in a
- * repository, then Rename Workspace and Kill Workspace.
- */
-function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: WorkspaceScreenProps) {
+/** The Workspace menu: Rename Workspace and Kill Workspace. The Worktrees have their own menu. */
+function WorkspaceMenu({ view, row, alerts }: WorkspaceScreenProps) {
   const connected = view.kind === "tabs";
-  const worktrees = connected ? commands.grid.worktrees : [];
   const available = connected && alerts.underway.get(row.key) === undefined;
   const { onRenameWorkspace, onKillWorkspace } = alerts.handlers;
   return (
     <Stack.Toolbar placement="right">
       <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel={text.more}>
-        {view.workspace.repository !== null && (
-          <Stack.Toolbar.Menu inline title={text.worktree}>
-            {worktrees.map(({ worktree, active }) => (
-              <Stack.Toolbar.MenuAction
-                key={worktree.path}
-                isOn={active}
-                disabled={!connected}
-                onPress={() => commands.pickWorktree(worktree)}
-              >
-                {worktree.name}
-              </Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>
-        )}
-        <Stack.Toolbar.Menu inline>
-          {view.workspace.repository !== null && (
-            <Stack.Toolbar.MenuAction icon="plus" disabled={!onNewWorktree} onPress={onNewWorktree}>
-              {text.newWorktree}
-            </Stack.Toolbar.MenuAction>
-          )}
-          <Stack.Toolbar.MenuAction
-            icon="pencil"
-            disabled={!available || !onRenameWorkspace}
-            onPress={() => onRenameWorkspace?.(row)}
-          >
-            {text.renameWorkspace}
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>
+        <Stack.Toolbar.MenuAction
+          icon="pencil"
+          disabled={!available || !onRenameWorkspace}
+          onPress={() => onRenameWorkspace?.(row)}
+        >
+          {text.renameWorkspace}
+        </Stack.Toolbar.MenuAction>
         <Stack.Toolbar.MenuAction
           icon="xmark"
           destructive
@@ -204,14 +209,22 @@ function WorkspaceMenu({ view, row, commands, alerts, onNewWorktree }: Workspace
   );
 }
 
+/** Whether a scroll view has scrolled from where it first rested, with the modifier that tells. */
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+  const rest = useRef<number | null>(null);
+  const modifier = useScrollGeometryChange(({ contentOffsetY }) => {
+    rest.current ??= contentOffsetY;
+    setScrolled(contentOffsetY > rest.current + 1);
+  });
+  return { scrolled, modifier };
+}
+
 /** Lets a frame take all the space its container offers, like SwiftUI's `.infinity`. */
 const FILL = Number.POSITIVE_INFINITY;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  title: { alignItems: "center", maxWidth: 240 },
-  name: { fontSize: 17, fontWeight: "600", color: PlatformColor("label") },
-  machine: { fontSize: 13, color: PlatformColor("secondaryLabel") },
 });
 
 WorkspaceScreen satisfies typeof ScreenContract;

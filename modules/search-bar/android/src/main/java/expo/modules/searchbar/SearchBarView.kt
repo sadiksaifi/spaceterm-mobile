@@ -2,6 +2,7 @@
 
 package expo.modules.searchbar
 
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.ExpandedFullScreenSearchBar
@@ -19,6 +20,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import expo.modules.kotlin.views.ComposeProps
 import expo.modules.kotlin.views.FunctionalComposableScope
@@ -55,6 +60,9 @@ fun FunctionalComposableScope.SearchBarContent(
   val expanded = searchBarState.targetValue == SearchBarValue.Expanded
   val currentOnQueryChange by rememberUpdatedState(onQueryChange)
   val currentOnExpandedChange by rememberUpdatedState(onExpandedChange)
+  // The focus of the window the collapsed bar is in, not the full-screen search's.
+  val barFocus = LocalFocusManager.current
+  val inputModeManager = LocalInputModeManager.current
 
   LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
@@ -65,6 +73,10 @@ fun FunctionalComposableScope.SearchBarContent(
   // snackbar, has to move into it while it is open.
   LaunchedEffect(expanded) {
     currentOnExpandedChange(GenericEventPayload1(expanded))
+    // The tap that opens the search focuses the collapsed bar's input. Left focused, it takes the
+    // keyboard as the full-screen search closes, and the keyboard flashes. Someone using a
+    // keyboard or D-pad keeps their place on the bar, as Material intends.
+    if (inputModeManager.inputMode == InputMode.Touch) barFocus.clearFocus()
   }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.
@@ -75,17 +87,28 @@ fun FunctionalComposableScope.SearchBarContent(
   }
 
   val inputField =
-    @Composable {
+    @Composable { inBar: Boolean ->
       SearchBarDefaults.InputField(
         searchBarState = searchBarState,
         textFieldState = textFieldState,
         onSearch = {},
+        // A tap on the collapsed bar only opens the search, whose own input takes the keyboard.
+        // Android gives the keyboard back to a window that asked for it, so a collapsed bar that
+        // asked would get it again as the search closes, and the keyboard would flash.
+        keyboardOptions = KeyboardOptions(showKeyboardOnFocus = !inBar),
         placeholder = {
           Children(UIComposableScope(), filter = { isSlotWithName(it, "placeholder") })
         },
         leadingIcon = {
           if (expanded) {
-            IconButton(onClick = { scope.launch { searchBarState.animateToCollapsed() } }) {
+            val keyboard = LocalSoftwareKeyboardController.current
+            val focus = LocalFocusManager.current
+            // The keyboard closes as the search collapses, not after.
+            IconButton(onClick = {
+              focus.clearFocus()
+              keyboard?.hide()
+              scope.launch { searchBarState.animateToCollapsed() }
+            }) {
               Icon(painterResource(R.drawable.search_bar_arrow_back), contentDescription = props.backLabel)
             }
           } else {
@@ -106,14 +129,14 @@ fun FunctionalComposableScope.SearchBarContent(
 
   SearchBar(
     state = searchBarState,
-    inputField = inputField,
+    inputField = { inputField(true) },
     modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher)
   )
 
   findChildSlotView(view, "results")?.let { results ->
     ExpandedFullScreenSearchBar(
       state = searchBarState,
-      inputField = inputField,
+      inputField = { inputField(false) },
       // The full-screen search takes the page color, so results look as they do on the page.
       colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
     ) {

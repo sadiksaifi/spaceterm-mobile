@@ -1,18 +1,7 @@
 package expo.modules.composemodifiers
 
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
@@ -21,8 +10,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -30,18 +17,20 @@ import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 import expo.modules.kotlin.records.recordFromMap
 import expo.modules.kotlin.types.OptimizedRecord
-import expo.modules.ui.ModifierEventDispatcher
 import expo.modules.ui.ModifierRegistry
-import kotlin.math.abs
+import expo.modules.ui.columnScope
+import expo.modules.ui.rowScope
 
 @OptimizedRecord
 data class MaxWidthFractionParams(@Field val fraction: Float = 1f) : Record
 
 @OptimizedRecord
-data class HorizontalSwipeParams(@Field val distance: Float = 32f) : Record
-
-@OptimizedRecord
-data class FadingEdgesParams(@Field val start: Float = 0f, @Field val end: Float = 0f) : Record
+data class AbsolutePaddingParams(
+  @Field val left: Float = 0f,
+  @Field val top: Float = 0f,
+  @Field val right: Float = 0f,
+  @Field val bottom: Float = 0f
+) : Record
 
 @OptimizedRecord
 data class RadioSelectedParams(@Field val selected: Boolean = false) : Record
@@ -54,55 +43,6 @@ fun maxWidthFraction(fraction: Float): Modifier =
     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
   }
 
-/**
- * Fades the view's content to transparent over `start` and `end` pixels at its sides, which are
- * its left and right, or its right and left in a right-to-left layout.
- */
-fun fadingEdges(start: Float, end: Float): Modifier =
-  Modifier
-    // Offscreen, so the fade takes away the content's own pixels, not the window's.
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-      drawContent()
-      val ltr = layoutDirection == LayoutDirection.Ltr
-      val left = if (ltr) start else end
-      val right = if (ltr) end else start
-      if (left > 0f) {
-        drawRect(
-          Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = left),
-          size = Size(left, size.height),
-          blendMode = BlendMode.DstIn
-        )
-      }
-      if (right > 0f) {
-        val from = size.width - right
-        drawRect(
-          Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = from, endX = size.width),
-          topLeft = Offset(from, 0f),
-          size = Size(right, size.height),
-          blendMode = BlendMode.DstIn
-        )
-      }
-    }
-
-/**
- * Reports a sideways drag of at least `distance` pixels, once the finger lifts, as "left" or
- * "right". The drag takes the gesture from the clickable views inside, so they do not also get a
- * tap; a tap or a touch and hold still reaches them.
- */
-fun horizontalSwipe(distance: Float, onSwipe: (String) -> Unit): Modifier =
-  Modifier.pointerInput(distance) {
-    var total = 0f
-    detectHorizontalDragGestures(
-      onDragStart = { total = 0f },
-      onDragEnd = { if (abs(total) >= distance) onSwipe(if (total < 0) "left" else "right") },
-      onDragCancel = { total = 0f },
-    ) { change, amount ->
-      change.consume()
-      total += amount
-    }
-  }
-
 /** Modifiers Expo UI leaves out. */
 class ComposeModifiersModule : Module() {
   override fun definition() = ModuleDefinition {
@@ -112,6 +52,12 @@ class ComposeModifiersModule : Module() {
     OnCreate {
       ModifierRegistry.register("maxWidthFraction") { map, _, converterContext, _ ->
         maxWidthFraction(recordFromMap<MaxWidthFractionParams>(map, converterContext).fraction)
+      }
+      ModifierRegistry.register("flexible") { _, scope, _, _ ->
+        // Measured after its siblings, so a long text gives way to the icons beside it.
+        scope?.rowScope?.run { Modifier.weight(1f, fill = false) }
+          ?: scope?.columnScope?.run { Modifier.weight(1f, fill = false) }
+          ?: Modifier
       }
       ModifierRegistry.register("heading") { _, _, _, _ -> Modifier.semantics { heading() } }
       ModifierRegistry.register("radioSelected") { map, _, converterContext, _ ->
@@ -125,30 +71,20 @@ class ComposeModifiersModule : Module() {
         Modifier.clearAndSetSemantics {}
       }
       ModifierRegistry.register("disabled") { _, _, _, _ -> Modifier.semantics { disabled() } }
-      ModifierRegistry.register("fadingEdges") { map, _, converterContext, _ ->
-        val params = recordFromMap<FadingEdgesParams>(map, converterContext)
-        val density = LocalDensity.current
-        with(density) { fadingEdges(params.start.dp.toPx(), params.end.dp.toPx()) }
-      }
-      ModifierRegistry.register("horizontalSwipe") { map, _, converterContext, eventDispatcher ->
-        val distance = recordFromMap<HorizontalSwipeParams>(map, converterContext).distance
-        val pixels = with(LocalDensity.current) { distance.dp.toPx() }
-        // The drag outlives recompositions, so it reads the dispatcher of the latest one.
-        val dispatch: ModifierEventDispatcher by rememberUpdatedState(eventDispatcher)
-        horizontalSwipe(pixels) { direction ->
-          dispatch("horizontalSwipe", mapOf("direction" to direction))
-        }
+      ModifierRegistry.register("absolutePadding") { map, _, converterContext, _ ->
+        val params = recordFromMap<AbsolutePaddingParams>(map, converterContext)
+        Modifier.absolutePadding(params.left.dp, params.top.dp, params.right.dp, params.bottom.dp)
       }
     }
 
     OnDestroy {
       ModifierRegistry.unregister("maxWidthFraction")
+      ModifierRegistry.unregister("flexible")
       ModifierRegistry.unregister("heading")
       ModifierRegistry.unregister("radioSelected")
       ModifierRegistry.unregister("hiddenFromAccessibility")
       ModifierRegistry.unregister("disabled")
-      ModifierRegistry.unregister("fadingEdges")
-      ModifierRegistry.unregister("horizontalSwipe")
+      ModifierRegistry.unregister("absolutePadding")
     }
   }
 }

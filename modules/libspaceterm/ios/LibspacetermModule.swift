@@ -246,6 +246,32 @@ public class LibspacetermModule: Module {
       case .failed: return ["kind": "failed"]
       }
     }.runOnQueue(edits)
+
+    AsyncFunction("checkWorktreeRemoval") {
+      (machineId: String, root: String, path: String) -> [String: Any] in
+      switch shared.checkWorktreeRemoval(machineId: machineId, root: root, path: path) {
+      case .review(let review):
+        return [
+          "kind": "review",
+          "boot": review.boot,
+          "confirmation": review.confirmation,
+          "changes": review.changes,
+          "submodules": review.submodules,
+          "tabs": review.tabs,
+          "sessions": review.sessions,
+        ]
+      case .resumed(let removal): return ["kind": "resumed", "removal": removalAnswer(removal)]
+      case .failed(let failure): return ["kind": "failed", "failure": removalFailure(failure)]
+      }
+    }.runOnQueue(edits)
+
+    AsyncFunction("removeWorktree") {
+      (machineId: String, root: String, path: String, boot: String, confirmation: String)
+        -> [String: Any] in
+      removalAnswer(
+        shared.removeWorktree(
+          machineId: machineId, root: root, path: path, boot: boot, confirmation: confirmation))
+    }.runOnQueue(edits)
   }
 
   private func startListening() {
@@ -380,5 +406,26 @@ private func connection(_ connection: Connection) -> String {
   case .connecting: return "connecting"
   case .disconnected: return "disconnected"
   case .unavailable: return "unavailable"
+  }
+}
+
+private func removalAnswer(_ removal: WorktreeRemoval) -> [String: Any] {
+  switch removal {
+  case .removed: return ["kind": "removed"]
+  case .failed(let failure): return ["kind": "failed", "failure": removalFailure(failure)]
+  }
+}
+
+private func removalFailure(_ failure: WorktreeRemovalFailure) -> String {
+  switch failure {
+  case .main: return "main"
+  case .locked: return "locked"
+  case .pinned: return "pinned"
+  case .missing: return "missing"
+  case .changed: return "changed"
+  case .changedAfterClosing: return "changed-after-closing"
+  case .interrupted: return "interrupted"
+  case .unanswered: return "unanswered"
+  case .failed: return "failed"
   }
 }

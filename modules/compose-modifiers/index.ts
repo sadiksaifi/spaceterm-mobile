@@ -1,7 +1,4 @@
-import {
-  createModifier,
-  createModifierWithEventListener,
-} from "@expo/ui/jetpack-compose/modifiers";
+import { createModifier } from "@expo/ui/jetpack-compose/modifiers";
 
 /**
  * Caps the view's width at `fraction` of the width offered. In a Row, a view without `weight`
@@ -9,6 +6,12 @@ import {
  */
 export const maxWidthFraction = (fraction: number) =>
   createModifier("maxWidthFraction", { fraction });
+
+/**
+ * In a Row or Column, the view takes the space its siblings leave, and no more than it needs. A
+ * long text then shortens instead of pushing the views after it out.
+ */
+export const flexible = () => createModifier("flexible", {});
 
 /** Marks the view as a heading, so TalkBack can move between headings. */
 export const heading = () => createModifier("heading", {});
@@ -25,20 +28,6 @@ export const radioSelected = (selected: boolean) => createModifier("radioSelecte
 /** Reports the view to TalkBack as disabled, for a dimmed row that takes no taps. */
 export const disabled = () => createModifier("disabled", {});
 
-/**
- * Calls `onSwipe` when a sideways drag of at least `distance` dp ends. The drag takes the gesture
- * from the clickable views inside, so they do not also get a tap.
- */
-export const horizontalSwipe = (distance: number, onSwipe: (direction: "left" | "right") => void) =>
-  createModifierWithEventListener(
-    "horizontalSwipe",
-    ({ direction }: { direction: "left" | "right" }) => onSwipe(direction),
-    { distance },
-  );
-
-/**
- * Fades the view's content to transparent over `start` and `end` dp at its sides, which follow
- * the layout direction.
- */
-export const fadingEdges = ({ start, end }: { start: number; end: number }) =>
-  createModifier("fadingEdges", { start, end });
+/** Padding on the screen's left and right in both directions, for content that stays left to right. */
+export const absolutePadding = (left: number, top: number, right: number, bottom: number) =>
+  createModifier("absolutePadding", { left, top, right, bottom });

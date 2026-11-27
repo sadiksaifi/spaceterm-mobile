@@ -34,7 +34,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tabs::read_confirmation;
 use workspaces::{Abilities, Seen, WorkspaceSummary, summaries};
-use worktrees::{NewWorktreeBranch, WorktreeContext, WorktreeCreation};
+use worktrees::{
+    NewWorktreeBranch, WorktreeContext, WorktreeCreation, WorktreeRemoval, WorktreeRemovalCheck,
+    WorktreeRemovalFailure,
+};
 use zeroize::Zeroizing;
 
 /// The build identity of released SpaceTerm. An Invitation Link names the identity of the Core
@@ -722,6 +725,83 @@ impl Machines {
                 path,
                 branch,
                 control: CreateControl::Unclaimed,
+            }),
+            Repeat::Same,
+        ))
+    }
+
+    /// What removing the Worktree at `path`, of the repository whose Main Worktree is `root`,
+    /// deletes and closes, for the person to confirm. Changes nothing, except to send again a
+    /// remove of it whose answer was lost.
+    pub fn check_worktree_removal(
+        &self,
+        machine_id: String,
+        root: String,
+        path: String,
+    ) -> WorktreeRemovalCheck {
+        let (root, path) = (PathBuf::from(root), PathBuf::from(path));
+        // A remove of this Worktree whose answer was lost may have removed it. It goes again
+        // first, as it would before any other edit: the same remove changes nothing more, so its
+        // answer is the lost one. The Machine closes the Tabs and ends their Terminal Sessions
+        // before Git removes the Worktree, so that answer is the person's to see. Only a refusal
+        // that comes before anything closes leaves the Worktree to check again.
+        let resumed = self.resume(&machine_id, |pending| {
+            matches!(pending, Mutation::Worktree(worktree::Operation::Remove {
+                root: from,
+                path: removed,
+                ..
+            }) if *from == root && *removed == path)
+        });
+        match resumed.map(worktrees::removal) {
+            None
+            | Some(WorktreeRemoval::Failed {
+                failure:
+                    WorktreeRemovalFailure::Main
+                    | WorktreeRemovalFailure::Locked
+                    | WorktreeRemovalFailure::Pinned
+                    | WorktreeRemovalFailure::Changed,
+            }) => {}
+            Some(removal) => return WorktreeRemovalCheck::Resumed { removal },
+        }
+        let read = Read::CheckRemoval { root, path };
+        match self.read_worktree(&machine_id, read) {
+            Some(Ok(ReadReply::Removal(removal))) => WorktreeRemovalCheck::Review {
+                review: worktrees::review(removal),
+            },
+            Some(Err(error)) => WorktreeRemovalCheck::Failed {
+                failure: worktrees::removal_failure(error),
+            },
+            _ => WorktreeRemovalCheck::Failed {
+                failure: WorktreeRemovalFailure::Failed,
+            },
+        }
+    }
+
+    /// Removes the Worktree at `path` of the repository whose Main Worktree is `root`, as the
+    /// check with `boot` and `confirmation` found it, closing its Tabs and ending their Terminal
+    /// Sessions. The Machine refuses when any of that changed since the check.
+    pub fn remove_worktree(
+        &self,
+        machine_id: String,
+        root: String,
+        path: String,
+        boot: String,
+        confirmation: String,
+    ) -> WorktreeRemoval {
+        let (Some(boot), Some(confirmation)) = (decode(&boot), decode(&confirmation)) else {
+            return WorktreeRemoval::Failed {
+                failure: WorktreeRemovalFailure::Failed,
+            };
+        };
+        // Removing the same Worktree again changes nothing more, so a lost answer is this one's,
+        // and the next check sends it again before anything else.
+        worktrees::removal(self.outcome(
+            &machine_id,
+            Mutation::Worktree(worktree::Operation::Remove {
+                root: PathBuf::from(root),
+                path: PathBuf::from(path),
+                boot,
+                confirmation,
             }),
             Repeat::Same,
         ))

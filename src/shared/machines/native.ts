@@ -44,6 +44,8 @@ export type NativeMachines = Pick<
   | "worktreeContext"
   | "worktreeLocation"
   | "createWorktree"
+  | "checkWorktreeRemoval"
+  | "removeWorktree"
 > & {
   addListener: (event: "onChange", listener: () => void) => { remove: () => void };
 };
@@ -231,6 +233,26 @@ export function createNativeClient(
             ? (["existing", branch.name, ""] as const)
             : (["remote", branch.name, branch.remote] as const);
       return native.createWorktree(machineId, id, root, home, location, kind, name, base);
+    },
+    checkWorktreeRemoval: async (machineId, { root }, worktree) => {
+      const check = await native.checkWorktreeRemoval(machineId, root, worktree.path);
+      if (check.kind !== "review") return check;
+      const { boot, confirmation, changes, submodules, tabs, sessions } = check;
+      return {
+        kind: "review",
+        review: {
+          worktree,
+          changes,
+          submodules,
+          tabs,
+          sessions,
+          confirmation: `${boot}/${confirmation}`,
+        },
+      };
+    },
+    removeWorktree: (machineId, { root }, { worktree, confirmation }) => {
+      const [boot = "", check = ""] = confirmation.split("/");
+      return native.removeWorktree(machineId, root, worktree.path, boot, check);
     },
     restartCore: async () => ({ kind: "failed" }),
     disconnect: (machineId) => {

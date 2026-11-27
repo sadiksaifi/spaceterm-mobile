@@ -13,30 +13,36 @@ import {
   Text,
   TextField,
   VStack,
+  type TextFieldRef,
 } from "@expo/ui/swift-ui";
 import {
   accessibilityHidden,
   accessibilityLabel,
+  animation,
+  Animation,
   autocorrectionDisabled,
-  background,
-  buttonBorderShape,
   buttonStyle,
+  contentShape,
   disabled,
   font,
   foregroundStyle,
   frame,
+  glassEffect,
   labelStyle,
   lineLimit,
   listStyle,
   padding,
   presentationDetents,
   presentationDragIndicator,
+  contentTransition,
+  type PresentationDetent,
   shapes,
+  submitLabel,
   textInputAutocapitalization,
   tint,
 } from "@expo/ui/swift-ui/modifiers";
 import { Color } from "expo-router";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import type { ColorValue } from "react-native";
 
 import { rowCommands, type Control } from "@/features/home/actions";
@@ -49,10 +55,14 @@ import { secondary } from "@/shared/ui/ios/modifiers";
 import { text } from "../../text";
 import { menuItem } from "./workspace-bar";
 
+/** The sheet's height while searching: the search field and about two Workspaces. */
+const SEARCHING: PresentationDetent = { fraction: 0.3 };
+
 /**
  * Search and New Workspace, then the Workspaces Home lists, with the one on screen checked.
  * Picking a Workspace closes the sheet on its Tabs. `alerts` shows Rename and Kill over the
- * sheet while it is open.
+ * sheet while it is open. While Search has the keyboard, New Workspace turns into Cancel, which
+ * clears and leaves Search and brings the sheet back to half height, as the system's search does.
  */
 export function WorkspacesSheet({
   open,
@@ -75,45 +85,92 @@ export function WorkspacesSheet({
   onNewWorkspace: (() => void) | undefined;
 }) {
   const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  // The height the person left the sheet at, which it comes back to after Search.
+  const [browsing, setBrowsing] = useState<PresentationDetent>("medium");
+  // The system raises a sheet by the keyboard's height and to its tallest height, so Search
+  // offers only a short one, which rides above the keyboard with the grid in view. SwiftUI needs
+  // the selection among the heights offered, and Expo moves the selection after the heights, so
+  // for a frame a change between Search and browsing offers both.
+  const [settled, setSettled] = useState(false);
+  const search = (on: boolean) => {
+    setSearching(on);
+    requestAnimationFrame(() => setSettled(on));
+  };
+  const detents: PresentationDetent[] =
+    searching !== settled
+      ? [SEARCHING, "medium", "large"]
+      : searching
+        ? [SEARCHING]
+        : ["medium", "large"];
+  const field = useRef<TextFieldRef>(null);
   const needle = query.trim().toLocaleLowerCase();
   const shown =
     needle === ""
       ? rows
       : rows.filter((row) => row.workspace.name.toLocaleLowerCase().includes(needle));
-  const close = () => {
+  // The field keeps its own text: the sheet's content stays mounted while it is closed, so it
+  // would come back with the old query over every Workspace. Clearing it clears both.
+  // Cancel ends Search and leaves the sheet at the height it had before.
+  const cancel = () => {
+    void field.current?.clear();
+    void field.current?.blur();
     setQuery("");
+    search(false);
+  };
+  const close = () => {
+    cancel();
+    setBrowsing("medium");
     onClose();
   };
 
   return (
     <BottomSheet isPresented={open} onIsPresentedChange={(presented) => !presented && close()}>
       <Group
-        modifiers={[presentationDetents(["medium", "large"]), presentationDragIndicator("visible")]}
+        modifiers={[
+          presentationDetents(detents, {
+            selection: searching ? SEARCHING : browsing,
+            onSelectionChange: (detent) => {
+              if (!searching && (detent === "medium" || detent === "large")) setBrowsing(detent);
+            },
+          }),
+          presentationDragIndicator("visible"),
+        ]}
       >
         {alertsView(
           <VStack spacing={0}>
             <HStack spacing={12} modifiers={[padding({ top: 24, horizontal: 16, bottom: 4 })]}>
-              <SearchField onChange={setQuery} />
+              <SearchField field={field} query={query} onChange={setQuery} onFocusChange={search} />
               <Button
                 onPress={
-                  onNewWorkspace &&
-                  (() => {
-                    close();
-                    onNewWorkspace();
-                  })
+                  searching
+                    ? cancel
+                    : onNewWorkspace &&
+                      (() => {
+                        close();
+                        onNewWorkspace();
+                      })
                 }
                 modifiers={[
-                  buttonStyle("glass"),
-                  buttonBorderShape("circle"),
-                  disabled(!onNewWorkspace),
-                  accessibilityLabel(text.newWorkspace),
+                  buttonStyle("plain"),
+                  disabled(!searching && !onNewWorkspace),
+                  accessibilityLabel(searching ? text.cancelSearch : text.newWorkspace),
                 ]}
               >
+                {/* As the system's bar: the plus gives way to the X with the system's symbol
+                    transition. The glass is a circle as tall as Search, so the two line up. */}
                 <Image
-                  systemName="plus"
+                  systemName={searching ? "xmark" : "plus"}
                   modifiers={[
-                    font({ size: 20, weight: "medium" }),
-                    frame({ width: 32, height: 32 }),
+                    font({ size: 22, weight: "medium" }),
+                    contentTransition("symbolEffect"),
+                    animation(Animation.snappy(), searching),
+                    frame({ width: FIELD_HEIGHT, height: FIELD_HEIGHT }),
+                    glassEffect({
+                      glass: { variant: "regular", interactive: true },
+                      shape: "circle",
+                    }),
+                    contentShape(shapes.circle()),
                   ]}
                 />
               </Button>
@@ -145,22 +202,64 @@ export function WorkspacesSheet({
   );
 }
 
-function SearchField({ onChange }: { onChange: (query: string) => void }) {
+/** The height of the system's search field in a bar, which New Workspace's circle matches. */
+const FIELD_HEIGHT = 48;
+
+/** As the system's search field: glass, Search on the keyboard, and Clear while it has text. */
+function SearchField({
+  field,
+  query,
+  onChange,
+  onFocusChange,
+}: {
+  field: RefObject<TextFieldRef | null>;
+  query: string;
+  onChange: (query: string) => void;
+  onFocusChange: (focused: boolean) => void;
+}) {
   return (
     <HStack
       spacing={8}
       modifiers={[
-        padding({ horizontal: 14 }),
-        frame({ height: 44 }),
-        background(Color.ios.tertiarySystemFill, shapes.capsule()),
+        padding({ horizontal: 11.5 }),
+        frame({ height: FIELD_HEIGHT }),
+        // Glass, as the system's search field in a bar.
+        glassEffect({ glass: { variant: "regular", interactive: true }, shape: "capsule" }),
       ]}
     >
-      <Image systemName="magnifyingglass" modifiers={[secondary, accessibilityHidden()]} />
-      <TextField
-        placeholder={text.search}
-        onTextChange={onChange}
-        modifiers={[textInputAutocapitalization("never"), autocorrectionDisabled()]}
+      <Image
+        systemName="magnifyingglass"
+        // The size, weight, and color of the system search field's glass.
+        modifiers={[font({ size: 17, weight: "medium" }), accessibilityHidden()]}
       />
+      <TextField
+        ref={field}
+        onTextChange={onChange}
+        onFocusChange={onFocusChange}
+        modifiers={[
+          textInputAutocapitalization("never"),
+          autocorrectionDisabled(),
+          submitLabel("search"),
+        ]}
+      >
+        {/* As bright as the system's placeholder; the default is dimmer. */}
+        <TextField.Placeholder>
+          <Text modifiers={[foregroundStyle({ type: "color", color: Color.ios.secondaryLabel })]}>
+            {text.searchWorkspaces}
+          </Text>
+        </TextField.Placeholder>
+      </TextField>
+      {query !== "" && (
+        <Button
+          onPress={() => {
+            void field.current?.clear();
+            onChange("");
+          }}
+          modifiers={[buttonStyle("plain"), accessibilityLabel(text.clearText)]}
+        >
+          <Image systemName="xmark.circle.fill" modifiers={[font({ size: 17 })]} />
+        </Button>
+      )}
     </HStack>
   );
 }
@@ -186,17 +285,21 @@ function SheetRow({
   const button = (
     <Button onPress={onPick} modifiers={[disabled(commands.underway !== null)]}>
       <HStack spacing={8} modifiers={[foregroundStyle({ type: "color", color: colors.text })]}>
-        <Text
-          modifiers={[
-            font({ textStyle: "headline" }),
-            lineLimit(1),
-            ...(connected ? [] : [secondary]),
-          ]}
-        >
-          {row.workspace.name}
-        </Text>
+        <VStack alignment="leading" spacing={2}>
+          <Text
+            modifiers={[
+              font({ textStyle: "headline" }),
+              lineLimit(1),
+              ...(connected ? [] : [secondary]),
+            ]}
+          >
+            {row.workspace.name}
+          </Text>
+          <Text modifiers={[font({ textStyle: "subheadline" }), secondary, lineLimit(1)]}>
+            {detail}
+          </Text>
+        </VStack>
         <Spacer minLength={8} />
-        <Text modifiers={[secondary, lineLimit(1)]}>{detail}</Text>
         {checked && (
           <Image
             systemName="checkmark"

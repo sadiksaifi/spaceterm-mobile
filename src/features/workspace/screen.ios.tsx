@@ -109,7 +109,6 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
           alerts={alerts}
           onSwitch={props.onSwitch}
           onWorkspaces={() => setSheet(true)}
-          onNewWorkspace={props.onNewWorkspace}
         />
       </VStack>
       <WorkspacesSheet

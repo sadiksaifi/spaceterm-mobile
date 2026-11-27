@@ -426,18 +426,24 @@ struct PillBarView: ExpoSwiftUI.View {
   }
 
   /**
-   * The lens under a finger that came down on the resting pill. The lens follows the finger over
-   * the row, stopping at the first and last pills, and the row stays put unless `scrolled` moved it.
-   * The capsule widens under the finger, so the row keeps the resting pill where the finger came
-   * down, as far as the row's ends allow.
+   * The lens under a finger that came down on the resting pill. The lens starts on that pill and
+   * moves as far as the finger and the row do, stopping at the first and last pills, and the row
+   * stays put unless `scrolled` moved it. The capsule widens under the finger, so the row keeps the
+   * resting pill where the finger came down, as far as the row's ends allow.
    */
   private func lens(from touch: Touch) -> Drag? {
     let placed = props.pills.compactMap { pill in frames[pill.key].map { (pill.key, $0) } }
-    guard let row = row(for: touch), let first = placed.first, let last = placed.last else {
+    guard let row = row(for: touch), let start = frames[resting], let first = placed.first,
+      let last = placed.last
+    else {
       return nil
     }
+    let still = min(max(row.base, 0), row.end)
     let offset = min(max(row.base + scrolled, 0), row.end)
-    let middle = min(max(offset - Self.inset + touch.now - left, first.1.midX), last.1.midX)
+    // From the pill's middle, not the finger's point of the row: at the row's ends the row cannot
+    // keep the pill under the finger, and a finger that has not moved stays on its pill.
+    let moved = touch.now - touch.start + offset - still
+    let middle = min(max(start.midX + moved, first.1.midX), last.1.midX)
     // The pills whose middles are either side of `middle`, and how far it is from one to the other.
     let after = placed.firstIndex { $0.1.midX >= middle } ?? placed.count - 1
     let (key, frame) = placed[max(after - 1, 0)]

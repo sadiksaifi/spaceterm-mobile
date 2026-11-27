@@ -51,7 +51,8 @@ export type BarLayout = {
 /**
  * How the bar lays out its Workspaces. They share the bar equally while every name, with
  * `padding` on each side, fits its share. Otherwise each is as wide as its name, and the bar
- * moves them to center the selected one as far as the ends allow. `names` are the names' widths,
+ * moves them to center the selected one as far as the ends allow. No Workspace is wider than the
+ * bar. `names` are the names' widths,
  * `undefined` until measured; the bar shares equally until then.
  */
 export function barLayout(
@@ -61,7 +62,10 @@ export function barLayout(
   padding: number,
 ): BarLayout {
   const share = names.length === 0 ? 0 : width / names.length;
-  const natural = names.map((name) => (name === undefined ? undefined : name + 2 * padding));
+  // A name wider than the bar gets the whole bar, cut short, so its pill never sits out of view.
+  const natural = names.map((name) =>
+    name === undefined ? undefined : Math.min(name + 2 * padding, width),
+  );
   if (natural.every((each) => each !== undefined && each <= share) || natural.includes(undefined)) {
     return {
       shared: true,

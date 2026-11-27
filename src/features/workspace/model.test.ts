@@ -78,6 +78,12 @@ describe("the Workspace bar", () => {
     expect(barLayout([68, 68, 68, 68, 68], 300, 2, PADDING).offset).toBe(100);
   });
 
+  it("makes a name wider than the bar as wide as the bar, so its pill still shows", () => {
+    // 432 wide with its room, cut to 300; the second is 82.
+    expect(barLayout([400, 50], 300, 0, PADDING)).toMatchObject({ widths: [300, 82], offset: 0 });
+    expect(barLayout([400, 50], 300, 1, PADDING).offset).toBe(82);
+  });
+
   it("says which edges have Workspaces past them", () => {
     // Five of 100 in a bar of 300: 200 more than it shows.
     const names = [68, 68, 68, 68, 68];

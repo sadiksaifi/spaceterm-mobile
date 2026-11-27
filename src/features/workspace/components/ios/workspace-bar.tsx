@@ -1,6 +1,7 @@
 import { Button, ContextMenu, Divider, HStack, Image, Text, ZStack } from "@expo/ui/swift-ui";
 import {
   accessibilityAddTraits,
+  accessibilityHidden,
   accessibilityLabel,
   animation,
   Animation,
@@ -18,6 +19,7 @@ import {
   lineLimit,
   offset,
   onGeometryChange,
+  opacity,
   padding,
   shapes,
 } from "@expo/ui/swift-ui/modifiers";
@@ -194,13 +196,25 @@ function Pill({
           ...(selected ? [background(Color.ios.tertiarySystemFill, shapes.capsule())] : []),
         ]}
       >
+        {/* The whole name, unseen, measures the room it asks for. */}
         <Text
           modifiers={[
             font({ textStyle: "body" }),
             lineLimit(1),
             fixedSize({ horizontal: true }),
-            foregroundStyle({ type: "hierarchical", style: selected ? "primary" : "secondary" }),
+            opacity(0),
+            accessibilityHidden(true),
             onGeometryChange((frame) => onMeasure(frame.width)),
+          ]}
+        >
+          {row.workspace.name}
+        </Text>
+        <Text
+          modifiers={[
+            font({ textStyle: "body" }),
+            lineLimit(1),
+            frame({ maxWidth: Math.max(width - 2 * PADDING, 0) }),
+            foregroundStyle({ type: "hierarchical", style: selected ? "primary" : "secondary" }),
           ]}
         >
           {row.workspace.name}

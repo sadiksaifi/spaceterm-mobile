@@ -230,7 +230,10 @@ function Pill({
               combinedClickable({ onClick: onPress, onLongClick: () => setHeld(true) }),
             ]}
           >
-            <Box contentAlignment="center" modifiers={[width(pillWidth), fillMaxHeight()]}>
+            <Box
+              contentAlignment="center"
+              modifiers={[width(pillWidth), fillMaxHeight(), padding(PADDING, 0, PADDING, 0)]}
+            >
               <Text maxLines={1} overflow="ellipsis" style={{ typography: "bodyLarge" }}>
                 {row.workspace.name}
               </Text>

@@ -303,7 +303,7 @@ function ContentState({
   // Where the state starts on screen, taken once: scrolling moves it, and the state must not
   // grow with the scroll.
   const [top, setTop] = useState<number | null>(null);
-  if (content.kind === "directories") return null;
+  if (content.kind === "directories" || content.kind === "none") return null;
   const fill =
     top === null || listBottom === null ? null : listBottom - top - STATE_BOTTOM[content.kind];
   return (

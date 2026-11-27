@@ -35,14 +35,16 @@ const run = (events: PickerEvent[], state: PickerState = initialPicker) =>
 const atHome = run([{ type: "answered", request: initialPicker.request, listing: home }]);
 
 describe("the Directory Picker", () => {
-  it("starts at the home directory, loading, with Open unavailable", () => {
+  it("starts at the home directory, showing nothing until the spinner, with Open waiting for it", () => {
     expect(pickerView(initialPicker)).toEqual({
       field: "~/",
-      content: { kind: "loading" },
+      content: { kind: "none" },
       parent: null,
       opening: false,
-      canOpen: false,
+      canOpen: true,
     });
+    const slow = run([{ type: "slow", request: initialPicker.request }]);
+    expect(pickerView(slow)).toMatchObject({ content: { kind: "loading" }, parent: null });
   });
 
   it("lists the directory that arrives, with Parent Directory, and offers Open", () => {
@@ -55,13 +57,13 @@ describe("the Directory Picker", () => {
     });
   });
 
-  it("loads a tapped directory in place, showing its path at once", () => {
+  it("loads a tapped directory in place, showing its path at once and the rows before it", () => {
     const loading = run([{ type: "navigate", path: "~/scratch/" }], atHome);
     expect(pickerView(loading)).toMatchObject({
       field: "~/scratch/",
-      content: { kind: "loading" },
-      parent: null,
-      canOpen: false,
+      content: { kind: "directories", directories: home.directories },
+      parent: "/Users/",
+      canOpen: true,
     });
     const listed = run([{ type: "answered", request: loading.request, listing: scratch }], loading);
     expect(pickerView(listed)).toMatchObject({
@@ -75,7 +77,51 @@ describe("the Directory Picker", () => {
     const first = run([{ type: "navigate", path: "~/scratch/" }], atHome);
     const second = run([{ type: "navigate", path: "~/" }], first);
     const late = run([{ type: "answered", request: first.request, listing: scratch }], second);
-    expect(pickerView(late)).toMatchObject({ field: "~/", content: { kind: "loading" } });
+    expect(late.listing).toMatchObject({ kind: "loading", path: "~/" });
+  });
+
+  it("shows the spinner only once the directory is slow, and keeps it for the next one", () => {
+    const loading = run([{ type: "navigate", path: "~/scratch/" }], atHome);
+    const stale = run([{ type: "slow", request: atHome.request }], loading);
+    expect(pickerView(stale).content).toEqual({
+      kind: "directories",
+      directories: home.directories,
+    });
+
+    const slow = run([{ type: "slow", request: loading.request }], loading);
+    expect(pickerView(slow)).toMatchObject({ content: { kind: "loading" }, parent: null });
+    const next = run([{ type: "navigate", path: "~/Projects/" }], slow);
+    expect(pickerView(next).content).toEqual({ kind: "loading" });
+
+    const listed = run([{ type: "answered", request: loading.request, listing: scratch }], slow);
+    expect(pickerView(listed).content).toEqual({ kind: "empty" });
+    const after = run([{ type: "slow", request: loading.request }], listed);
+    expect(after).toBe(listed);
+  });
+
+  it("opens a directory pressed while it loads once the Machine lists it", () => {
+    const loading = run(
+      [{ type: "navigate", path: "~/scratch/" }, { type: "open-when-listed" }],
+      atHome,
+    );
+    expect(pickerView(loading)).toMatchObject({ opening: true, canOpen: false });
+    // Opening takes no other directory meanwhile.
+    expect(run([{ type: "navigate", path: "~/" }], loading)).toBe(loading);
+    expect(run([{ type: "edit", field: "~/x" }], loading)).toBe(loading);
+
+    const listed = run([{ type: "answered", request: loading.request, listing: scratch }], loading);
+    expect(listed.confirm).toEqual({ kind: "opening-when-listed" });
+    expect(openPath(listed)).toBe("~/scratch/");
+  });
+
+  it("lets an Open pressed while loading lapse where the Machine cannot list the directory", () => {
+    const loading = run(
+      [{ type: "navigate", path: "/var/root/" }, { type: "open-when-listed" }],
+      atHome,
+    );
+    const listed = run([{ type: "answered", request: loading.request, listing: root }], loading);
+    expect(listed.confirm).toEqual({ kind: "idle" });
+    expect(pickerView(listed)).toMatchObject({ opening: false, canOpen: false });
   });
 
   it("lists the directory again in place on refresh, keeping a typed path", () => {
@@ -96,7 +142,7 @@ describe("the Directory Picker", () => {
   it("drops a refresh of a directory it has since left", () => {
     const left = run([{ type: "navigate", path: "~/scratch/" }], atHome);
     const late = run([{ type: "refreshed", request: atHome.request, listing: home }], left);
-    expect(pickerView(late)).toMatchObject({ field: "~/scratch/", content: { kind: "loading" } });
+    expect(late.listing).toMatchObject({ kind: "loading", path: "~/scratch/" });
   });
 
   it("keeps Parent Directory and Try Again where the Machine cannot list, and opens only a typed path", () => {
@@ -162,7 +208,12 @@ describe("the Directory Picker", () => {
       atScratch,
     );
     expect(created.confirm).toEqual({ kind: "idle" });
-    expect(created.listing).toEqual({ kind: "loading", path: "~/scratch/" });
+    expect(created.listing).toEqual({
+      kind: "loading",
+      path: "~/scratch/",
+      previous: scratch,
+      spinner: false,
+    });
 
     const notes = { name: "notes", path: "~/scratch/notes/" };
     const relisted = run(

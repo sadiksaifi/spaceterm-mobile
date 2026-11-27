@@ -11,7 +11,7 @@ export type PickerState = {
   /** The path the field shows. Tapping a directory sets it; the person can also type one. */
   field: string;
   /** The directory last asked for: loading until the Machine answers. */
-  listing: { kind: "loading"; path: string } | DirectoryListing;
+  listing: Loading | DirectoryListing;
   /** Counts the directories asked for, so a late answer for one left behind is dropped. */
   request: number;
   /** Changes each time the picker, not the person, sets the field, so the field shows it. */
@@ -19,10 +19,25 @@ export type PickerState = {
   confirm:
     | { kind: "idle" }
     | { kind: "opening" }
+    /** Open was pressed while the directory loaded; it opens once the Machine answers. */
+    | { kind: "opening-when-listed" }
     /** The directory in the field does not exist; the alert asks to create it. */
     | { kind: "asking-create"; directory: string }
     /** The Machine refused; Try Again repeats the attempt. */
     | ({ kind: "failed" } & PickerFailure);
+};
+
+/**
+ * A directory the Machine has yet to list. Most answer within a moment, so the screen keeps
+ * showing the directory before it, or nothing at first, and shows the spinner only once `slow`
+ * arrives. A spinner shown for a moment reads as a flicker.
+ */
+export type Loading = {
+  kind: "loading";
+  path: string;
+  /** The listing the screen keeps showing until the spinner shows, `null` at first. */
+  previous: DirectoryListing | null;
+  spinner: boolean;
 };
 
 /** An attempt to open a Workspace that the Machine refused. */
@@ -32,11 +47,15 @@ export type PickerEvent =
   /** A directory row, Parent Directory or Try Again. */
   | { type: "navigate"; path: string }
   | { type: "answered"; request: number; listing: DirectoryListing }
+  /** The directory `request` asked for has taken long enough to show the spinner. */
+  | { type: "slow"; request: number }
   /** Pull to refresh: the directory shown, listed again. */
   | { type: "refreshed"; request: number; listing: DirectoryListing }
   | { type: "edit"; field: string }
   /** The checkmark on iOS, Open on Android, or Try Again. */
   | { type: "open" }
+  /** The checkmark or Open while the directory loads. */
+  | { type: "open-when-listed" }
   | { type: "missing-directory"; directory: string }
   /** Create, in the alert. */
   | { type: "create" }
@@ -50,11 +69,24 @@ export type PickerEvent =
 
 export const initialPicker: PickerState = {
   field: HOME,
-  listing: { kind: "loading", path: HOME },
+  listing: { kind: "loading", path: HOME, previous: null, spinner: false },
   request: 0,
   fieldVersion: 0,
   confirm: { kind: "idle" },
 };
+
+/** Opening takes no other directory until the Machine answers, so the answer applies to it. */
+const opening = (state: PickerState) =>
+  state.confirm.kind === "opening" || state.confirm.kind === "opening-when-listed";
+
+/**
+ * Loads `path`. The screen keeps what it shows: the listing before, or the spinner once a
+ * directory has been slow.
+ */
+const loading = (state: PickerState, path: string): Loading =>
+  state.listing.kind === "loading"
+    ? { ...state.listing, path }
+    : { kind: "loading", path, previous: state.listing, spinner: false };
 
 /** Picking another directory makes a refusal out of date. */
 const pickingAnother = (state: PickerState): PickerState =>
@@ -65,11 +97,11 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
     case "navigate":
       // While an attempt is under way the picker takes no other directory, so its answer, which
       // may be a new Workspace, always applies to what the picker shows.
-      if (state.confirm.kind === "opening") return state;
+      if (opening(state)) return state;
       return {
         ...pickingAnother(state),
         field: event.path,
-        listing: { kind: "loading", path: event.path },
+        listing: loading(state, event.path),
         request: state.request + 1,
         fieldVersion: state.fieldVersion + 1,
       };
@@ -79,25 +111,37 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
       // which can be written differently from the one asked for.
       const typed = state.field !== state.listing.path;
       const field = typed ? state.field : event.listing.path;
-      return {
+      const listed: PickerState = {
         ...state,
         listing: event.listing,
         field,
         fieldVersion: field === state.field ? state.fieldVersion : state.fieldVersion + 1,
       };
+      // An Open pressed meanwhile lapses where the field shows a directory the Machine cannot list.
+      return listed.confirm.kind === "opening-when-listed" && openPath(listed) === null
+        ? { ...listed, confirm: { kind: "idle" } }
+        : listed;
     }
+    case "slow":
+      return event.request === state.request && state.listing.kind === "loading"
+        ? { ...state, listing: { ...state.listing, spinner: true } }
+        : state;
     case "refreshed":
       // The field stays as it is, typed or not.
       return event.request === state.request && state.listing.kind !== "loading"
         ? { ...state, listing: event.listing }
         : state;
     case "edit":
-      return event.field === state.field || state.confirm.kind === "opening"
+      return event.field === state.field || opening(state)
         ? state
         : { ...pickingAnother(state), field: event.field };
     case "open":
     case "create":
       return { ...state, confirm: { kind: "opening" } };
+    case "open-when-listed":
+      return state.listing.kind === "loading" && !opening(state)
+        ? { ...state, confirm: { kind: "opening-when-listed" } }
+        : state;
     case "missing-directory":
       return state.confirm.kind === "opening"
         ? { ...state, confirm: { kind: "asking-create", directory: event.directory } }
@@ -120,7 +164,7 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
         : {
             ...state,
             confirm: { kind: "idle" },
-            listing: { kind: "loading", path: state.listing.path },
+            listing: loading(state, state.listing.path),
             request: state.request + 1,
           };
     case "dismiss-failure":
@@ -132,7 +176,10 @@ export function reducePicker(state: PickerState, event: PickerEvent): PickerStat
 export type PickerView = {
   field: string;
   content:
+    /** The spinner: the Machine has been slow to list the directory. */
     | { kind: "loading" }
+    /** Nothing yet: the first directory is loading, and the spinner waits. */
+    | { kind: "none" }
     | { kind: "directories"; directories: readonly DirectoryEntry[] }
     /** A directory with no subdirectories. Open still opens it. */
     | { kind: "empty" }
@@ -142,32 +189,47 @@ export type PickerView = {
   /** An attempt is under way: the field and the rows take no input until the Machine answers. */
   opening: boolean;
   /**
-   * Open works once the Machine has answered and the field holds a path, and no attempt is under
-   * way. It opens a typed path even where the directory shown cannot be listed.
+   * Open works while the field holds a path and no attempt is under way. It opens a typed path
+   * even where the directory shown cannot be listed. While the directory loads, it waits for the
+   * Machine to answer.
    */
   canOpen: boolean;
 };
 
 export function pickerView(state: PickerState): PickerView {
-  const { listing, field } = state;
-  const opening = state.confirm.kind === "opening";
+  const { field, listing } = state;
+  const ready = state.confirm.kind === "idle" || state.confirm.kind === "failed";
+  const base = { field, opening: opening(state) };
   if (listing.kind === "loading") {
-    return { field, content: { kind: "loading" }, parent: null, opening, canOpen: false };
+    const canOpen = ready && field.trim() !== "";
+    if (listing.spinner || listing.previous === null) {
+      return {
+        ...base,
+        content: { kind: listing.spinner ? "loading" : "none" },
+        parent: null,
+        canOpen,
+      };
+    }
+    return {
+      ...base,
+      content: contentOf(listing.previous),
+      parent: listing.previous.parent,
+      canOpen,
+    };
   }
   return {
-    field,
-    opening,
-    content:
-      listing.kind === "unavailable"
-        ? { kind: "unavailable", retryPath: listing.path }
-        : listing.directories.length === 0
-          ? { kind: "empty" }
-          : { kind: "directories", directories: listing.directories },
+    ...base,
+    content: contentOf(listing),
     parent: listing.parent,
-    canOpen:
-      (state.confirm.kind === "idle" || state.confirm.kind === "failed") &&
-      openPath(state) !== null,
+    canOpen: ready && openPath(state) !== null,
   };
+}
+
+function contentOf(listing: DirectoryListing): PickerView["content"] {
+  if (listing.kind === "unavailable") return { kind: "unavailable", retryPath: listing.path };
+  return listing.directories.length === 0
+    ? { kind: "empty" }
+    : { kind: "directories", directories: listing.directories };
 }
 
 /**

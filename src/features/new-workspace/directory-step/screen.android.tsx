@@ -332,6 +332,8 @@ function ContentState({
   onRetry: ((path: string) => void) | undefined;
 }) {
   switch (content.kind) {
+    case "none":
+      return null;
     case "loading":
       return (
         <Centered bottom={STATE_BOTTOM}>

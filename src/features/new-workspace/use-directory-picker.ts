@@ -12,6 +12,9 @@ import {
   type PickerView,
 } from "./picker";
 
+/** How long a directory may take to list before the spinner shows. */
+export const SPINNER_DELAY_MS = 400;
+
 export type DirectoryPicker = {
   view: PickerView;
   /** Changes each time the picker sets the field, which then shows the new path. */
@@ -28,8 +31,9 @@ export type DirectoryPicker = {
   edit: (field: string) => void;
   navigate: (path: string) => void;
   /**
-   * Opens the field's path. `submitted` is the text the field shows, which can be ahead of the
-   * last keystroke's event.
+   * Opens the field's path, once the Machine has listed it if it is loading. `submitted` is the
+   * text the field shows, which can be ahead of the last keystroke's event. It is dropped where
+   * the picker has set the field since this render, as a tap on a directory does.
    */
   open: (submitted?: string) => void;
   create: () => void;
@@ -51,6 +55,7 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
   const [state, setState] = useState(initialPicker);
   const { listing, request, confirm } = state;
   const loadingPath = listing.kind === "loading" ? listing.path : null;
+  const listedForOpen = confirm.kind === "opening-when-listed" && listing.kind !== "loading";
   // The state after every event so far, including those the screen has not rendered yet: a tap
   // and then Open, or two taps, can arrive before the next render.
   const latest = useRef(state);
@@ -74,7 +79,20 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
     void client
       .listDirectory(machineId, loadingPath)
       .then((answer) => send({ type: "answered", request, listing: answer }));
+    const slow = setTimeout(() => send({ type: "slow", request }), SPINNER_DELAY_MS);
+    return () => clearTimeout(slow);
   }, [client, machineId, loadingPath, request]);
+
+  // Open pressed while the directory loaded: the Machine has answered, so it opens now.
+  useEffect(() => {
+    if (!listedForOpen) return;
+    const path = openPath(latest.current);
+    if (latest.current.confirm.kind === "opening-when-listed" && path !== null) {
+      attempt(path, false);
+    }
+    // `attempt` reads only refs and stable values; the effect runs once per Open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listedForOpen]);
 
   function attempt(directory: string, createDirectory: boolean, again = false) {
     // Opening takes no second attempt until the Machine answers the first.
@@ -109,9 +127,13 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
     edit: (typed) => send({ type: "edit", field: typed }),
     navigate: (path) => send({ type: "navigate", path }),
     open(submitted) {
-      if (submitted !== undefined) send({ type: "edit", field: submitted });
+      if (submitted !== undefined && state.fieldVersion === latest.current.fieldVersion) {
+        send({ type: "edit", field: submitted });
+      }
+      if (!pickerView(latest.current).canOpen) return;
       const path = openPath(latest.current);
-      if (pickerView(latest.current).canOpen && path !== null) attempt(path, false);
+      if (path === null) send({ type: "open-when-listed" });
+      else attempt(path, false);
     },
     create() {
       const { confirm: now } = latest.current;

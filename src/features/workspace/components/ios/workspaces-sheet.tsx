@@ -18,11 +18,12 @@ import {
 import {
   accessibilityHidden,
   accessibilityLabel,
+  animation,
+  Animation,
   autocorrectionDisabled,
   background,
   buttonBorderShape,
   buttonStyle,
-  contentTransition,
   disabled,
   font,
   foregroundStyle,
@@ -33,6 +34,7 @@ import {
   padding,
   presentationDetents,
   presentationDragIndicator,
+  rotationEffect,
   type PresentationDetent,
   shapes,
   textInputAutocapitalization,
@@ -141,12 +143,14 @@ export function WorkspacesSheet({
                   accessibilityLabel(searching ? text.cancelSearch : text.newWorkspace),
                 ]}
               >
+                {/* A plus turned 45 degrees is the X, so the same symbol turns into it. */}
                 <Image
-                  systemName={searching ? "xmark" : "plus"}
+                  systemName="plus"
                   modifiers={[
                     font({ size: 20, weight: "medium" }),
                     frame({ width: 32, height: 32 }),
-                    contentTransition("symbolEffect"),
+                    rotationEffect(searching ? 45 : 0),
+                    animation(Animation.snappy(), searching),
                   ]}
                 />
               </Button>

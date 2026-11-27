@@ -2,19 +2,22 @@ import ExpoModulesCore
 import ExpoUI
 import SwiftUI
 
-/** Fades the view's content to transparent over `left` and `right` points at its sides. */
+/**
+ * Fades the view's content to transparent over `start` and `end` points at its leading and
+ * trailing sides, which follow the layout direction.
+ */
 struct FadingEdgesModifier: ViewModifier, Record {
-  @Field var left: CGFloat = 0
-  @Field var right: CGFloat = 0
+  @Field var start: CGFloat = 0
+  @Field var end: CGFloat = 0
 
   func body(content: Content) -> some View {
     content.mask {
       HStack(spacing: 0) {
         LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
-          .frame(width: left)
+          .frame(width: start)
         Color.black
         LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
-          .frame(width: right)
+          .frame(width: end)
       }
     }
   }

@@ -36,6 +36,9 @@ export const horizontalSwipe = (distance: number, onSwipe: (direction: "left" | 
     { distance },
   );
 
-/** Fades the view's content to transparent over `left` and `right` dp at its sides. */
-export const fadingEdges = ({ left, right }: { left: number; right: number }) =>
-  createModifier("fadingEdges", { left, right });
+/**
+ * Fades the view's content to transparent over `start` and `end` dp at its sides, which follow
+ * the layout direction.
+ */
+export const fadingEdges = ({ start, end }: { start: number; end: number }) =>
+  createModifier("fadingEdges", { start, end });

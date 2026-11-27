@@ -97,8 +97,8 @@ export function WorkspaceBar({
             // Clipping hides the names past the edges but leaves them tappable; this stops that.
             contentShape(shapes.capsule()),
             fadingEdges({
-              left: layout.past.start ? FADE : 0,
-              right: layout.past.end ? FADE : 0,
+              start: layout.past.start ? FADE : 0,
+              end: layout.past.end ? FADE : 0,
             }),
           ]}
         >

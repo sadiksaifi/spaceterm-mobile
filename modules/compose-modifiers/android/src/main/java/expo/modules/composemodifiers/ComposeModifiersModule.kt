@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -40,7 +41,7 @@ data class MaxWidthFractionParams(@Field val fraction: Float = 1f) : Record
 data class HorizontalSwipeParams(@Field val distance: Float = 32f) : Record
 
 @OptimizedRecord
-data class FadingEdgesParams(@Field val left: Float = 0f, @Field val right: Float = 0f) : Record
+data class FadingEdgesParams(@Field val start: Float = 0f, @Field val end: Float = 0f) : Record
 
 @OptimizedRecord
 data class RadioSelectedParams(@Field val selected: Boolean = false) : Record
@@ -53,13 +54,19 @@ fun maxWidthFraction(fraction: Float): Modifier =
     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
   }
 
-/** Fades the view's content to transparent over `left` and `right` pixels at its sides. */
-fun fadingEdges(left: Float, right: Float): Modifier =
+/**
+ * Fades the view's content to transparent over `start` and `end` pixels at its sides, which are
+ * its left and right, or its right and left in a right-to-left layout.
+ */
+fun fadingEdges(start: Float, end: Float): Modifier =
   Modifier
     // Offscreen, so the fade takes away the content's own pixels, not the window's.
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
       drawContent()
+      val ltr = layoutDirection == LayoutDirection.Ltr
+      val left = if (ltr) start else end
+      val right = if (ltr) end else start
       if (left > 0f) {
         drawRect(
           Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = left),
@@ -68,10 +75,10 @@ fun fadingEdges(left: Float, right: Float): Modifier =
         )
       }
       if (right > 0f) {
-        val start = size.width - right
+        val from = size.width - right
         drawRect(
-          Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = start, endX = size.width),
-          topLeft = Offset(start, 0f),
+          Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = from, endX = size.width),
+          topLeft = Offset(from, 0f),
           size = Size(right, size.height),
           blendMode = BlendMode.DstIn
         )
@@ -121,7 +128,7 @@ class ComposeModifiersModule : Module() {
       ModifierRegistry.register("fadingEdges") { map, _, converterContext, _ ->
         val params = recordFromMap<FadingEdgesParams>(map, converterContext)
         val density = LocalDensity.current
-        with(density) { fadingEdges(params.left.dp.toPx(), params.right.dp.toPx()) }
+        with(density) { fadingEdges(params.start.dp.toPx(), params.end.dp.toPx()) }
       }
       ModifierRegistry.register("horizontalSwipe") { map, _, converterContext, eventDispatcher ->
         val distance = recordFromMap<HorizontalSwipeParams>(map, converterContext).distance

@@ -143,8 +143,8 @@ export function WorkspaceBar({
               size(inner, BAR_HEIGHT - 2 * INSET),
               clip(Shapes.RoundedCorner(BAR_HEIGHT)),
               fadingEdges({
-                left: layout.past.start ? FADE : 0,
-                right: layout.past.end ? FADE : 0,
+                start: layout.past.start ? FADE : 0,
+                end: layout.past.end ? FADE : 0,
               }),
             ]}
           >

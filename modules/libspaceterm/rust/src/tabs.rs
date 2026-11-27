@@ -39,7 +39,9 @@ pub struct PaneSummary {
     pub source: Option<String>,
     pub side: PaneSide,
     /// Closing it would end work, as the Machine last observed. A Machine that does not publish
-    /// what it observes leaves this to the shell's report of a running command.
+    /// what it observes leaves this to the shell's report of a running command. On a Machine
+    /// that cannot close only what is idle, a Pane this device does not control counts as
+    /// running, since nothing would stop the close from ending a command started since.
     pub running: bool,
     /// Another device controls the Pane.
     pub controlled_elsewhere: bool,
@@ -69,6 +71,7 @@ pub(crate) fn tabs(
     inventory: &Inventory,
     workspace: &Workspace,
     client: Option<Id>,
+    closes_only_idle: bool,
 ) -> Vec<TabSummary> {
     workspace
         .tabs
@@ -93,7 +96,7 @@ pub(crate) fn tabs(
                             pane: pane.id,
                         },
                         pane,
-                    ),
+                    ) || !closes_only_idle && !controlled_here(inventory, pane, client),
                     controlled_elsewhere: controlled_elsewhere(inventory, pane, client),
                     seen: write_close(
                         inventory,
@@ -295,6 +298,15 @@ fn running(inventory: &Inventory, target: CloseTarget, pane: &Pane) -> bool {
     })
 }
 
+fn controlled_here(inventory: &Inventory, pane: &Pane, client: Option<Id>) -> bool {
+    inventory.close.as_ref().is_some_and(|close| {
+        close
+            .controls
+            .iter()
+            .any(|control| control.pane == pane.id && Some(control.owner) == client)
+    })
+}
+
 fn controlled_elsewhere(inventory: &Inventory, pane: &Pane, client: Option<Id>) -> bool {
     inventory.close.as_ref().is_some_and(|close| {
         close
@@ -465,7 +477,7 @@ mod tests {
         second.source = Some(id(10));
         second.side = Side::Down;
         let listed = workspace(vec![tab(100, vec![pane(10, Some(idle)), second])]);
-        let tabs = tabs(&inventory(&listed, Vec::new()), &listed, None);
+        let tabs = tabs(&inventory(&listed, Vec::new()), &listed, None, true);
         assert_eq!(tabs.len(), 1);
         assert_eq!(tabs[0].name, "zsh");
         let panes: Vec<_> = tabs[0]
@@ -502,7 +514,7 @@ mod tests {
             epoch: 1,
         };
         let listed_inventory = inventory(&listed, vec![control(10, 7), control(11, 9)]);
-        let panes = &tabs(&listed_inventory, &listed, Some(id(9)))[0].panes;
+        let panes = &tabs(&listed_inventory, &listed, Some(id(9)), true)[0].panes;
         let elsewhere: Vec<_> = panes.iter().map(|pane| pane.controlled_elsewhere).collect();
         assert_eq!(elsewhere, [true, false, false]);
     }
@@ -511,7 +523,7 @@ mod tests {
     fn a_tab_and_each_pane_carry_what_their_close_sends_back() {
         let listed = workspace(vec![tab(100, vec![pane(10, None), pane(11, None)])]);
         let listed_inventory = inventory(&listed, Vec::new());
-        let tab = &tabs(&listed_inventory, &listed, None)[0];
+        let tab = &tabs(&listed_inventory, &listed, None, true)[0];
         assert_eq!(
             read_confirmation(&tab.seen, true),
             listed_inventory.close_confirmation(CloseTarget::Tab {
@@ -540,7 +552,7 @@ mod tests {
             epoch: 1,
         };
         let own = inventory(&listed, vec![control(10, 9), control(11, 9)]);
-        let tab = &tabs(&own, &listed, Some(id(9)))[0];
+        let tab = &tabs(&own, &listed, Some(id(9)), true)[0];
         let direct = read_confirmation(&tab.seen, false).and_then(|seen| seen.own_controls);
         assert_eq!(direct, Some(vec![control(10, 9), control(11, 9)]));
         // A close the person agreed to may end a running command, so it carries no control.
@@ -551,8 +563,13 @@ mod tests {
 
         // One Pane this device does not control: the Machine closes only if nothing runs.
         let shared = inventory(&listed, vec![control(10, 9)]);
-        let tab = &tabs(&shared, &listed, Some(id(9)))[0];
+        let tab = &tabs(&shared, &listed, Some(id(9)), true)[0];
         assert!(read_confirmation(&tab.seen, false).is_some_and(|seen| seen.is_close_if_idle()));
+
+        // A Machine that cannot close only what is idle asks first for a Pane without control.
+        let older = &tabs(&shared, &listed, Some(id(9)), false)[0];
+        let asks: Vec<bool> = older.panes.iter().map(|pane| pane.running).collect();
+        assert_eq!(asks, vec![false, true]);
     }
 
     #[test]
@@ -574,7 +591,7 @@ mod tests {
                 needs_close_review,
             });
             let listed = workspace(vec![tab(100, vec![listed_pane])]);
-            tabs(&inventory(&listed, Vec::new()), &listed, None)[0].panes[0].running
+            tabs(&inventory(&listed, Vec::new()), &listed, None, true)[0].panes[0].running
         };
         assert!(running(false, Some(true)));
         assert!(!running(true, Some(false)));

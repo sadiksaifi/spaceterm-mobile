@@ -33,7 +33,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tabs::read_confirmation;
-use workspaces::{Seen, WorkspaceSummary, summaries};
+use workspaces::{Abilities, Seen, WorkspaceSummary, summaries};
 use worktrees::{NewWorktreeBranch, WorktreeContext, WorktreeCreation};
 use zeroize::Zeroizing;
 
@@ -354,11 +354,17 @@ impl Machines {
                     Connection::Connected => self.inventory(id).map(|revision| {
                         let core = self.connections.core(id);
                         let client = core.as_ref().map(|core| core.paired().client);
-                        let fixed_order = core.as_ref().is_some_and(|core| {
-                            core.work().capabilities().check(Capability::ReorderTab)
-                                == Err(Unavailable::CoreTooOld)
-                        });
-                        summaries(&revision.inventory, client, !fixed_order)
+                        let too_old = |capability| {
+                            core.as_ref().is_some_and(|core| {
+                                core.work().capabilities().check(capability)
+                                    == Err(Unavailable::CoreTooOld)
+                            })
+                        };
+                        let abilities = Abilities {
+                            reorders_tabs: !too_old(Capability::ReorderTab),
+                            closes_only_idle: !too_old(Capability::CloseIfIdle),
+                        };
+                        summaries(&revision.inventory, client, abilities)
                     }),
                     _ => None,
                 };
@@ -535,17 +541,17 @@ impl Machines {
         seen: String,
         asked: bool,
     ) -> bool {
-        let (Some(workspace), Some(tab), Some(mut confirmation)) = (
+        let (Some(workspace), Some(tab), Some(confirmation)) = (
             decode(&workspace_id),
             decode(&tab_id),
             read_confirmation(&seen, asked),
         ) else {
             return false;
         };
-        // A Machine before work 1.5 cannot close only what is idle; it checks only that the
-        // Terminal Sessions are the same. A Machine not known to be older keeps the guard.
+        // A Machine before work 1.5 cannot close only what is idle, and would take the close as
+        // consent. Its listing asks first, so this close is refused until the person agrees.
         if confirmation.is_close_if_idle() && self.too_old(&machine_id, Capability::CloseIfIdle) {
-            confirmation.own_controls = None;
+            return false;
         }
         let target = match pane_id {
             None => CloseTarget::Tab { workspace, tab },

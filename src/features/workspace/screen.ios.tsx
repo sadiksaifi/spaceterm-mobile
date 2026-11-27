@@ -45,7 +45,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
 
   const content = connected ? (
     <ScrollView>
-      <VStack modifiers={[padding({ top: 8, bottom: bottom + BAR_HEIGHT + 24 })]}>
+      <VStack modifiers={[padding({ top: 2, bottom: bottom + BAR_HEIGHT + 24 })]}>
         <CardGrid
           screens={props.screens}
           cards={commands.grid.tabs.map((tab) => {

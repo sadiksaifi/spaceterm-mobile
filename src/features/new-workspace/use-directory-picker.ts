@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useMachineClient } from "@/shared/machines/client";
+import type { CreateWorkspaceResult, DirectoryListing } from "@/shared/machines/model";
 
 import {
   initialPicker,
@@ -76,11 +77,18 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
 
   useEffect(() => {
     if (loadingPath === null) return;
+    // A setup that has been cleaned up, as StrictMode does once, drops its answer.
+    let live = true;
     void client
       .listDirectory(machineId, loadingPath)
-      .then((answer) => send({ type: "answered", request, listing: answer }));
+      // A call that fails without an answer leaves the directory unlisted, as the Machine would.
+      .catch((): DirectoryListing => ({ kind: "unavailable", path: loadingPath, parent: null }))
+      .then((answer) => live && send({ type: "answered", request, listing: answer }));
     const slow = setTimeout(() => send({ type: "slow", request }), SPINNER_DELAY_MS);
-    return () => clearTimeout(slow);
+    return () => {
+      live = false;
+      clearTimeout(slow);
+    };
   }, [client, machineId, loadingPath, request]);
 
   // Open pressed while the directory loaded: the Machine has answered, so it opens now.
@@ -97,20 +105,24 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
   function attempt(directory: string, createDirectory: boolean, again = false) {
     // Opening takes no second attempt until the Machine answers the first.
     send({ type: createDirectory ? "create" : "open" });
-    void client.createWorkspace(machineId, directory, { createDirectory, again }).then((result) => {
-      // The picker takes no other directory meanwhile, so only a closed step drops the answer.
-      if (!mounted.current) return;
-      switch (result.kind) {
-        case "created":
-          if (!onOpened()) send({ type: "created" });
-          return;
-        case "missing-directory":
-          send({ type: "missing-directory", directory: result.directory });
-          return;
-        case "failed":
-          send({ type: "failed", failure: { directory, createDirectory } });
-      }
-    });
+    void client
+      .createWorkspace(machineId, directory, { createDirectory, again })
+      // A call that fails without an answer is a refusal, which Try Again sends again.
+      .catch((): CreateWorkspaceResult => ({ kind: "failed" }))
+      .then((result) => {
+        // The picker takes no other directory meanwhile, so only a closed step drops the answer.
+        if (!mounted.current) return;
+        switch (result.kind) {
+          case "created":
+            if (!onOpened()) send({ type: "created" });
+            return;
+          case "missing-directory":
+            send({ type: "missing-directory", directory: result.directory });
+            return;
+          case "failed":
+            send({ type: "failed", failure: { directory, createDirectory } });
+        }
+      });
   }
 
   return {
@@ -121,8 +133,11 @@ export function useDirectoryPicker(machineId: string, onOpened: () => boolean): 
     async refresh() {
       const { listing: shown, request: asked } = latest.current;
       if (shown.kind === "loading") return;
-      const answer = await client.listDirectory(machineId, shown.path);
-      if (mounted.current) send({ type: "refreshed", request: asked, listing: answer });
+      // A refresh that fails without an answer keeps the listing shown.
+      const answer = await client.listDirectory(machineId, shown.path).catch(() => null);
+      if (answer !== null && mounted.current) {
+        send({ type: "refreshed", request: asked, listing: answer });
+      }
     },
     edit: (typed) => send({ type: "edit", field: typed }),
     navigate: (path) => send({ type: "navigate", path }),

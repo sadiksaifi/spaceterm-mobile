@@ -177,6 +177,9 @@ export default function DirectoryStepScreen({
   );
 }
 
+/** The size of a row's Material symbol, its intrinsic size. */
+const ROW_ICON = 24;
+
 /** Parent Directory and the directories, as rows. */
 type ListRow = { key: string; label: string; path: string };
 
@@ -313,7 +316,10 @@ function DirectoryRow({
         horizontalArrangement={{ spacedBy: 16 }}
         modifiers={[fillMaxWidth(), padding(16, 16, 16, 16)]}
       >
-        <Icon source={icon} tint={colors.secondaryText} />
+        {/* The Icon draws nothing until its symbol loads; the Box holds its place meanwhile. */}
+        <Box modifiers={[size(ROW_ICON, ROW_ICON)]}>
+          <Icon source={icon} tint={colors.secondaryText} size={ROW_ICON} />
+        </Box>
         <Text maxLines={1} overflow="ellipsis" style={{ typography: "bodyLarge" }}>
           {label}
         </Text>

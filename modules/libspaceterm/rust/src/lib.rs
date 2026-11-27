@@ -164,7 +164,9 @@ pub struct WorktreeTarget {
 /// What creating a Workspace came to.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum CreatedWorkspace {
-    Created { workspace_id: String },
+    Created {
+        workspace_id: String,
+    },
     /// The directory does not exist, so nothing was created.
     MissingDirectory,
     /// The Machine did not create it, or did not answer.
@@ -484,6 +486,26 @@ impl Machines {
         again: bool,
     ) -> CreatedWorkspace {
         let directory = PathBuf::from(path);
+        // Try Again of a create whose answer was lost goes again before the directory is checked:
+        // the first one may have made the Workspace, and the directory may have moved since, which
+        // would ask to create it and send a second create.
+        if again {
+            let resumed = self.resume(&machine_id, |pending| {
+                matches!(pending, Mutation::CreateWorkspace {
+                    name: named,
+                    directory: Some(opened),
+                    ..
+                } if *named == name && *opened == directory)
+            });
+            if let Some(outcome) = resumed {
+                return match outcome {
+                    Some(Outcome::Accepted { target }) => CreatedWorkspace::Created {
+                        workspace_id: hex(&target),
+                    },
+                    _ => CreatedWorkspace::Failed,
+                };
+            }
+        }
         let ready = if create_directory {
             self.make_directory(&machine_id, directory.clone())
         } else {

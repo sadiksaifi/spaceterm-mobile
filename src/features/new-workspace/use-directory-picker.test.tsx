@@ -192,3 +192,39 @@ it("shows the spinner only once a directory is slow, and opens it once listed if
     jest.useRealTimers();
   }
 });
+
+it("offers Try Again when a create fails without an answer, rather than staying locked", async () => {
+  const { client, createWorkspace } = machine([]);
+  createWorkspace.mockRejectedValueOnce(new Error("bridge"));
+  const { result } = await render(client);
+
+  await act(async () => result.current.open());
+  expect(result.current.view.opening).toBe(false);
+  expect(result.current.failure).toEqual({
+    kind: "failed",
+    directory: "~/",
+    createDirectory: false,
+  });
+});
+
+it("cannot list a directory whose listing fails without an answer, and lets a waiting Open lapse", async () => {
+  jest.useFakeTimers();
+  try {
+    const { client, createWorkspace } = machine([]);
+    const listings: ((error: Error) => void)[] = [];
+    client.listDirectory = () => new Promise((_, reject) => listings.push(reject));
+    const { result } = await render(client);
+
+    await act(async () => result.current.open());
+    expect(result.current.view.opening).toBe(true);
+    await act(async () => listings[0]?.(new Error("bridge")));
+    expect(result.current.view).toMatchObject({
+      content: { kind: "unavailable", retryPath: "~/" },
+      opening: false,
+      canOpen: false,
+    });
+    expect(createWorkspace).not.toHaveBeenCalled();
+  } finally {
+    jest.useRealTimers();
+  }
+});

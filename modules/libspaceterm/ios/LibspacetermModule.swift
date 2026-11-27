@@ -18,6 +18,11 @@ private let shared: Machines = {
 private let edits = DispatchQueue(
   label: "libspaceterm.edits", qos: .userInitiated, attributes: .concurrent)
 
+/// Directory reads wait up to ten seconds for a Machine, so they run off Expo's shared queue,
+/// where one that stalls would hold up every other call.
+private let reads = DispatchQueue(
+  label: "libspaceterm.reads", qos: .userInitiated, attributes: .concurrent)
+
 private let connections = FileManager.default
   .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
   .appendingPathComponent("connections", isDirectory: true)
@@ -172,11 +177,11 @@ public class LibspacetermModule: Module {
 
     AsyncFunction("directoryHome") { (machineId: String) -> String? in
       shared.directoryHome(machineId: machineId)
-    }
+    }.runOnQueue(reads)
 
     AsyncFunction("listDirectory") { (machineId: String, path: String) -> [String]? in
       shared.listDirectory(machineId: machineId, path: path)
-    }
+    }.runOnQueue(reads)
 
     AsyncFunction("createWorkspace") {
       (machineId: String, path: String, name: String, createDirectory: Bool, again: Bool)

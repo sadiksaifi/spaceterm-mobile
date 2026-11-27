@@ -19,7 +19,7 @@ import type {
   Tab,
   Workspace,
 } from "./model";
-import { basename, display, join, parent, resolve } from "./paths";
+import { basename, display, expand, join, parent, resolve } from "./paths";
 
 /** What the client asks of libspaceterm. */
 export type NativeMachines = Pick<
@@ -205,7 +205,7 @@ export function createNativeClient(
     listDirectory: async (machineId, path) => {
       const home = await homeOf(machineId);
       if (home === null) return { kind: "unavailable", path, parent: null };
-      const absolute = resolve(home, path);
+      const absolute = expand(home, path);
       const up = parent(absolute);
       const shown = {
         path: display(home, absolute, true),
@@ -230,11 +230,11 @@ export function createNativeClient(
     ) => {
       const home = await homeOf(machineId);
       if (home === null) return { kind: "failed" };
-      const absolute = resolve(home, directory);
+      const absolute = expand(home, directory);
       const created = await native.createWorkspace(
         machineId,
         absolute,
-        basename(absolute),
+        basename(resolve(home, directory)),
         createDirectory,
         again,
       );

@@ -3,6 +3,7 @@ import notConnectedIcon from "@expo/material-symbols/desktop_access_disabled.xml
 import machineIcon from "@expo/material-symbols/desktop_windows.xml";
 import refreshIcon from "@expo/material-symbols/refresh.xml";
 import {
+  Box,
   Column,
   Icon,
   IconButton,
@@ -20,6 +21,7 @@ import {
   fillMaxSize,
   fillMaxWidth,
   padding,
+  size,
   verticalScroll,
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
@@ -35,6 +37,9 @@ import { Refreshable } from "@/shared/ui/android/refreshable";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 
 import { text } from "../text";
+
+/** The size of a row's Material symbol, its intrinsic size. */
+const ROW_ICON = 24;
 import type ScreenContract from "./screen";
 import type { MachineStepProps } from "./screen";
 
@@ -143,7 +148,14 @@ function MachineRow({
           padding(16, connected ? 16 : 10, 16, connected ? 16 : 10),
         ]}
       >
-        <Icon source={connected ? machineIcon : notConnectedIcon} tint={colors.secondaryText} />
+        {/* The Icon draws nothing until its symbol loads; the Box holds its place meanwhile. */}
+        <Box modifiers={[size(ROW_ICON, ROW_ICON)]}>
+          <Icon
+            source={connected ? machineIcon : notConnectedIcon}
+            tint={colors.secondaryText}
+            size={ROW_ICON}
+          />
+        </Box>
         <Column>
           <Text maxLines={1} overflow="ellipsis" style={{ typography: "bodyLarge" }}>
             {machine.name}

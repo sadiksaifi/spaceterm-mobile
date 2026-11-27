@@ -696,6 +696,35 @@ describe("New Workspace through libspaceterm", () => {
     expect(result).toEqual({ kind: "created", workspaceId: "w-new" });
   });
 
+  it("sends each .. to the Machine, which alone knows where it leads past a symbolic link", async () => {
+    const { native } = fakeNative();
+    const client = createNativeClient(native);
+
+    const listing = await client.listDirectory("m1", "~/link/../repo/");
+    await client.createWorkspace("m1", "~/link/../repo");
+    await client.createWorkspace("m1", "~/repo/app/..");
+
+    expect(native.listDirectory).toHaveBeenCalledWith("m1", "/Users/ada/link/../repo");
+    expect(listing).toMatchObject({ path: "~/link/../repo/", parent: "~/link/../" });
+    expect(native.createWorkspace).toHaveBeenCalledWith(
+      "m1",
+      "/Users/ada/link/../repo",
+      "repo",
+      false,
+      false,
+    );
+    expect(native.createWorkspace).toHaveBeenLastCalledWith(
+      "m1",
+      "/Users/ada/repo/app/..",
+      "repo",
+      false,
+      false,
+    );
+    expect(await client.listDirectory("m1", "~/repo/app/..")).toMatchObject({
+      parent: "~/repo/app/../../",
+    });
+  });
+
   it("names a missing directory as the person sees it, and creates it only when asked", async () => {
     const { native } = fakeNative();
     vi.mocked(native.createWorkspace).mockResolvedValueOnce({ kind: "missing-directory" });

@@ -38,17 +38,17 @@ describe("Pane previews", () => {
       .mockResolvedValueOnce({ a: screen("a2") });
     const { result, rerender } = await renderHook(
       ({ reading }: { reading: boolean }) =>
-        usePanePreviews({ panePreviews }, [{ machineId: "mac", panes: ["a", "b"] }], reading),
+        usePanePreviews({ panePreviews }, "mac", ["a", "b"], reading),
       { initialProps: { reading: true } },
     );
     await act(async () => {});
-    expect(result.current).toEqual({ mac: { a: screen("a1"), b: screen("b1") } });
+    expect(result.current).toEqual({ a: screen("a1"), b: screen("b1") });
 
     await act(async () => {
       jest.advanceTimersByTime(PREVIEW_EVERY);
     });
     expect(panePreviews).toHaveBeenCalledTimes(2);
-    expect(result.current).toEqual({ mac: { a: screen("a2"), b: screen("b1") } });
+    expect(result.current).toEqual({ a: screen("a2"), b: screen("b1") });
 
     await rerender({ reading: false });
     await act(async () => {
@@ -64,8 +64,7 @@ describe("Pane previews", () => {
       .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
       .mockResolvedValue({ c: screen("c1") });
     const { result, rerender } = await renderHook(
-      ({ panes }: { panes: string[] }) =>
-        usePanePreviews({ panePreviews }, [{ machineId: "mac", panes }], true),
+      ({ panes }: { panes: string[] }) => usePanePreviews({ panePreviews }, "mac", panes, true),
       { initialProps: { panes: ["a"] } },
     );
 
@@ -74,32 +73,6 @@ describe("Pane previews", () => {
 
     await act(async () => answer({ a: screen("a1") }));
     expect(panePreviews).toHaveBeenLastCalledWith("mac", ["c"]);
-    expect(result.current).toEqual({ mac: { c: screen("c1") } });
-  });
-
-  it("reads each Machine's Panes from that Machine and keeps their screens apart", async () => {
-    const panePreviews = jest.fn<MachineClient["panePreviews"]>(async (machineId, panes) =>
-      Object.fromEntries(panes.map((pane) => [pane, screen(`${machineId} ${pane}`)])),
-    );
-    const { result } = await renderHook(() =>
-      usePanePreviews(
-        { panePreviews },
-        [
-          { machineId: "mac", panes: ["a"] },
-          { machineId: "box", panes: ["a"] },
-          { machineId: "mac", panes: ["b"] },
-        ],
-        true,
-      ),
-    );
-    await act(async () => {});
-
-    expect(panePreviews).toHaveBeenCalledTimes(2);
-    expect(panePreviews).toHaveBeenCalledWith("mac", ["a", "b"]);
-    expect(panePreviews).toHaveBeenCalledWith("box", ["a"]);
-    expect(result.current).toEqual({
-      mac: { a: screen("mac a"), b: screen("mac b") },
-      box: { a: screen("box a") },
-    });
+    expect(result.current).toEqual({ c: screen("c1") });
   });
 });

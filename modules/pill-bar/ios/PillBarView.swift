@@ -30,9 +30,6 @@ final class PillBarProps: UIBaseViewProps {
   @Field var selected: String = ""
   @Field var leading: BarButton?
   @Field var trailing: BarButton?
-  /** The bar's distance from the bottom edge and from the sides. */
-  @Field var bottom: CGFloat = 0
-  @Field var side: CGFloat = 0
   var onSelect = EventDispatcher()
   var onAction = EventDispatcher()
   var onLeading = EventDispatcher()
@@ -46,10 +43,6 @@ final class PillBarProps: UIBaseViewProps {
  * glass lens in the middle of the capsule, which takes the buttons' room. A drag moves the row
  * under the lens with the finger, the lens takes the width of the name under it, and the pill
  * under it is picked when the finger lifts. Touch and hold any other pill for its menu.
- *
- * Children, when given, are the pills' pages in the pills' order, and the bar sits over them at
- * the bottom. The page of the highlighted pill fills the view; a drag slides the pages with the
- * lens, so the page of the pill under it comes in under the finger.
  */
 struct PillBarView: ExpoSwiftUI.View {
   @ObservedObject var props: PillBarProps
@@ -78,7 +71,6 @@ struct PillBarView: ExpoSwiftUI.View {
   @State private var past = Past()
   /** The row's scroll position, which a drag moves to keep the held highlight in the middle. */
   @State private var position = ScrollPosition(idType: String.self)
-  @State private var pageWidth: CGFloat = 0
 
   private struct Drag: Equatable {
     /** The point of the row under the lens. */
@@ -87,9 +79,6 @@ struct PillBarView: ExpoSwiftUI.View {
     var width: CGFloat
     /** The pill whose middle is nearest `middle`. */
     var over: String
-    /** Where the pages stand: the index of the pill under `middle`, with the fraction of the way
-     * to the next one. */
-    var page: CGFloat
   }
 
   private struct Past: Equatable {
@@ -107,20 +96,8 @@ struct PillBarView: ExpoSwiftUI.View {
   }
 
   var body: some View {
-    let pages = props.children ?? []
-    if pages.isEmpty {
-      bar
-    } else {
-      ZStack(alignment: .bottom) {
-        pager(pages)
-        bar
-      }
-    }
-  }
-
-  private var bar: some View {
     let held = drag != nil
-    return HStack(spacing: 0) {
+    HStack(spacing: 0) {
       if let leading = props.leading {
         button(leading) { props.onLeading() }
           .frame(width: held ? 0 : Self.height + Self.gap, alignment: .leading)
@@ -136,28 +113,6 @@ struct PillBarView: ExpoSwiftUI.View {
       }
     }
     .animation(Self.motion, value: held)
-    .frame(maxWidth: .infinity)
-    .frame(height: Self.height)
-    .padding(.horizontal, props.side)
-    .padding(.bottom, props.bottom)
-  }
-
-  /** The pages side by side, the highlighted one in view. Only that one takes touches, and only
-   * at rest; the others show only while they slide through. */
-  private func pager(_ pages: [any ExpoSwiftUI.AnyChild]) -> some View {
-    let shown = props.pills.firstIndex { $0.key == resting } ?? 0
-    let at = drag?.page ?? CGFloat(shown)
-    return ZStack {
-      ForEach(Array(pages.enumerated()), id: \.element.childIdentity) { index, page in
-        let view: any View = page.childView
-        AnyView(view)
-          .modifier(Paged(shift: CGFloat(index) - at, width: pageWidth))
-          .allowsHitTesting(index == shown && drag == nil)
-          .accessibilityHidden(index != shown)
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { pageWidth = $0 }
   }
 
   /** A held capsule takes the buttons' room, so they slide off to the sides. */
@@ -361,13 +316,11 @@ struct PillBarView: ExpoSwiftUI.View {
     let after = placed.firstIndex { $0.1.midX >= middle } ?? placed.count - 1
     let (key, frame) = placed[max(after - 1, 0)]
     let (nextKey, next) = placed[after]
-    let along = next.midX > frame.midX ? (middle - frame.midX) / (next.midX - frame.midX) : 0
-    let index = props.pills.firstIndex { $0.key == key } ?? 0
+    let along = next.midX > frame.midX ? (middle - frame.midX) / (next.midX - frame.midX) : 1
     return Drag(
       middle: middle,
       width: frame.width + (next.width - frame.width) * along,
-      over: along < 0.5 ? key : nextKey,
-      page: CGFloat(index) + along
+      over: along < 0.5 ? key : nextKey
     )
   }
 
@@ -378,26 +331,6 @@ struct PillBarView: ExpoSwiftUI.View {
     withAnimation(animated ? Self.motion : nil) {
       position.scrollTo(x: middle)
     }
-  }
-}
-
-/**
- * A page `shift` page widths from the one in view, hidden once it is a whole page or more away.
- * It animates the shift itself, so a page sliding out stays visible until it leaves.
- */
-private struct Paged: ViewModifier, Animatable {
-  var shift: CGFloat
-  var width: CGFloat
-
-  var animatableData: CGFloat {
-    get { shift }
-    set { shift = newValue }
-  }
-
-  func body(content: Content) -> some View {
-    content
-      .offset(x: shift * width)
-      .opacity(abs(shift) < 1 ? 1 : 0)
   }
 }
 

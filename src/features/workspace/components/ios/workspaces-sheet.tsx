@@ -90,18 +90,18 @@ export function WorkspacesSheet({
     needle === ""
       ? rows
       : rows.filter((row) => row.workspace.name.toLocaleLowerCase().includes(needle));
-  const close = () => {
-    setQuery("");
-    setSearching(false);
-    setDetent("medium");
-    onClose();
-  };
-  const cancelSearch = () => {
+  // The field keeps its own text: the sheet's content stays mounted while it is closed, so it
+  // would come back with the old query over every Workspace. Clearing it clears both.
+  const reset = () => {
     void field.current?.clear();
     void field.current?.blur();
     setQuery("");
     setSearching(false);
     setDetent("medium");
+  };
+  const close = () => {
+    reset();
+    onClose();
   };
 
   return (
@@ -131,7 +131,7 @@ export function WorkspacesSheet({
               <Button
                 onPress={
                   searching
-                    ? cancelSearch
+                    ? reset
                     : onNewWorkspace &&
                       (() => {
                         close();

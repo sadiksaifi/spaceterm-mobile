@@ -1,9 +1,7 @@
 import addIcon from "@expo/material-symbols/add.xml";
 import checkIcon from "@expo/material-symbols/check.xml";
 import deleteIcon from "@expo/material-symbols/delete.xml";
-import searchIcon from "@expo/material-symbols/search.xml";
 import {
-  BasicTextField,
   Box,
   Column,
   DropdownMenu,
@@ -15,7 +13,6 @@ import {
   Surface,
   Text,
   useMaterialColors,
-  useNativeState,
 } from "@expo/ui/jetpack-compose";
 import {
   alpha,
@@ -25,7 +22,7 @@ import {
   defaultMinSize,
   fillMaxSize,
   fillMaxWidth,
-  height,
+  imePadding,
   padding,
   Shapes,
   size,
@@ -33,10 +30,12 @@ import {
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { useState, type ReactNode } from "react";
+import type { ColorValue } from "react-native";
 
 import { rowCommands, type Control } from "@/features/home/actions";
 import type { WorkspaceRow } from "@/features/home/model";
 import type { RowAlerts } from "@/features/home/row-alerts";
+import { SearchBar } from "@/modules/search-bar";
 import { SwipeRow } from "@/modules/swipe-row";
 import { connectionStateText } from "@/shared/machines/text";
 import { useColors } from "@/shared/theme/colors";
@@ -78,14 +77,38 @@ export function WorkspacesSheet({
   snackbar: ReactNode;
 }) {
   const material = useMaterialColors();
-  const colors = useColors();
   const [query, setQuery] = useState("");
-  const field = useNativeState("");
+  const [searching, setSearching] = useState(false);
   const needle = query.trim().toLocaleLowerCase();
   const shown =
     needle === ""
       ? rows
       : rows.filter((row) => row.workspace.name.toLocaleLowerCase().includes(needle));
+  const list = (
+    listed: readonly WorkspaceRow[],
+    rest: ColorValue,
+    inset: ReturnType<typeof padding> | undefined,
+  ) => (
+    <Column
+      verticalArrangement={{ spacedBy: 2 }}
+      modifiers={[fillMaxWidth(), verticalScroll(), ...(inset ? [inset] : [])]}
+    >
+      {listed.map((row) => (
+        <SheetRow
+          key={row.key}
+          row={row}
+          checked={row.key === selected}
+          rest={rest}
+          commands={rowCommands(row, alerts.handlers, alerts.underway.get(row.key) ?? null)}
+          closedAlerts={alerts.closed}
+          onPick={() => {
+            onClose();
+            onSwitch(row);
+          }}
+        />
+      ))}
+    </Column>
+  );
 
   return (
     <ModalBottomSheet
@@ -100,42 +123,25 @@ export function WorkspacesSheet({
             horizontalArrangement={{ spacedBy: 8 }}
             modifiers={[fillMaxWidth(), padding(0, 0, 0, 12)]}
           >
-            <Surface
-              color={material.surfaceContainerHigh}
-              modifiers={[
-                weight(1),
-                height(FIELD_HEIGHT),
-                clip(Shapes.RoundedCorner(FIELD_HEIGHT)),
-              ]}
+            {/* Material's search: the pill opens a full-screen search of the Workspaces. */}
+            <SearchBar
+              onQueryChange={setQuery}
+              onExpandedChange={setSearching}
+              backLabel={text.back}
+              clearLabel={text.clearText}
+              modifiers={[weight(1)]}
             >
-              <Row
-                verticalAlignment="center"
-                horizontalArrangement={{ spacedBy: 16 }}
-                modifiers={[fillMaxSize(), padding(16, 0, 16, 0)]}
-              >
-                <Icon source={searchIcon} tint={colors.secondaryText} />
-                <BasicTextField
-                  value={field}
-                  singleLine
-                  onValueChange={setQuery}
-                  textStyle={{ color: colors.text, fontSize: 16 }}
-                  cursorColor={material.primary}
-                  keyboardOptions={{ autoCorrectEnabled: false }}
-                  modifiers={[weight(1)]}
-                >
-                  <BasicTextField.DecorationBox>
-                    <Box>
-                      <BasicTextField.Placeholder>
-                        <Text style={{ typography: "bodyLarge" }} color={colors.secondaryText}>
-                          {text.searchWorkspaces}
-                        </Text>
-                      </BasicTextField.Placeholder>
-                      <BasicTextField.InnerTextField />
-                    </Box>
-                  </BasicTextField.DecorationBox>
-                </BasicTextField>
-              </Row>
-            </Surface>
+              <SearchBar.Placeholder>
+                <Text>{text.searchWorkspaces}</Text>
+              </SearchBar.Placeholder>
+              <SearchBar.Results>
+                {/* Results sit above the keyboard. */}
+                <Box modifiers={[fillMaxSize(), imePadding()]}>
+                  {list(shown, material.surface, padding(16, 8, 16, SHEET_BOTTOM))}
+                  {searching && snackbar}
+                </Box>
+              </SearchBar.Results>
+            </SearchBar>
             <FloatingActionButton
               onClick={
                 onNewWorkspace &&
@@ -156,26 +162,9 @@ export function WorkspacesSheet({
               </FloatingActionButton.Icon>
             </FloatingActionButton>
           </Row>
-          <Column
-            verticalArrangement={{ spacedBy: 2 }}
-            modifiers={[fillMaxWidth(), verticalScroll()]}
-          >
-            {shown.map((row) => (
-              <SheetRow
-                key={row.key}
-                row={row}
-                checked={row.key === selected}
-                commands={rowCommands(row, alerts.handlers, alerts.underway.get(row.key) ?? null)}
-                closedAlerts={alerts.closed}
-                onPick={() => {
-                  onClose();
-                  onSwitch(row);
-                }}
-              />
-            ))}
-          </Column>
+          {list(rows, material.surfaceContainerLow, undefined)}
         </Column>
-        {snackbar}
+        {!searching && snackbar}
       </Box>
     </ModalBottomSheet>
   );
@@ -184,12 +173,15 @@ export function WorkspacesSheet({
 function SheetRow({
   row,
   checked,
+  rest,
   commands,
   closedAlerts,
   onPick,
 }: {
   row: WorkspaceRow;
   checked: boolean;
+  /** The color behind the list, opaque, so the swipe's background shows only as the row moves. */
+  rest: ColorValue;
   commands: ReturnType<typeof rowCommands>;
   closedAlerts: number;
   onPick: () => void;
@@ -216,12 +208,7 @@ function SheetRow({
       </DropdownMenuItem.Text>
     </DropdownMenuItem>
   );
-  const fill = checked
-    ? material.primaryContainer
-    : held
-      ? material.surfaceContainerHighest
-      : // The sheet's own color, opaque, so the swipe's background shows only as the row moves.
-        material.surfaceContainerLow;
+  const fill = checked ? material.primaryContainer : held ? material.surfaceContainerHighest : rest;
   const content = checked ? material.onPrimaryContainer : colors.text;
 
   return (

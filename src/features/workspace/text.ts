@@ -22,6 +22,7 @@ export const text = {
   newWorkspace: "New Workspace",
   search: "Search",
   searchWorkspaces: "Search Workspaces",
+  clearText: "Clear text",
   cancel: "Cancel",
   tryAgain: cased("Try Again", "Try again"),
   /** What screen readers say for the checked Workspace in the sheet. */

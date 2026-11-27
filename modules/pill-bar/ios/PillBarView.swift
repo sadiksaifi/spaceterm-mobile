@@ -43,9 +43,10 @@ final class PillBarProps: UIBaseViewProps {
  * Pills in a glass capsule, one of them highlighted, between optional round buttons. The pills
  * share the width when every name fits its share; otherwise each takes its name's width and the
  * row scrolls. A tap moves the highlight to a pill. Under a finger the highlight lifts into a
- * glass lens in the middle of the capsule, which takes the buttons' room. A drag moves the row
- * under the lens with the finger, the lens takes the width of the name under it, and the pill
- * under it is picked when the finger lifts. Touch and hold any other pill for its menu.
+ * glass lens and the capsule takes the buttons' room. A drag moves the lens with the finger over
+ * the row, and a finger near either side of the capsule scrolls the row toward that side. The lens
+ * takes the width of the name under it, and the pill under it is picked and centered when the
+ * finger lifts. Touch and hold any other pill for its menu.
  *
  * Children, when given, are the selected pill's content, and the bar sits over them at the
  * bottom. When the selection changes, the content comes in from the side of the newly selected
@@ -66,6 +67,10 @@ struct PillBarView: ExpoSwiftUI.View {
   private static let gap: CGFloat = 12
   private static let motion = Animation.spring(response: 0.34, dampingFraction: 0.78)
   private static let row = "pills"
+  /** Near this distance from either side of the capsule, a held finger scrolls the row. */
+  private static let edge: CGFloat = 44
+  /** How fast the row scrolls with the finger at the capsule's side, in points a second. */
+  private static let speed: CGFloat = 520
   /** How far new content comes in from the side. */
   private static let arrival: CGFloat = 56
 
@@ -75,10 +80,14 @@ struct PillBarView: ExpoSwiftUI.View {
   @State private var picked: String?
   /** A drag of the highlight, which the system clears when the gesture ends or is cancelled. */
   @GestureState(resetTransaction: Transaction(animation: PillBarView.motion))
-  private var drag: Drag?
+  private var touch: Touch?
   @State private var width: CGFloat = 0
+  /** The row's left edge on screen. */
+  @State private var left: CGFloat = 0
+  /** How far a held finger near a side scrolled the row. */
+  @State private var scrolled: CGFloat = 0
   @State private var past = Past()
-  /** The row's scroll position, which a drag moves to keep the held highlight in the middle. */
+  /** The row's scroll position, which a drag moves to bring far pills within the finger's reach. */
   @State private var position = ScrollPosition(idType: String.self)
   /** The last change of selection, which brings the content in from its side. */
   @State private var arrived = Arrival()
@@ -90,6 +99,20 @@ struct PillBarView: ExpoSwiftUI.View {
     var width: CGFloat
     /** The pill whose middle is nearest `middle`. */
     var over: String
+    /** The row's scroll offset, which puts the lens under the finger. */
+    var offset: CGFloat
+  }
+
+  /** Where a finger came down and where it is, on screen. */
+  private struct Touch: Equatable {
+    var start: CGFloat
+    var now: CGFloat
+  }
+
+  /** The held lens, from the drag and the row as it is laid out now, so it stays under the finger
+   * as the capsule widens. */
+  private var drag: Drag? {
+    touch.flatMap(lens(from:))
   }
 
   private struct Arrival: Equatable {
@@ -204,9 +227,11 @@ struct PillBarView: ExpoSwiftUI.View {
       }
       .scrollIndicators(.hidden)
       // Room at both ends while held, so the row can bring any pill under the lens.
-      .contentMargins(.horizontal, drag == nil ? 0 : width / 2, for: .scrollContent)
       .scrollPosition($position)
-      .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
+      .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
+        width = frame.width
+        left = frame.minX
+      }
       .onScrollGeometryChange(for: Past.self) { geometry in
         // Half a point of slack, so rounding never fades an edge with nothing past it.
         let offset = geometry.contentOffset.x
@@ -226,9 +251,16 @@ struct PillBarView: ExpoSwiftUI.View {
           withAnimation(Self.motion) { proxy.scrollTo(props.selected, anchor: .center) }
         }
       }
-      // The row keeps the point under the lens in the middle, as the capsule widens too.
-      .onChange(of: drag?.middle) { old, _ in follow(animated: old == nil) }
-      .onChange(of: width) { follow(animated: false) }
+      // The row scrolls with the lens, also as the capsule widens.
+      .onChange(of: drag?.offset) { old, _ in follow(animated: old == nil) }
+      .onChange(of: touch == nil) { scrolled = 0 }
+      .task(id: pushing) {
+        guard pushing != 0 else { return }
+        while !Task.isCancelled {
+          push()
+          try? await Task.sleep(for: .milliseconds(16))
+        }
+      }
       .onChange(of: props.pills.map(\.key)) { _, keys in
         frames = frames.filter { keys.contains($0.key) }
       }
@@ -343,13 +375,17 @@ struct PillBarView: ExpoSwiftUI.View {
   private var slide: some Gesture {
     // Global, so the row scrolling under the finger does not move it in the gesture's space.
     DragGesture(minimumDistance: 0, coordinateSpace: .global)
-      .updating($drag) { value, drag, transaction in
+      .updating($touch) { value, touch, transaction in
         // The bar and the highlight trade glass with the same motion they trade back with.
-        if drag == nil { transaction.animation = Self.motion }
-        drag = lens(from: value.translation.width)
+        if touch == nil { transaction.animation = Self.motion }
+        touch = Touch(start: value.startLocation.x, now: value.location.x)
       }
       .onEnded { value in
-        if let over = lens(from: value.translation.width)?.over { pick(over) }
+        let touch = Touch(start: value.startLocation.x, now: value.location.x)
+        guard let over = lens(from: touch)?.over else { return }
+        pick(over)
+        // Centered as far as the ends allow, also when it was already picked.
+        withAnimation(Self.motion) { position.scrollTo(id: over, anchor: .center) }
       }
   }
 
@@ -359,14 +395,19 @@ struct PillBarView: ExpoSwiftUI.View {
     props.onSelect(["key": key])
   }
 
-  /** The lens after the row moved `moved` with the finger from the resting pill, which stops
-   * with the first or last pill under the lens. */
-  private func lens(from moved: CGFloat) -> Drag? {
+  /**
+   * The lens under a finger that came down on the resting pill. The lens follows the finger over
+   * the row, stopping at the first and last pills, and the row stays put unless `scrolled` moved it.
+   * The capsule widens under the finger, so the row keeps the resting pill where the finger came
+   * down, as far as the row's ends allow.
+   */
+  private func lens(from touch: Touch) -> Drag? {
     let placed = props.pills.compactMap { pill in frames[pill.key].map { (pill.key, $0) } }
-    guard let start = frames[resting], let first = placed.first, let last = placed.last else {
+    guard let row = row(for: touch), let first = placed.first, let last = placed.last else {
       return nil
     }
-    let middle = min(max(start.midX - moved, first.1.midX), last.1.midX)
+    let offset = min(max(row.base + scrolled, 0), row.end)
+    let middle = min(max(offset + touch.now - left, first.1.midX), last.1.midX)
     // The pills whose middles are either side of `middle`, and how far it is from one to the other.
     let after = placed.firstIndex { $0.1.midX >= middle } ?? placed.count - 1
     let (key, frame) = placed[max(after - 1, 0)]
@@ -375,16 +416,42 @@ struct PillBarView: ExpoSwiftUI.View {
     return Drag(
       middle: middle,
       width: frame.width + (next.width - frame.width) * along,
-      over: along < 0.5 ? key : nextKey
+      over: along < 0.5 ? key : nextKey,
+      offset: offset
     )
   }
 
-  /** Scrolls the row so the point under the lens sits in the middle of the capsule. The scroll
-   * offset counts the held margin of half the capsule, which puts `middle` in the middle. */
+  /** The row's scroll offset that keeps the resting pill where `touch` came down, and the
+   * furthest the row scrolls. */
+  private func row(for touch: Touch) -> (base: CGFloat, end: CGFloat)? {
+    guard let start = frames[resting] else { return nil }
+    let end = max((frames.values.map(\.maxX).max() ?? 0) - width, 0)
+    return (start.midX - (touch.start - left), end)
+  }
+
+  /** The edge of the capsule a held finger is near, -1 for the left and 1 for the right, which
+   * scrolls the row toward it. */
+  private var pushing: Int {
+    guard let touch, width > Self.edge * 2 else { return 0 }
+    let shown = touch.now - left
+    return shown < Self.edge ? -1 : shown > width - Self.edge ? 1 : 0
+  }
+
+  /** Scrolls the row one frame toward the edge the finger is near, faster the nearer it is. */
+  private func push() {
+    guard let touch, let row = row(for: touch), pushing != 0 else { return }
+    let shown = touch.now - left
+    let into = pushing < 0 ? Self.edge - shown : shown - (width - Self.edge)
+    let step = CGFloat(pushing) * min(into / Self.edge, 1) * Self.speed / 60
+    // Within the row's ends, so moving back from an edge moves the row at once.
+    scrolled = min(max(scrolled + step, -row.base), row.end - row.base)
+  }
+
+  /** Scrolls the row to keep the point under the lens under the finger. */
   private func follow(animated: Bool) {
-    guard let middle = drag?.middle else { return }
+    guard let offset = drag?.offset else { return }
     withAnimation(animated ? Self.motion : nil) {
-      position.scrollTo(x: middle)
+      position.scrollTo(x: offset)
     }
   }
 }

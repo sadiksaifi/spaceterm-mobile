@@ -34,15 +34,19 @@ async function render(
 ) {
   const machineId = `mac-${(machines += 1)}`;
   const onCreated = jest.fn();
+  const sent: Parameters<NewWorktreeClient["createWorktree"]>[3][] = [];
   const client: NewWorktreeClient = {
     worktreeContext: async () => contexts.shift() ?? null,
     worktreeLocation: (_, branch) => `~/wt/${branch}`,
-    createWorktree: async () => (await creations.shift()) ?? { kind: "failed" },
+    createWorktree: async (_machine, _workspace, _context, request) => {
+      sent.push(request);
+      return (await creations.shift()) ?? { kind: "failed" };
+    },
   };
   const hook = await renderHook(() =>
     useNewWorktree({ client, machineId, workspace: WORKSPACE, onCreated }),
   );
-  return { ...hook, machineId, onCreated };
+  return { ...hook, machineId, onCreated, sent };
 }
 
 describe("useNewWorktree", () => {
@@ -80,6 +84,33 @@ describe("useNewWorktree", () => {
     await act(async () => result.current.setLocation("~/wt/elsewhere"));
     expect(result.current.form?.problem).toBeNull();
     expect(result.current.form?.view.location).toBe("~/wt/elsewhere");
+  });
+
+  it("says a branch name the Machine refused until the name changes", async () => {
+    const { result } = await render([{ kind: "branch-exists" }, { kind: "invalid-name" }]);
+    await act(async () => result.current.setName("topic"));
+    await act(async () => result.current.create());
+    expect(result.current.failure).toBeNull();
+    expect(result.current.form?.problem).toBe("branch-exists");
+    expect(result.current.form?.request).toBeNull();
+
+    await act(async () => result.current.setName("other"));
+    expect(result.current.form?.problem).toBeNull();
+    await act(async () => result.current.create());
+    expect(result.current.form?.problem).toBe("invalid-name");
+  });
+
+  it("tries again with the Create that failed, even after the form changed", async () => {
+    const { result, sent } = await render([{ kind: "failed" }, { kind: "created", tab: "t9" }]);
+    await act(async () => result.current.setName("topic"));
+    await act(async () => result.current.create());
+    expect(result.current.failure).toBe("create");
+
+    await act(async () => result.current.setName("different"));
+    await act(async () => result.current.retry());
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toEqual(sent[0]);
+    expect(sent[1]).toMatchObject({ location: "~/wt/topic" });
   });
 
   it("offers Try Again when the branches do not load, and loads them again", async () => {

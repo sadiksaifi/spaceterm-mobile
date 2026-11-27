@@ -83,9 +83,11 @@ export function useNewWorktree({
       : worktreeForm(of, context, (branch) => client.worktreeLocation(context, branch));
   const form = formOf(state);
 
-  const create = () => {
-    const request = form?.request;
-    if (context === null || request == null || sending.current) return;
+  // The Create that failed, which Try Again sends again as it was, whatever the form shows now.
+  const failedRequest = useRef<NonNullable<Form["request"]> | null>(null);
+
+  const send = (request: NonNullable<Form["request"]>) => {
+    if (context === null || sending.current) return;
     sending.current = true;
     setCreating(true);
     void client.createWorktree(machineId, workspace, context, request).then((result) => {
@@ -104,10 +106,24 @@ export function useNewWorktree({
           return;
         case "not-empty":
           return setState((current) => ({ ...current, notEmpty: request.location }));
-        default:
-          return setFailure("create");
+        case "invalid-name":
+        case "branch-exists": {
+          const problem = result.kind;
+          if (request.branch.kind !== "existing") {
+            const name = request.branch.name;
+            return setState((current) => ({ ...current, refused: { name, problem } }));
+          }
+          break;
+        }
       }
+      failedRequest.current = request;
+      setFailure("create");
     });
+  };
+
+  const create = () => {
+    const request = form?.request;
+    if (request != null) send(request);
   };
 
   return {
@@ -152,7 +168,7 @@ export function useNewWorktree({
       const failed = failure;
       setFailure(null);
       if (failed === "branches") setAttempt((count) => count + 1);
-      else create();
+      else if (failedRequest.current !== null) send(failedRequest.current);
     },
     dismissFailure: () => setFailure(null),
   };

@@ -14,6 +14,8 @@ export type FormState = {
   remote: { remote: string | null; local: string | null; location: string | null };
   /** The Location the Machine found not empty. The form says so while it shows that Location. */
   notEmpty: string | null;
+  /** A branch name the Machine refused. The form says why while it shows that name. */
+  refused: { name: string; problem: "invalid-name" | "branch-exists" } | null;
 };
 
 export const EMPTY_FORM: FormState = {
@@ -22,6 +24,7 @@ export const EMPTY_FORM: FormState = {
   existing: { branch: null, location: null },
   remote: { remote: null, local: null, location: null },
   notEmpty: null,
+  refused: null,
 };
 
 export type FormProblem = "invalid-name" | "branch-exists" | "not-empty";
@@ -56,11 +59,13 @@ export function worktreeForm(
   const nameProblem = (name: string): FormProblem | null =>
     name === ""
       ? null
-      : !usableBranchName(name)
-        ? "invalid-name"
-        : exists(name)
-          ? "branch-exists"
-          : null;
+      : state.refused?.name === name
+        ? state.refused.problem
+        : !usableBranchName(name)
+          ? "invalid-name"
+          : exists(name)
+            ? "branch-exists"
+            : null;
   const confirmable = (problem: FormProblem | null, where: string) =>
     problem === null && where.trim() !== "";
   const notEmpty = (where: string) =>

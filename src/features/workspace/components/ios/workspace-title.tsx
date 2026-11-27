@@ -2,6 +2,7 @@ import { Host } from "@expo/ui";
 import { Button, Divider, HStack, Image, Menu, Text, Toggle, VStack } from "@expo/ui/swift-ui";
 import {
   accessibilityAddTraits,
+  accessibilityElement,
   accessibilityHidden,
   accessibilityLabel,
   buttonStyle,
@@ -9,6 +10,7 @@ import {
   font,
   foregroundStyle,
   frame,
+  layoutPriority,
   lineLimit,
   menuIndicator,
   menuStyle,
@@ -20,8 +22,8 @@ import { text } from "../../text";
 const secondary = foregroundStyle({ type: "hierarchical", style: "secondary" });
 
 /**
- * The header's names at the top left: a Workspace symbol beside the Workspace's name, over its
- * active Worktree, which opens the Worktree menu, or over its Machine outside a repository.
+ * The header's names at the top left: a Workspace symbol beside the Workspace's name and its
+ * Machine, over the active Worktree in a repository, which opens the Worktree menu.
  */
 export function WorkspaceTitle({
   name,
@@ -44,30 +46,35 @@ export function WorkspaceTitle({
   onNewWorktree: (() => void) | undefined;
 }) {
   const active = worktrees.find((choice) => choice.active);
-  const detail = (content: string) => (
-    <Text modifiers={[font({ textStyle: "subheadline" }), secondary, lineLimit(1)]}>{content}</Text>
-  );
 
   return (
     <Host matchContents>
       <HStack spacing={10} modifiers={[frame({ maxWidth: width, alignment: "leading" })]}>
         <Image
-          systemName="folder"
+          systemName="rectangle.stack"
           modifiers={[font({ textStyle: "title2" }), secondary, accessibilityHidden()]}
         />
         <VStack alignment="leading" spacing={1}>
-          <Text
-            modifiers={[
-              font({ textStyle: "headline" }),
-              lineLimit(1),
-              accessibilityAddTraits(["isHeader"]),
-            ]}
+          {/* One header element that says both names; the Machine gives way first. */}
+          <HStack
+            alignment="firstTextBaseline"
+            spacing={6}
+            modifiers={[accessibilityElement("combine"), accessibilityAddTraits(["isHeader"])]}
           >
-            {name}
-          </Text>
-          {active === undefined ? (
-            detail(machine)
-          ) : (
+            <Text modifiers={[font({ textStyle: "headline" }), lineLimit(1), layoutPriority(1)]}>
+              {name}
+            </Text>
+            <Text
+              modifiers={[
+                font({ textStyle: "footnote" }),
+                foregroundStyle({ type: "hierarchical", style: "tertiary" }),
+                lineLimit(1),
+              ]}
+            >
+              {`· ${machine}`}
+            </Text>
+          </HStack>
+          {active !== undefined && (
             <Menu
               label={
                 <HStack spacing={3} modifiers={[secondary]}>
@@ -75,7 +82,9 @@ export function WorkspaceTitle({
                     systemName="arrow.triangle.branch"
                     modifiers={[font({ textStyle: "caption" })]}
                   />
-                  {detail(active.worktree.name)}
+                  <Text modifiers={[font({ textStyle: "subheadline" }), lineLimit(1)]}>
+                    {active.worktree.name}
+                  </Text>
                   <Image
                     systemName="chevron.down"
                     modifiers={[font({ textStyle: "caption2", weight: "semibold" })]}

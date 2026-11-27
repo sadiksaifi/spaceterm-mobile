@@ -1,5 +1,7 @@
+import type { WorktreeRemovalFailure } from "@/shared/machines/model";
 import { cased } from "@/shared/text";
 
+import type { RemovalAlert } from "./use-remove-worktree";
 import type { TabAlert, TabFailure } from "./use-tab-commands";
 
 export const text = {
@@ -9,6 +11,8 @@ export const text = {
   selected: "Selected",
   worktree: "Worktree",
   newWorktree: "New Worktree",
+  removeWorktree: "Remove Worktree",
+  ok: "OK",
   renameWorkspace: "Rename Workspace",
   killWorkspace: "Kill Workspace",
   newTab: "New Tab",
@@ -70,4 +74,72 @@ export function failureText(failure: TabFailure): string {
         `Couldn’t switch to ${failure.worktree.name}`,
       );
   }
+}
+
+/**
+ * Remove Worktree's alert: what it deletes on `machine` and what it closes, to confirm, or why
+ * nothing was removed. `action` is the confirming button's, absent on a failure.
+ */
+export function removalAlertText(
+  alert: RemovalAlert,
+  machine: string,
+): { title: string; body: string; action?: string } {
+  if (alert.kind === "confirm") {
+    const { worktree, changes, submodules, tabs, sessions } = alert.review;
+    const deleted =
+      changes && submodules
+        ? ", including uncommitted changes, untracked files, and submodule directories."
+        : changes
+          ? ", including uncommitted changes and untracked files."
+          : submodules
+            ? ", including submodule directories."
+            : ".";
+    const closed =
+      tabs === 0
+        ? ""
+        : ` Closes ${count(tabs, "Tab")} for every device.` +
+          (sessions === 0 ? "" : ` Ends ${count(sessions, "Terminal Session")}.`);
+    return {
+      title: cased(`Remove Worktree “${worktree.name}”?`, `Remove Worktree ${worktree.name}?`),
+      body: `Deletes its directory on “${machine}”${deleted}${closed}`,
+      action: changes
+        ? cased("Remove and Discard Changes", "Remove and discard changes")
+        : "Remove",
+    };
+  }
+  const { worktree, failure, checking } = alert;
+  if (checking && failure === "failed") {
+    return {
+      title: cased("Couldn’t Check Worktree Changes", "Couldn’t check Worktree changes"),
+      body: "Try again before removing the Worktree.",
+    };
+  }
+  if (failure === "interrupted") {
+    return {
+      title: "Check the Worktree",
+      body: "SpaceTerm Core stopped before it confirmed the result. Check the Worktrees before trying again.",
+    };
+  }
+  return {
+    title: cased(`Couldn’t Remove “${worktree.name}”`, `Couldn’t remove ${worktree.name}`),
+    body: removalFailureBody[failure],
+  };
+}
+
+const removalFailureBody: Record<WorktreeRemovalFailure, string> = {
+  main: "The Main Worktree can’t be removed.",
+  locked: "Unlock the Worktree with Git before removing it.",
+  pinned: "Unpin the directory before removing it.",
+  missing: "Another device or Git removed it.",
+  changed:
+    "Nothing was removed. Review the updated Worktree and Terminal Sessions before removing it.",
+  "changed-after-closing":
+    "Git kept the Worktree because it changed after its Tabs closed and their Terminal Sessions ended. Review it before removing it.",
+  interrupted: "SpaceTerm Core stopped before it confirmed the result.",
+  failed: "The Machine didn’t remove it. Try again.",
+};
+
+/** `1 Tab`, `2 Tabs`. */
+function count(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }

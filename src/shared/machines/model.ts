@@ -130,6 +130,44 @@ export type WorktreeCreation =
   | { kind: "not-empty" }
   | { kind: "failed" };
 
+/** What Remove Worktree deletes and closes, as the Machine checked it. */
+export type WorktreeRemovalReview = {
+  worktree: Worktree;
+  /** It has uncommitted changes or untracked files. */
+  changes: boolean;
+  /** It has submodule checkouts. */
+  submodules: boolean;
+  /** The Tabs it closes, in every Workspace, and the Terminal Sessions it ends. */
+  tabs: number;
+  sessions: number;
+  /** Opaque. Names the check, so the Machine refuses a remove when anything changed since. */
+  confirmation: string;
+};
+
+/** Why a Worktree was not removed, or could not be checked. */
+export type WorktreeRemovalFailure =
+  | "main"
+  | "locked"
+  | "pinned"
+  /** Git no longer lists it. */
+  | "missing"
+  /** It, its Tabs, or their Terminal Sessions changed after the check. Nothing was removed. */
+  | "changed"
+  /** It changed after its Tabs closed and their Terminal Sessions ended, so Git kept it. */
+  | "changed-after-closing"
+  /** The Machine stopped before it confirmed the result. */
+  | "interrupted"
+  /** The Machine did not answer, or refused for another reason. */
+  | "failed";
+
+export type WorktreeRemovalCheck =
+  | { kind: "review"; review: WorktreeRemovalReview }
+  | { kind: "failed"; failure: WorktreeRemovalFailure };
+
+export type WorktreeRemoval =
+  | { kind: "removed" }
+  | { kind: "failed"; failure: WorktreeRemovalFailure };
+
 /** What New Tab comes to: the Tab it opened, or a failure. */
 export type NewTabResult = { kind: "done"; tab: string } | { kind: "failed" };
 
@@ -314,6 +352,18 @@ export type MachineClient = {
     context: WorktreeContext,
     request: { branch: NewWorktreeBranch; location: string },
   ) => Promise<WorktreeCreation>;
+  /** What removing `worktree` deletes and closes, for the person to confirm. Changes nothing. */
+  checkWorktreeRemoval: (
+    machineId: string,
+    repository: Repository,
+    worktree: Worktree,
+  ) => Promise<WorktreeRemovalCheck>;
+  /** Removes the Worktree `review` names, closing its Tabs and ending their Terminal Sessions. */
+  removeWorktree: (
+    machineId: string,
+    repository: Repository,
+    review: WorktreeRemovalReview,
+  ) => Promise<WorktreeRemoval>;
   /** Closes this device's connection to a Machine. Nothing on the Machine changes. */
   disconnect: (machineId: string) => void;
   /**

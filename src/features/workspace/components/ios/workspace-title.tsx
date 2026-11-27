@@ -40,6 +40,7 @@ export function WorkspaceTitle({
   width,
   onPickWorktree,
   onNewWorktree,
+  onRemoveWorktree,
 }: {
   directory: string;
   /** The repository's Worktrees, empty outside one. */
@@ -50,6 +51,8 @@ export function WorkspaceTitle({
   width: number;
   onPickWorktree: (choice: WorktreeChoice) => void;
   onNewWorktree: (() => void) | undefined;
+  /** Absent for the Main Worktree and while a removal is under way. */
+  onRemoveWorktree: (() => void) | undefined;
 }) {
   const active = worktrees.find((choice) => choice.active);
   const slot = { width, height: HEIGHT };
@@ -98,6 +101,21 @@ export function WorkspaceTitle({
           accessibilityLabel(`${text.worktree}, ${active.worktree.name}`),
         ]}
       >
+        {/* The actions come first: they have no check, so they line up with the edge. */}
+        <Button
+          label={text.newWorktree}
+          systemImage="plus"
+          onPress={onNewWorktree}
+          modifiers={[disabled(!onNewWorktree)]}
+        />
+        <Button
+          label={text.removeWorktree}
+          systemImage="trash"
+          role="destructive"
+          onPress={onRemoveWorktree}
+          modifiers={[disabled(!onRemoveWorktree)]}
+        />
+        <Divider />
         {worktrees.map((choice) => (
           <Toggle
             key={choice.worktree.path}
@@ -106,13 +124,6 @@ export function WorkspaceTitle({
             onIsOnChange={() => onPickWorktree(choice)}
           />
         ))}
-        <Divider />
-        <Button
-          label={text.newWorktree}
-          systemImage="plus"
-          onPress={onNewWorktree}
-          modifiers={[disabled(!onNewWorktree)]}
-        />
       </Menu>
     </Host>
   );

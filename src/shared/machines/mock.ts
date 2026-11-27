@@ -18,6 +18,8 @@ import type {
   Workspace,
   WorktreeContext,
   WorktreeCreation,
+  WorktreeRemoval,
+  WorktreeRemovalCheck,
 } from "./model";
 import { invitationLinkIn } from "./invitation";
 
@@ -428,6 +430,56 @@ export function createMockClient(
             worktrees: [...workspace.repository.worktrees, { path, name }],
           },
         }));
+      });
+    },
+
+    checkWorktreeRemoval: (machineId, { root }, worktree) => {
+      const target = machine(machineId);
+      const listing = (target?.workspaces ?? []).filter(
+        (workspace) =>
+          workspace.repository?.root === root &&
+          workspace.repository.worktrees.some((each) => each.path === worktree.path),
+      );
+      const failed = (failure: "main" | "missing" | "failed") =>
+        answer<WorktreeRemovalCheck>({ kind: "failed", failure });
+      if (target === undefined || target.connection !== "connected") return failed("failed");
+      if (worktree.path === root) return failed("main");
+      if (listing.length === 0) return failed("missing");
+      const tabs = listing.flatMap((workspace) =>
+        workspace.tabs.filter((tab) => tab.worktree === worktree.path),
+      );
+      const panes = tabs.flatMap((tab) => tab.panes);
+      return answer<WorktreeRemovalCheck>({
+        kind: "review",
+        review: {
+          worktree,
+          // A Pane running a command stands in for work Git would lose.
+          changes: panes.some((pane) => pane.running),
+          submodules: false,
+          tabs: tabs.length,
+          sessions: panes.length,
+          confirmation: `${nextId++}`,
+        },
+      });
+    },
+
+    removeWorktree: (machineId, { root }, { worktree }) => {
+      const target = machine(machineId);
+      if (target === undefined || target.connection !== "connected" || refuses("worktree")) {
+        return answer<WorktreeRemoval>({ kind: "failed", failure: "failed" });
+      }
+      return answer<WorktreeRemoval>({ kind: "removed" }, () => {
+        for (const workspace of target.workspaces ?? []) {
+          if (workspace.repository?.root !== root) continue;
+          update({ machine: target, workspace }, (current) => ({
+            ...current,
+            tabs: current.tabs.filter((tab) => tab.worktree !== worktree.path),
+            repository: current.repository && {
+              ...current.repository,
+              worktrees: current.repository.worktrees.filter((each) => each.path !== worktree.path),
+            },
+          }));
+        }
       });
     },
 

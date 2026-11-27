@@ -52,6 +52,16 @@ function fakeNative() {
     worktreeContext: vi.fn(async () => null),
     worktreeLocation: vi.fn(() => null),
     createWorktree: vi.fn(async () => ({ kind: "failed" as const })),
+    checkWorktreeRemoval: vi.fn(async () => ({
+      kind: "review" as const,
+      boot: "b0",
+      confirmation: "c0",
+      changes: true,
+      submodules: false,
+      tabs: 2,
+      sessions: 3,
+    })),
+    removeWorktree: vi.fn(async () => ({ kind: "removed" as const })),
     addListener: (_event, listener) => {
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
@@ -606,5 +616,20 @@ describe("a Workspace's Tabs through libspaceterm", () => {
       "topic",
       "origin/topic",
     );
+  });
+
+  it("removes a Worktree with the check the person confirmed", async () => {
+    const { native, client } = listed();
+    const worktree = { path: `${root}-fix`, name: "fix" };
+    const repository = { root, worktrees: [{ path: root, name: "main" }, worktree] };
+
+    const check = await client.checkWorktreeRemoval("m1", repository, worktree);
+    if (check.kind !== "review") throw new Error("no review");
+    const removal = await client.removeWorktree("m1", repository, check.review);
+
+    expect(check.review).toMatchObject({ worktree, changes: true, tabs: 2, sessions: 3 });
+    expect(native.checkWorktreeRemoval).toHaveBeenCalledWith("m1", root, `${root}-fix`);
+    expect(native.removeWorktree).toHaveBeenCalledWith("m1", root, `${root}-fix`, "b0", "c0");
+    expect(removal).toEqual({ kind: "removed" });
   });
 });

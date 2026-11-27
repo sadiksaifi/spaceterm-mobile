@@ -44,6 +44,8 @@ function machine(answers: CreateWorkspaceResult[]) {
     worktreeContext: async () => null,
     worktreeLocation: () => null,
     createWorktree: async () => ({ kind: "failed" }),
+    checkWorktreeRemoval: async () => ({ kind: "failed", failure: "failed" }),
+    removeWorktree: async () => ({ kind: "failed", failure: "failed" }),
     disconnect: () => {},
     connect: async () => {},
     restartCore: async () => ({ kind: "done" }),

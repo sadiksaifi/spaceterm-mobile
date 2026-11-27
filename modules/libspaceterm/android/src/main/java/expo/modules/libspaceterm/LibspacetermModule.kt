@@ -34,6 +34,9 @@ import uniffi.spaceterm_mobile.ScreenRun
 import uniffi.spaceterm_mobile.TabSummary
 import uniffi.spaceterm_mobile.WorkspaceSummary
 import uniffi.spaceterm_mobile.WorktreeCreation
+import uniffi.spaceterm_mobile.WorktreeRemoval
+import uniffi.spaceterm_mobile.WorktreeRemovalCheck
+import uniffi.spaceterm_mobile.WorktreeRemovalFailure
 import uniffi.spaceterm_mobile.WorktreeTarget
 
 class LibspacetermModule : Module() {
@@ -188,6 +191,32 @@ class LibspacetermModule : Module() {
           WorktreeCreation.BranchExists -> mapOf("kind" to "branch-exists")
           WorktreeCreation.NotEmpty -> mapOf("kind" to "not-empty")
           WorktreeCreation.Failed -> mapOf("kind" to "failed")
+        }
+      }
+    }
+
+    AsyncFunction("checkWorktreeRemoval") Coroutine { machineId: String, root: String, path: String ->
+      withContext(Dispatchers.IO) {
+        when (val check = machines().checkWorktreeRemoval(machineId, root, path)) {
+          is WorktreeRemovalCheck.Review -> mapOf(
+            "kind" to "review",
+            "boot" to check.review.boot,
+            "confirmation" to check.review.confirmation,
+            "changes" to check.review.changes,
+            "submodules" to check.review.submodules,
+            "tabs" to check.review.tabs.toInt(),
+            "sessions" to check.review.sessions.toInt(),
+          )
+          is WorktreeRemovalCheck.Failed -> mapOf("kind" to "failed", "failure" to check.failure.toValue())
+        }
+      }
+    }
+
+    AsyncFunction("removeWorktree") Coroutine { machineId: String, root: String, path: String, boot: String, confirmation: String ->
+      withContext(Dispatchers.IO) {
+        when (val removal = machines().removeWorktree(machineId, root, path, boot, confirmation)) {
+          WorktreeRemoval.Removed -> mapOf("kind" to "removed")
+          is WorktreeRemoval.Failed -> mapOf("kind" to "failed", "failure" to removal.failure.toValue())
         }
       }
     }
@@ -379,3 +408,14 @@ private fun RepositorySummary.toMap() = mapOf(
   "root" to root,
   "worktrees" to worktrees.map { mapOf("path" to it.path, "name" to it.name) }
 )
+
+private fun WorktreeRemovalFailure.toValue() = when (this) {
+  WorktreeRemovalFailure.MAIN -> "main"
+  WorktreeRemovalFailure.LOCKED -> "locked"
+  WorktreeRemovalFailure.PINNED -> "pinned"
+  WorktreeRemovalFailure.MISSING -> "missing"
+  WorktreeRemovalFailure.CHANGED -> "changed"
+  WorktreeRemovalFailure.CHANGED_AFTER_CLOSING -> "changed-after-closing"
+  WorktreeRemovalFailure.INTERRUPTED -> "interrupted"
+  WorktreeRemovalFailure.FAILED -> "failed"
+}

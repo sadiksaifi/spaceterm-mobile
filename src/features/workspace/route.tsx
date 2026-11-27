@@ -11,6 +11,7 @@ import { newTabAction, takeNewTab } from "./entry";
 import { workspaceView } from "./model";
 import WorkspaceScreen from "./screen";
 import { usePanePreviews } from "./use-pane-previews";
+import { useRemoveWorktree } from "./use-remove-worktree";
 import { useTabCommands } from "./use-tab-commands";
 
 type Params = { machineId: string; workspaceId: string; action?: string };
@@ -66,6 +67,14 @@ export default function WorkspaceRoute() {
 
   // New Tab from Home or another Workspace's menu runs once the Tabs show.
   const tabsShow = view.kind === "tabs";
+  const removal = useRemoveWorktree({
+    client,
+    machineId,
+    workspaceId,
+    repository: shown?.repository ?? null,
+    active: commands.grid.active,
+    connected: tabsShow,
+  });
   const focused = useIsFocused();
   const screens = usePanePreviews(
     client,
@@ -120,6 +129,7 @@ export default function WorkspaceRoute() {
                 params: { machineId, workspaceId },
               })
       }
+      removal={removal}
       onTryAgain={() => void client.connect(machineId)}
       onMachineSettings={() =>
         router.navigate({ pathname: "/settings/machines/[machineId]", params: { machineId } })

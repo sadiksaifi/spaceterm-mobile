@@ -3,6 +3,7 @@ import type { WorkspaceRow } from "@/features/home/model";
 
 import type { WorkspaceView } from "./model";
 import type { Screens } from "./use-pane-previews";
+import type { RemoveWorktree } from "./use-remove-worktree";
 import type { TabCommands } from "./use-tab-commands";
 
 export type WorkspaceScreenProps = {
@@ -22,6 +23,8 @@ export type WorkspaceScreenProps = {
   onNewWorkspace: (() => void) | undefined;
   /** Absent outside a repository and while the Machine is not connected. */
   onNewWorktree: (() => void) | undefined;
+  /** Remove Worktree, for the active Worktree, with its alerts. */
+  removal: RemoveWorktree;
   onTryAgain: () => void;
   onMachineSettings: () => void;
 };

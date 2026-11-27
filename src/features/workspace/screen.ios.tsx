@@ -20,6 +20,7 @@ import { splitOf } from "./layout";
 import type { WorkspaceScreenProps } from "./props";
 import { CardGrid } from "./components/ios/card-grid";
 import { PanesSheet } from "./components/ios/panes-sheet";
+import { RemovalAlertsView } from "./components/ios/removal-alerts";
 import { TabAlertsView } from "./components/ios/tab-alerts";
 import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-bar";
 import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
@@ -49,7 +50,9 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const alertsView = (active: boolean) => (children: ReactNode) => (
     <RowAlertsView alerts={alerts} active={active}>
       <TabAlertsView commands={commands} active={active}>
-        {children}
+        <RemovalAlertsView removal={props.removal} machine={row.machineName} active={active}>
+          {children}
+        </RemovalAlertsView>
       </TabAlertsView>
     </RowAlertsView>
   );
@@ -168,6 +171,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
             width={window.width * TITLE_SHARE}
             onPickWorktree={({ worktree }) => commands.pickWorktree(worktree)}
             onNewWorktree={props.onNewWorktree}
+            onRemoveWorktree={props.removal.start}
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>

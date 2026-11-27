@@ -34,7 +34,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tabs::read_confirmation;
 use workspaces::{Abilities, Seen, WorkspaceSummary, summaries};
-use worktrees::{NewWorktreeBranch, WorktreeContext, WorktreeCreation};
+use worktrees::{
+    NewWorktreeBranch, WorktreeContext, WorktreeCreation, WorktreeRemoval, WorktreeRemovalCheck,
+    WorktreeRemovalFailure,
+};
 use zeroize::Zeroizing;
 
 /// The build identity of released SpaceTerm. An Invitation Link names the identity of the Core
@@ -722,6 +725,60 @@ impl Machines {
                 path,
                 branch,
                 control: CreateControl::Unclaimed,
+            }),
+            Repeat::Same,
+        ))
+    }
+
+    /// What removing the Worktree at `path`, of the repository whose Main Worktree is `root`,
+    /// deletes and closes, for the person to confirm. Changes nothing.
+    pub fn check_worktree_removal(
+        &self,
+        machine_id: String,
+        root: String,
+        path: String,
+    ) -> WorktreeRemovalCheck {
+        let read = Read::CheckRemoval {
+            root: PathBuf::from(root),
+            path: PathBuf::from(path),
+        };
+        match self.read_worktree(&machine_id, read) {
+            Some(Ok(ReadReply::Removal(removal))) => WorktreeRemovalCheck::Review {
+                review: worktrees::review(removal),
+            },
+            Some(Err(error)) => WorktreeRemovalCheck::Failed {
+                failure: worktrees::removal_failure(error),
+            },
+            _ => WorktreeRemovalCheck::Failed {
+                failure: WorktreeRemovalFailure::Failed,
+            },
+        }
+    }
+
+    /// Removes the Worktree at `path` of the repository whose Main Worktree is `root`, as the
+    /// check with `boot` and `confirmation` found it, closing its Tabs and ending their Terminal
+    /// Sessions. The Machine refuses when any of that changed since the check.
+    pub fn remove_worktree(
+        &self,
+        machine_id: String,
+        root: String,
+        path: String,
+        boot: String,
+        confirmation: String,
+    ) -> WorktreeRemoval {
+        let (Some(boot), Some(confirmation)) = (decode(&boot), decode(&confirmation)) else {
+            return WorktreeRemoval::Failed {
+                failure: WorktreeRemovalFailure::Failed,
+            };
+        };
+        // Removing the same Worktree again changes nothing more, so a lost answer is this one's.
+        worktrees::removal(self.outcome(
+            &machine_id,
+            Mutation::Worktree(worktree::Operation::Remove {
+                root: PathBuf::from(root),
+                path: PathBuf::from(path),
+                boot,
+                confirmation,
             }),
             Repeat::Same,
         ))

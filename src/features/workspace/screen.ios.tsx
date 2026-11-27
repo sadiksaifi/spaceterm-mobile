@@ -33,10 +33,13 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const connected = view.kind === "tabs";
   const panes = connected ? commands.panes : null;
 
-  // A system alert shows over the topmost view: an open sheet, else the screen.
-  const alertsView = (children: ReactNode) => (
-    <RowAlertsView alerts={alerts}>
-      <TabAlertsView commands={commands}>{children}</TabAlertsView>
+  // A system alert shows over the topmost view: an open sheet, else the screen. Each view always
+  // carries the alerts, so a sheet that closes leaves every view in place.
+  const alertsView = (active: boolean) => (children: ReactNode) => (
+    <RowAlertsView alerts={alerts} active={active}>
+      <TabAlertsView commands={commands} active={active}>
+        {children}
+      </TabAlertsView>
     </RowAlertsView>
   );
   const onScreen = !sheet && panes === null;
@@ -115,7 +118,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         rows={rows}
         selected={row.key}
         alerts={alerts}
-        alertsView={(children) => (sheet ? alertsView(children) : children)}
+        alertsView={alertsView(sheet)}
         onSwitch={props.onSwitch}
         onNewWorkspace={props.onNewWorkspace}
       />
@@ -123,7 +126,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         screens={props.screens}
         tab={panes}
         commands={commands}
-        alertsView={(children) => (panes !== null && !sheet ? alertsView(children) : children)}
+        alertsView={alertsView(panes !== null && !sheet)}
       />
     </ZStack>
   );
@@ -146,7 +149,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         </View>
       </Stack.Screen.Title>
       <WorkspaceMenu {...props} />
-      <Host style={styles.fill}>{onScreen ? alertsView(body) : body}</Host>
+      <Host style={styles.fill}>{alertsView(onScreen)(body)}</Host>
     </>
   );
 }

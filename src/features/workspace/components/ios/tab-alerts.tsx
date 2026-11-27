@@ -6,17 +6,20 @@ import type { TabCommands } from "../../use-tab-commands";
 
 /**
  * The system alerts of Close Tab and Close Pane, and of a refused Tab or Pane command, attached to
- * `children`. Cancel comes first. A failure waits for an open alert to close.
+ * `children`. Cancel comes first. A failure waits for an open alert to close. Only the `active`
+ * one of several shows them, as with `RowAlertsView`.
  */
 export function TabAlertsView({
   commands,
+  active = true,
   children,
 }: {
   commands: TabCommands;
+  active?: boolean;
   children: ReactNode;
 }) {
-  const { alert } = commands;
-  const failure = alert === null ? commands.failure : null;
+  const alert = active ? commands.alert : null;
+  const failure = active && alert === null ? commands.failure : null;
   const asked = alert && closeAlertText(alert);
 
   return (

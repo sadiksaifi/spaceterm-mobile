@@ -12,14 +12,24 @@ import { killBody, text } from "../../text";
 
 /**
  * The system alerts of Rename Workspace and Kill Workspace, and of a failure, attached to
- * `children`, the view they appear over. Cancel comes first; a button closes its alert.
+ * `children`, the view they appear over. Cancel comes first; a button closes its alert. Where
+ * several views carry the alerts, only the `active` one shows them, so moving the alerts from one
+ * view to another keeps every view in place.
  */
-export function RowAlertsView({ alerts, children }: { alerts: RowAlerts; children: ReactNode }) {
-  const { alert } = alerts;
+export function RowAlertsView({
+  alerts,
+  active = true,
+  children,
+}: {
+  alerts: RowAlerts;
+  active?: boolean;
+  children: ReactNode;
+}) {
+  const alert = active ? alerts.alert : null;
   const kill = alert?.kind === "kill" ? alert.row : null;
   const rename = alert?.kind === "rename" ? alert : null;
   // A failure waits for an open alert to close.
-  const failure = alert === null ? alerts.failure : null;
+  const failure = active && alert === null ? alerts.failure : null;
   const sessions = kill && killBody(kill.workspace.terminalSessions);
 
   return (

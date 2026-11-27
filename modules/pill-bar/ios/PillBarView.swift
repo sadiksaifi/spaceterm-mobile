@@ -29,8 +29,9 @@ final class PillBarProps: UIBaseViewProps {
 /**
  * Pills in a glass capsule, one of them highlighted. The pills share the width when every name
  * fits its share; otherwise each takes its name's width and the row scrolls. A tap moves the
- * highlight to a pill. The highlight lifts under a finger, follows a drag and lands on the pill
- * under it when the finger lifts. Touch and hold opens a pill's menu.
+ * highlight to a pill. Under a finger the highlight lifts into glass. A drag moves it along the
+ * row, which scrolls to keep it in the middle, and it lands on the pill under it when the finger
+ * lifts. Touch and hold opens a pill's menu.
  */
 struct PillBarView: ExpoSwiftUI.View {
   @ObservedObject var props: PillBarProps
@@ -41,8 +42,8 @@ struct PillBarView: ExpoSwiftUI.View {
   private static let fade: CGFloat = 14
   /** Room the row keeps for scrolling beside a highlight that would otherwise take every swipe. */
   private static let scrollRoom: CGFloat = 44
-  /** How much the highlight grows under a finger. */
-  private static let lift: CGFloat = 1.12
+  /** How much the highlight grows under a finger, which fills the bar's height. */
+  private static let lift: CGFloat = 1.25
   private static let motion = Animation.spring(response: 0.34, dampingFraction: 0.78)
   private static let row = "pills"
 
@@ -55,12 +56,12 @@ struct PillBarView: ExpoSwiftUI.View {
   private var drag: Drag?
   @State private var width: CGFloat = 0
   @State private var past = Past()
+  /** The row's scroll position, which a drag moves to keep the held highlight in the middle. */
+  @State private var position = ScrollPosition(idType: String.self)
 
   private struct Drag: Equatable {
     /** Where the finger holds the highlight's middle, in the row. */
     var middle: CGFloat
-    /** How far from the highlight's middle the finger went down. */
-    var grip: CGFloat
     var over: String
   }
 
@@ -92,12 +93,19 @@ struct PillBarView: ExpoSwiftUI.View {
             pillView(pill)
           }
         }
-        .background(alignment: .topLeading) { highlight }
+        .background(alignment: .topLeading) {
+          // The names stay on top of the held glass, since a wide lens over them blurs them.
+          ZStack(alignment: .topLeading) {
+            highlight(held: false)
+            highlight(held: true)
+          }
+        }
         .coordinateSpace(.named(Self.row))
         // The inset sits inside the scroll view, so the lifted highlight grows into it unclipped.
         .padding(.vertical, Self.inset)
       }
       .scrollIndicators(.hidden)
+      .scrollPosition($position)
       .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
       .onScrollGeometryChange(for: Past.self) { geometry in
         // Half a point of slack, so rounding never fades an edge with nothing past it.
@@ -118,6 +126,13 @@ struct PillBarView: ExpoSwiftUI.View {
           withAnimation(Self.motion) { proxy.scrollTo(props.selected, anchor: .center) }
         }
       }
+      // The row scrolls under a held highlight, which stays in the middle where the row allows.
+      .onChange(of: drag?.middle) { _, middle in
+        guard let middle, let frame = frames[drag?.over ?? resting] else { return }
+        let end = props.pills.compactMap { frames[$0.key]?.maxX }.max() ?? width
+        let x = clamped(middle, width: frame.width) - width / 2
+        position.scrollTo(x: min(max(x, 0), max(end - width, 0)))
+      }
       .onChange(of: props.pills.map(\.key)) { _, keys in
         frames = frames.filter { keys.contains($0.key) }
       }
@@ -129,7 +144,15 @@ struct PillBarView: ExpoSwiftUI.View {
       }
     }
     .padding(.horizontal, Self.inset)
-    .glassEffect(.regular, in: .capsule)
+    // Glass cannot show through glass, so while the highlight is held as a glass lens, the bar
+    // under it turns flat, as Liquid Glass segmented controls do.
+    .background {
+      Capsule()
+        .fill(Color(uiColor: .secondarySystemBackground))
+        .opacity(drag == nil ? 0 : 1)
+        .animation(Self.motion, value: drag == nil)
+    }
+    .glassEffect(drag == nil ? .regular : .identity, in: .capsule)
     .sensoryFeedback(.selection, trigger: drag?.over) { old, new in old != nil && new != nil }
   }
 
@@ -173,19 +196,29 @@ struct PillBarView: ExpoSwiftUI.View {
     }
   }
 
+  /** The highlight at rest, a fill, or held, a glass lens. Each fades out while the other
+   * shows, so the two read as one highlight that lifts and settles. */
   @ViewBuilder
-  private var highlight: some View {
+  private func highlight(held: Bool) -> some View {
     if let frame = frames[drag?.over ?? resting] {
       let middle = drag.map { clamped($0.middle, width: frame.width) } ?? frame.midX
-      Capsule()
-        .fill(Color(uiColor: .tertiarySystemFill))
-        .frame(width: frame.width, height: frame.height)
-        .scaleEffect(drag == nil ? 1 : Self.lift)
-        .offset(x: middle - frame.width / 2, y: frame.minY)
-        .animation(Self.motion, value: drag?.over)
-        .animation(Self.motion, value: drag == nil)
-        .animation(Self.motion, value: resting)
-        .animation(Self.motion, value: frame)
+      let shown = (drag != nil) == held
+      Group {
+        if held {
+          Capsule().fill(.clear).glassEffect(.clear, in: .capsule)
+        } else {
+          Capsule().fill(Color(uiColor: .tertiarySystemFill))
+        }
+      }
+      .frame(width: frame.width, height: frame.height)
+      .scaleEffect(drag == nil ? 1 : Self.lift)
+      .opacity(shown ? 1 : 0)
+      .offset(x: middle - frame.width / 2, y: frame.minY)
+      .allowsHitTesting(false)
+      .animation(Self.motion, value: drag?.over)
+      .animation(Self.motion, value: drag == nil)
+      .animation(Self.motion, value: resting)
+      .animation(Self.motion, value: frame)
     }
   }
 
@@ -200,17 +233,18 @@ struct PillBarView: ExpoSwiftUI.View {
   }
 
   private var slide: some Gesture {
-    DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.row))
-      .updating($drag) { value, drag, _ in
+    // Global, so the row scrolling under the finger does not move it in the gesture's space.
+    DragGesture(minimumDistance: 0, coordinateSpace: .global)
+      .updating($drag) { value, drag, transaction in
         guard let start = frames[resting] else { return }
-        let grip = drag?.grip ?? (value.startLocation.x - start.midX)
-        let middle = value.location.x - grip
-        drag = Drag(middle: middle, grip: grip, over: pill(at: middle) ?? resting)
+        // The bar and the highlight trade glass with the same motion they trade back with.
+        if drag == nil { transaction.animation = Self.motion }
+        let middle = start.midX + value.translation.width
+        drag = Drag(middle: middle, over: pill(at: middle) ?? resting)
       }
       .onEnded { value in
         guard let start = frames[resting] else { return }
-        let middle = value.location.x - (value.startLocation.x - start.midX)
-        if let over = pill(at: middle) { pick(over) }
+        if let over = pill(at: start.midX + value.translation.width) { pick(over) }
       }
   }
 

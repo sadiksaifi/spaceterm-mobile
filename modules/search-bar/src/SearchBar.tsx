@@ -5,18 +5,16 @@ import type { ReactNode, Ref } from "react";
 import type { NativeSyntheticEvent } from "react-native";
 
 export type SearchBarRef = {
-  /** Closes the full-screen search at once, without its animation, and ends the search. */
-  collapse: () => Promise<void>;
   /**
-   * Hides the keyboard, keeps the full-screen search for `delayMs`, then fades it out over what is
-   * below it and ends the search.
+   * Closes the full-screen search at once and ends the search, leaving a still picture of it over
+   * the page until `uncover()`. Use it when a selection opens another screen: the full-screen search
+   * is a window above every screen, and the picture moves with the page as the next screen opens
+   * over it. No touch reaches the app until `uncover()`, or for at most 1 s, as the next screen
+   * takes touches before it shows.
    */
-  fadeOut: (delayMs: number) => Promise<void>;
-  /**
-   * `false` keeps every touch from the results, for example while a selection leads away. The
-   * results take touches again when search ends.
-   */
-  setResultsEnabled: (enabled: boolean) => Promise<void>;
+  cover: () => Promise<void>;
+  /** Removes the picture `cover()` left on the page. */
+  uncover: () => Promise<void>;
 };
 
 export type SearchBarProps = PrimitiveBaseProps & {

@@ -2,7 +2,7 @@ import { Box, Text } from "@expo/ui/jetpack-compose";
 import { fillMaxSize, fillMaxWidth, imePadding, padding } from "@expo/ui/jetpack-compose/modifiers";
 import { useNavigation, type NativeStackNavigationProp } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar, type SearchBarRef } from "@/modules/search-bar";
@@ -16,13 +16,6 @@ import { HomeContent } from "./home-content";
 import { EMPTY_BOTTOM_IN_SEARCH } from "./states/empty-state";
 import { MoreMenu } from "./more-menu";
 import { createSearchExit, type SearchExit } from "./search-exit";
-
-/**
- * How long after Home's transition starts the next screen covers it. The stack's default push fades
- * the next screen in over Home: by 133 ms from Android 13, and by 200 ms before, when it also grows
- * to full size (react-native-screens' `rns_default_enter_in`).
- */
-const NEXT_SCREEN_COVERS_MS = Number(Platform.Version) >= 33 ? 133 : 200;
 
 /** Settles a call to the search bar. A search bar Home has already removed took its search along. */
 function settle(call: Promise<void> | undefined) {
@@ -56,21 +49,21 @@ export function HomeSearchBar({
   const insets = useSafeAreaInsets();
   const searchBar = useRef<SearchBarRef>(null);
   const exit = useRef<SearchExit>(null);
+  const searching = useRef(false);
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
-  // Search fades out over the next screen once that screen covers Home, so Home never shows in
-  // between. Home loses focus as the navigation starts, while the next screen still has to mount.
+  // A selection closes search at once behind a picture of it, and the next screen opens over the
+  // picture. Home loses focus as the navigation starts, while the next screen still has to mount.
   useEffect(() => {
     const current = createSearchExit({
-      fadeOut: () => settle(searchBar.current?.fadeOut(NEXT_SCREEN_COVERS_MS)),
-      collapse: () => settle(searchBar.current?.collapse()),
-      setLeaving: (leaving) => settle(searchBar.current?.setResultsEnabled(!leaving)),
+      cover: () => settle(searchBar.current?.cover()),
+      uncover: () => settle(searchBar.current?.uncover()),
     });
     exit.current = current;
     const unsubscribe = [
-      navigation.addListener("blur", current.blur),
+      navigation.addListener("blur", () => current.blur(searching.current)),
       navigation.addListener("focus", current.focus),
-      navigation.addListener("transitionStart", ({ data }) => {
-        if (data.closing) current.coverStart();
+      navigation.addListener("transitionEnd", ({ data }) => {
+        if (data.closing) current.hidden();
       }),
     ];
     const appState = AppState.addEventListener("change", (state) => {
@@ -104,7 +97,10 @@ export function HomeSearchBar({
     <SearchBar
       ref={searchBar}
       onQueryChange={setQuery}
-      onExpandedChange={onSearchingChange}
+      onExpandedChange={(expanded) => {
+        searching.current = expanded;
+        onSearchingChange(expanded);
+      }}
       backLabel={text.back}
       clearLabel={text.clearText}
       modifiers={[fillMaxWidth(), padding(16, insets.top + 4, 16, 0)]}

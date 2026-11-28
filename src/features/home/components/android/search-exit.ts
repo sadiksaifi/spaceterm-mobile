@@ -1,35 +1,28 @@
 /**
- * How long a selection waits for Home to lose focus. Without it, the navigation did not happen
- * and the results take input again.
+ * How long a selection waits for Home to lose focus. Without it, the navigation did not happen,
+ * and Home shows and takes input again.
  */
 export const NAVIGATION_TIMEOUT_MS = 1000;
 
-/**
- * How long after Home loses focus the search closes when Home's transition never starts. Android
- * can cancel the transition, for example when the app goes to the background, and report nothing.
- */
-export const FALLBACK_MS = 1500;
-
 export type SearchExitEffects = {
-  /** Fades the search out over the next screen once that screen covers Home. */
-  fadeOut: () => void;
-  /** Closes the search at once. */
-  collapse: () => void;
-  /** Whether a selection is leaving Home, so the results take no input. */
-  setLeaving: (leaving: boolean) => void;
+  /** Closes search at once and leaves a picture of it over Home, which takes no touch under it. */
+  cover: () => void;
+  /** Removes the picture from Home. */
+  uncover: () => void;
 };
 
 /**
- * Leaving Home from search: the first selection wins, and search closes over the screen that
- * opens. Home's events drive it in the order the stack sends them.
+ * Leaving Home from search: the first selection wins, and search closes at once behind a picture
+ * of itself, so Home never shows before the next screen covers it. Home's events drive it in the
+ * order the stack sends them.
  */
 export type SearchExit = {
   /** A result was selected. Returns whether it may lead away; only the first does. */
   select: () => boolean;
-  /** Home lost focus: a navigation started. */
-  blur: () => void;
-  /** Home's transition to the next screen started. */
-  coverStart: () => void;
+  /** Home lost focus: a navigation started. `searching` is whether search is open. */
+  blur: (searching: boolean) => void;
+  /** Home's transition to the next screen ended, so that screen covers Home. */
+  hidden: () => void;
   /** Home has focus again. */
   focus: () => void;
   /** The app came back to the foreground. */
@@ -39,61 +32,59 @@ export type SearchExit = {
 };
 
 export function createSearchExit(effects: SearchExitEffects): SearchExit {
-  let leaving = false;
   let focused = true;
-  /** Home lost focus and its transition has not started. */
-  let uncovered = false;
+  /** A selection leads away, so later ones do nothing. */
+  let leaving = false;
+  let covered = false;
   let navigationTimer: ReturnType<typeof setTimeout> | undefined;
-  let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const setLeaving = (next: boolean) => {
-    if (leaving === next) return;
-    leaving = next;
-    effects.setLeaving(next);
-  };
-  const clearTimers = () => {
+  const stopTimer = () => {
     clearTimeout(navigationTimer);
-    clearTimeout(fallbackTimer);
     navigationTimer = undefined;
-    fallbackTimer = undefined;
   };
-  const fallBack = () => {
-    clearTimeout(fallbackTimer);
-    fallbackTimer = undefined;
-    if (focused || !uncovered) return;
-    uncovered = false;
-    effects.collapse();
+  const uncover = () => {
+    if (!covered) return;
+    covered = false;
+    effects.uncover();
+  };
+  // Home shows again, so it takes selections again without the picture.
+  const release = () => {
+    stopTimer();
+    leaving = false;
+    uncover();
   };
 
   return {
     select: () => {
       if (leaving || !focused) return false;
-      setLeaving(true);
-      navigationTimer = setTimeout(() => {
-        navigationTimer = undefined;
-        if (focused) setLeaving(false);
-      }, NAVIGATION_TIMEOUT_MS);
+      leaving = true;
+      covered = true;
+      effects.cover();
+      navigationTimer = setTimeout(release, NAVIGATION_TIMEOUT_MS);
       return true;
     },
-    blur: () => {
+    blur: (searching) => {
       focused = false;
-      uncovered = true;
-      clearTimers();
-      fallbackTimer = setTimeout(fallBack, FALLBACK_MS);
+      stopTimer();
+      // Every navigation ends search, not only a selection: an Invitation Link opened in another
+      // app, for example, opens Add Machine over Home.
+      if (searching && !covered) {
+        covered = true;
+        effects.cover();
+      }
     },
-    coverStart: () => {
-      if (focused) return;
-      uncovered = false;
-      clearTimers();
-      effects.fadeOut();
+    hidden: () => {
+      if (!focused) uncover();
     },
     focus: () => {
       focused = true;
-      uncovered = false;
-      clearTimers();
-      setLeaving(false);
+      release();
     },
-    resume: fallBack,
-    dispose: clearTimers,
+    // Android can skip the transition's events, for example when the app goes to the background
+    // during it. An unfocused Home is under the next screen once the app is back.
+    resume: () => {
+      if (!focused) uncover();
+    },
+    dispose: stopTimer,
   };
 }

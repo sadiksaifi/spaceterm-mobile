@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createSearchExit, FALLBACK_MS, NAVIGATION_TIMEOUT_MS } from "./search-exit";
+import { createSearchExit, NAVIGATION_TIMEOUT_MS } from "./search-exit";
 
 function setup() {
-  const effects = { fadeOut: vi.fn(), collapse: vi.fn(), setLeaving: vi.fn() };
+  const effects = { cover: vi.fn(), uncover: vi.fn() };
   return { effects, exit: createSearchExit(effects) };
 }
 
@@ -16,83 +16,95 @@ afterEach(() => {
 });
 
 describe("createSearchExit", () => {
-  it("lets only the first selection lead away", () => {
+  it("lets only the first selection lead away, and covers Home at once", () => {
     const { effects, exit } = setup();
     expect(exit.select()).toBe(true);
+    expect(effects.cover).toHaveBeenCalledOnce();
     expect(exit.select()).toBe(false);
-    exit.blur();
+    exit.blur(true);
     expect(exit.select()).toBe(false);
-    expect(effects.setLeaving.mock.calls).toEqual([[true]]);
+    expect(effects.cover).toHaveBeenCalledOnce();
   });
 
-  it("fades search out once Home's transition starts, and never closes it at once", () => {
+  it("uncovers Home once the next screen covers it, and takes no selection until focus", () => {
     const { effects, exit } = setup();
     exit.select();
-    exit.blur();
-    exit.coverStart();
-    vi.advanceTimersByTime(FALLBACK_MS * 2);
-    expect(effects.fadeOut).toHaveBeenCalledOnce();
-    expect(effects.collapse).not.toHaveBeenCalled();
-  });
-
-  it("takes selections again when Home has focus again", () => {
-    const { effects, exit } = setup();
-    exit.select();
-    exit.blur();
-    exit.coverStart();
+    exit.blur(true);
+    exit.hidden();
+    expect(effects.uncover).toHaveBeenCalledOnce();
+    expect(exit.select()).toBe(false);
     exit.focus();
-    expect(effects.setLeaving).toHaveBeenLastCalledWith(false);
+    expect(effects.uncover).toHaveBeenCalledOnce();
     expect(exit.select()).toBe(true);
   });
 
-  it("takes selections again when the selection leads nowhere", () => {
+  it("uncovers Home when it has focus again before the next screen covers it", () => {
+    const { effects, exit } = setup();
+    exit.select();
+    exit.blur(true);
+    exit.focus();
+    expect(effects.uncover).toHaveBeenCalledOnce();
+    expect(exit.select()).toBe(true);
+  });
+
+  it("uncovers Home when the selection leads nowhere", () => {
     const { effects, exit } = setup();
     exit.select();
     vi.advanceTimersByTime(NAVIGATION_TIMEOUT_MS - 1);
-    expect(exit.select()).toBe(false);
+    expect(effects.uncover).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(effects.setLeaving).toHaveBeenLastCalledWith(false);
+    expect(effects.uncover).toHaveBeenCalledOnce();
     expect(exit.select()).toBe(true);
   });
 
-  it("closes search when Home's transition never starts", () => {
+  it("keeps Home covered while the navigation runs, whatever its length", () => {
     const { effects, exit } = setup();
     exit.select();
-    exit.blur();
-    vi.advanceTimersByTime(FALLBACK_MS - 1);
-    expect(effects.collapse).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(effects.collapse).toHaveBeenCalledOnce();
-    expect(effects.fadeOut).not.toHaveBeenCalled();
+    exit.blur(true);
+    vi.advanceTimersByTime(NAVIGATION_TIMEOUT_MS * 10);
+    expect(effects.uncover).not.toHaveBeenCalled();
   });
 
-  it("closes search on resume when Home's transition never started", () => {
+  it("uncovers Home on resume when the transition's events never came", () => {
     const { effects, exit } = setup();
-    exit.blur();
+    exit.select();
+    exit.blur(true);
     exit.resume();
-    expect(effects.collapse).toHaveBeenCalledOnce();
-    vi.advanceTimersByTime(FALLBACK_MS);
-    expect(effects.collapse).toHaveBeenCalledOnce();
+    expect(effects.uncover).toHaveBeenCalledOnce();
   });
 
-  it("leaves search alone on resume while Home has focus", () => {
+  it("keeps Home covered on resume while Home has focus", () => {
     const { effects, exit } = setup();
     exit.select();
     exit.resume();
-    expect(effects.collapse).not.toHaveBeenCalled();
+    expect(effects.uncover).not.toHaveBeenCalled();
+  });
+
+  it("uncovers nothing when Home goes away", () => {
+    const { effects, exit } = setup();
+    exit.select();
+    exit.dispose();
     vi.advanceTimersByTime(NAVIGATION_TIMEOUT_MS);
-    expect(exit.select()).toBe(true);
+    expect(effects.uncover).not.toHaveBeenCalled();
   });
 
-  it("closes nothing after Home has focus again or goes away", () => {
-    const refocused = setup();
-    refocused.exit.blur();
-    refocused.exit.focus();
-    const disposed = setup();
-    disposed.exit.blur();
-    disposed.exit.dispose();
-    vi.advanceTimersByTime(FALLBACK_MS);
-    expect(refocused.effects.collapse).not.toHaveBeenCalled();
-    expect(disposed.effects.collapse).not.toHaveBeenCalled();
+  it("covers Home once for a navigation that is no selection while search is open", () => {
+    const { effects, exit } = setup();
+    exit.blur(true);
+    expect(effects.cover).toHaveBeenCalledOnce();
+    exit.hidden();
+    expect(effects.uncover).toHaveBeenCalledOnce();
+    exit.focus();
+    expect(effects.uncover).toHaveBeenCalledOnce();
+  });
+
+  it("does nothing for a navigation while search is closed", () => {
+    const { effects, exit } = setup();
+    exit.blur(false);
+    exit.hidden();
+    exit.resume();
+    exit.focus();
+    expect(effects.uncover).not.toHaveBeenCalled();
+    expect(effects.cover).not.toHaveBeenCalled();
   });
 });

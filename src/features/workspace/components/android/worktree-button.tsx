@@ -3,12 +3,11 @@ import checkIcon from "@expo/material-symbols/check.xml";
 import deleteIcon from "@expo/material-symbols/delete.xml";
 import branchIcon from "@expo/material-symbols/graph_1.xml";
 import {
-  Box,
   DropdownMenu,
   DropdownMenuItem,
+  FilledIconButton,
   HorizontalDivider,
   Icon,
-  Surface,
   Text,
   useMaterialColors,
 } from "@expo/ui/jetpack-compose";
@@ -59,23 +58,19 @@ export function WorktreeButton({ menu, diameter }: { menu: WorktreeMenu; diamete
       shadowElevation={MENU_ELEVATION}
     >
       <DropdownMenu.Trigger>
-        <Surface
-          color={material.surfaceContainerHigh}
+        <FilledIconButton
           enabled={connected}
           onClick={() => setExpanded(true)}
-          modifiers={[
-            size(diameter, diameter),
-            clip(Shapes.Circle),
-            ...(connected ? [] : [alpha(UNAVAILABLE)]),
-          ]}
+          colors={{
+            containerColor: material.surfaceContainerHigh,
+            contentColor: material.onSurface,
+            disabledContainerColor: material.surfaceContainerHigh,
+            disabledContentColor: material.onSurface,
+          }}
+          modifiers={[size(diameter, diameter), ...(connected ? [] : [alpha(UNAVAILABLE)])]}
         >
-          <Box contentAlignment="center" modifiers={[size(diameter, diameter)]}>
-            <Icon
-              source={branchIcon}
-              contentDescription={`${text.worktree}, ${menu.active.name}`}
-            />
-          </Box>
-        </Surface>
+          <Icon source={branchIcon} contentDescription={`${text.worktree}, ${menu.active.name}`} />
+        </FilledIconButton>
       </DropdownMenu.Trigger>
       <DropdownMenu.Items>
         <DropdownMenuItem
@@ -106,6 +101,7 @@ export function WorktreeButton({ menu, diameter }: { menu: WorktreeMenu; diamete
         {choices.map((choice) => (
           <DropdownMenuItem
             key={choice.worktree.path}
+            enabled={connected}
             modifiers={[
               defaultMinSize({ minWidth: MENU_WIDTH }),
               padding(4, 0, 4, 0),
@@ -113,7 +109,8 @@ export function WorktreeButton({ menu, diameter }: { menu: WorktreeMenu; diamete
                 ? [clip(Shapes.RoundedCorner(BAND_CORNER)), background(material.primaryContainer)]
                 : []),
             ]}
-            onClick={run(() => onPick(choice))}
+            // The popup stays on screen while it closes, so a tap can land after a disconnect.
+            onClick={run(connected ? () => onPick(choice) : undefined)}
           >
             {choice.active && (
               <DropdownMenuItem.LeadingIcon>

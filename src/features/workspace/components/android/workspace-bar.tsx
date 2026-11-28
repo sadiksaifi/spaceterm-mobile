@@ -1,6 +1,6 @@
 import stacksIcon from "@expo/material-symbols/stacks.xml";
-import { Box, Icon, Surface, useMaterialColors } from "@expo/ui/jetpack-compose";
-import { clip, Shapes, size, type ModifierConfig } from "@expo/ui/jetpack-compose/modifiers";
+import { FilledIconButton, Icon, useMaterialColors } from "@expo/ui/jetpack-compose";
+import { size, type ModifierConfig } from "@expo/ui/jetpack-compose/modifiers";
 import type { ReactNode } from "react";
 
 import { rowCommands, type Control, type RowCommands } from "@/features/home/actions";
@@ -87,15 +87,16 @@ export function WorkspaceBar({
         </PillBar.Leading>
       )}
       <PillBar.Trailing>
-        <Surface
-          color={material.surfaceContainerHigh}
+        <FilledIconButton
           onClick={onWorkspaces}
-          modifiers={[size(BAR_HEIGHT, BAR_HEIGHT), clip(Shapes.Circle)]}
+          colors={{
+            containerColor: material.surfaceContainerHigh,
+            contentColor: material.onSurface,
+          }}
+          modifiers={[size(BAR_HEIGHT, BAR_HEIGHT)]}
         >
-          <Box contentAlignment="center" modifiers={[size(BAR_HEIGHT, BAR_HEIGHT)]}>
-            <Icon source={stacksIcon} contentDescription={text.workspaces} />
-          </Box>
-        </Surface>
+          <Icon source={stacksIcon} contentDescription={text.workspaces} />
+        </FilledIconButton>
       </PillBar.Trailing>
     </PillBar>
   );

@@ -13,9 +13,10 @@ class SearchBarModule : Module() {
     ExpoUIView<SearchBarProps>("SearchBarView") {
       val onQueryChange by Event<GenericEventPayload1<String>>()
       val onExpandedChange by Event<GenericEventPayload1<Boolean>>()
+      val collapse by AsyncFunction()
 
       Content { props ->
-        SearchBarContent(props, { onQueryChange(it) }, { onExpandedChange(it) })
+        SearchBarContent(props, collapse, { onQueryChange(it) }, { onExpandedChange(it) })
       }
     }
   }

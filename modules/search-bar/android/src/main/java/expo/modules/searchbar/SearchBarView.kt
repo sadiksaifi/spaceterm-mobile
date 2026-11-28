@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import expo.modules.kotlin.views.AsyncFunctionHandle
 import expo.modules.kotlin.views.ComposeProps
 import expo.modules.kotlin.views.FunctionalComposableScope
 import expo.modules.kotlin.views.OptimizedComposeProps
@@ -35,7 +36,9 @@ import expo.modules.ui.UIComposableScope
 import expo.modules.ui.findChildSlotView
 import expo.modules.ui.isSlotWithName
 import expo.modules.ui.renderSlot
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptimizedComposeProps
 data class SearchBarProps(
@@ -51,6 +54,7 @@ data class SearchBarProps(
 @Composable
 fun FunctionalComposableScope.SearchBarContent(
   props: SearchBarProps,
+  collapse: AsyncFunctionHandle<Unit>,
   onQueryChange: (GenericEventPayload1<String>) -> Unit,
   onExpandedChange: (GenericEventPayload1<Boolean>) -> Unit
 ) {
@@ -77,6 +81,16 @@ fun FunctionalComposableScope.SearchBarContent(
     // keyboard as the full-screen search closes, and the keyboard flashes. Someone using a
     // keyboard or D-pad keeps their place on the bar, as Material intends.
     if (inputModeManager.inputMode == InputMode.Touch) barFocus.clearFocus()
+  }
+
+  // The page asks for this when it leaves, as the bar the search would shrink into leaves with it.
+  // The search closes without its animation, so the next screen's transition is the only motion.
+  collapse.handle {
+    try {
+      withContext(scope.coroutineContext) { searchBarState.snapTo(0f) }
+    } catch (_: CancellationException) {
+      // The view went away first, which closed the search with it.
+    }
   }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.

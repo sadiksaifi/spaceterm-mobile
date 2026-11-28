@@ -1,10 +1,16 @@
 import type { PrimitiveBaseProps } from "@expo/ui/jetpack-compose";
 import { createViewModifierEventListener } from "@expo/ui/jetpack-compose/modifiers";
 import { requireNativeView } from "expo";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type { NativeSyntheticEvent } from "react-native";
 
+export type SearchBarRef = {
+  /** Closes the full-screen search at once, without its animation, and ends the search. */
+  collapse: () => Promise<void>;
+};
+
 export type SearchBarProps = PrimitiveBaseProps & {
+  ref?: Ref<SearchBarRef>;
   /** Called with the query on every change, and with "" when search ends. */
   onQueryChange?: (query: string) => void;
   /**

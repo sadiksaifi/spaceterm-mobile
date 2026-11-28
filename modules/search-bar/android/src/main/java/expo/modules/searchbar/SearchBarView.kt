@@ -136,7 +136,12 @@ fun FunctionalComposableScope.SearchBarContent(
         val job = scope.launch {
           resultsEnabled = false
           pageCover?.remove()
-          val shown = PageCover.over(page, window, pageColor)
+          // A search still opening shows a passing layout, so the page takes its color instead.
+          val settled =
+            searchBarState.currentValue == SearchBarValue.Expanded && !searchBarState.isAnimating
+          val shown = PageCover.over(page, window, pageColor, recordWindow = settled) { gone ->
+            if (pageCover === gone) pageCover = null
+          }
           pageCover = shown
           // The search window leaves the screen as soon as it closes, so it waits for the picture.
           shown?.awaitShown(PICTURE_SHOWN_MS)
@@ -158,15 +163,20 @@ fun FunctionalComposableScope.SearchBarContent(
     try {
       withContext(scope.coroutineContext) {
         leaving = false
+        val owned = pageCover
         val job = covering
         covering = null
         if (job?.isActive == true) {
           job.cancel()
           job.join()
+          // A newer cover started meanwhile. The search and the page's cover are its own now.
+          if (covering != null) {
+            owned?.remove()
+            return@withContext
+          }
           closeAtOnce()
         }
-        pageCover?.remove()
-        pageCover = null
+        owned?.remove()
       }
     } catch (_: CancellationException) {
       // The view went away first, which closed the search and removed the picture with it.
@@ -176,7 +186,8 @@ fun FunctionalComposableScope.SearchBarContent(
   LaunchedEffect(leaving, expanded) {
     if (leaving && expanded && covering?.isActive != true) closeAtOnce()
   }
-  DisposableEffect(Unit) { onDispose { pageCover?.remove() } }
+  // Expo can dispose the search bar as the stack takes the page out of its window, while it draws.
+  DisposableEffect(Unit) { onDispose { pageCover?.removeLater() } }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.
   LaunchedEffect(searchBarState.currentValue) {

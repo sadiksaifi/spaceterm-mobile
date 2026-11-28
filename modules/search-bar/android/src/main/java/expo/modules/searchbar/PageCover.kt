@@ -20,21 +20,25 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * A still picture of a window, drawn over a page in the page's own overlay, so it moves with the
  * page in the stack's transitions. Until `unshield()`, the whole window takes no touch either, as
- * the next screen takes touches before it shows. The picture goes when the page leaves its window.
+ * the next screen takes touches before it shows. The picture goes when the page leaves its window,
+ * and `onRemoved` hears when it goes.
  */
 internal class PageCover private constructor(
   private val page: View,
-  private val picture: Picture,
+  private val picture: Picture?,
   private val pictureX: Float,
   private val pictureY: Float,
-  color: Int
+  color: Int,
+  private val onRemoved: (PageCover) -> Unit
 ) : View.OnAttachStateChangeListener {
+  private var removed = false
   private val shield = View(page.context)
   private val background = Paint().apply { this.color = color }
   private val drawable =
     object : Drawable() {
       override fun draw(canvas: Canvas) {
         canvas.drawRect(bounds, background)
+        picture ?: return
         canvas.save()
         canvas.translate(pictureX, pictureY)
         canvas.drawPicture(picture)
@@ -88,34 +92,57 @@ internal class PageCover private constructor(
     (shield.parent as? ViewGroup)?.removeView(shield)
   }
 
+  /** Removes the picture and the shield. Doing it again does nothing. */
   fun remove() {
+    if (removed) return
+    removed = true
     unshield()
     page.removeOnAttachStateChangeListener(this)
     page.overlay.remove(drawable)
+    onRemoved(this)
+  }
+
+  /**
+   * `remove()` once the window is done drawing. Android can take a page out of its window while the
+   * window draws, and no view may leave the window then.
+   */
+  fun removeLater() {
+    Handler(Looper.getMainLooper()).post(::remove)
   }
 
   override fun onViewAttachedToWindow(view: View) = Unit
 
   // The stack takes a page out of the window once the next screen covers it, and nothing on the
-  // page shows until the page is back. It can do so while the window draws, when no view may leave
-  // the window, so the shield leaves after that.
-  override fun onViewDetachedFromWindow(view: View) {
-    Handler(Looper.getMainLooper()).post(::remove)
-  }
+  // page shows until the page is back.
+  override fun onViewDetachedFromWindow(view: View) = removeLater()
 
   companion object {
     /**
-     * Covers `page` with a picture of what `window` shows now, over `color`. Returns null when
-     * either has no size.
+     * Covers `page` with `color`, and with a picture of what `window` shows now when `recordWindow`
+     * is true. Returns null when the page is out of its window, as the cover would never hear it
+     * leave, or when either has no size.
      */
-    fun over(page: View, window: Window, color: Int): PageCover? {
+    fun over(
+      page: View,
+      window: Window,
+      color: Int,
+      recordWindow: Boolean,
+      onRemoved: (PageCover) -> Unit
+    ): PageCover? {
       val decor = window.decorView
+      if (!page.isAttachedToWindow) return null
       if (page.width == 0 || page.height == 0 || decor.width == 0 || decor.height == 0) return null
       // A recording of the window's drawing, not a copy of its pixels: Android draws it again
       // with the page, which needs no copy from the screen and holds little memory.
-      val picture = Picture()
-      decor.draw(picture.beginRecording(decor.width, decor.height))
-      picture.endRecording()
+      val picture =
+        if (recordWindow) {
+          Picture().apply {
+            decor.draw(beginRecording(decor.width, decor.height))
+            endRecording()
+          }
+        } else {
+          null
+        }
       val pageAt = IntArray(2).also { page.getLocationOnScreen(it) }
       val windowAt = IntArray(2).also { decor.getLocationOnScreen(it) }
       return PageCover(
@@ -123,7 +150,8 @@ internal class PageCover private constructor(
         picture,
         (windowAt[0] - pageAt[0]).toFloat(),
         (windowAt[1] - pageAt[1]).toFloat(),
-        color
+        color,
+        onRemoved
       )
     }
   }

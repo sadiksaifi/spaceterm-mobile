@@ -26,7 +26,7 @@ import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-b
 import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
 import type ScreenContract from "./screen";
 import { text } from "./text";
-import { headerTitle, worktreeMenu } from "./worktree-menu";
+import { worktreeMenu } from "./worktree-menu";
 
 /** The bar's bottom edge sits this far into the bottom safe area, as the mockups place it. */
 const INTO_SAFE_AREA = 6;
@@ -155,7 +155,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
       {/* The swipe back starts above the bar only, so a swipe on the bar stays there. */}
       <Stack.Screen
         options={{
-          title: headerTitle(props, worktree),
+          title: view.workspace.name,
           gestureResponseDistance: { bottom: barTop },
         }}
       />

@@ -46,7 +46,7 @@ import type { WorkspaceScreenProps } from "./props";
 import type ScreenContract from "./screen";
 import { failureText, text } from "./text";
 import type { TabFailure } from "./use-tab-commands";
-import { headerTitle, worktreeMenu } from "./worktree-menu";
+import { worktreeMenu } from "./worktree-menu";
 
 /** The bar sits this far above the gesture area. */
 const BAR_MARGIN = 16;
@@ -192,7 +192,7 @@ function isRowFailure(failure: TabFailure | RowFailure): failure is RowFailure {
   return "row" in failure;
 }
 
-/** Back, the Worktree or directory, and the Workspace menu. The bar names the Workspace. */
+/** Back, the Workspace's name, and the Workspace menu. */
 function Header(props: WorkspaceScreenProps) {
   const colors = useColors();
   return (
@@ -209,7 +209,7 @@ function Header(props: WorkspaceScreenProps) {
           style={{ typography: "titleLarge" }}
           modifiers={[heading()]}
         >
-          {headerTitle(props, worktreeMenu(props))}
+          {props.view.workspace.name}
         </Text>
       </TopAppBar.Title>
       <TopAppBar.Actions>

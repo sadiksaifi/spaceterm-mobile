@@ -34,15 +34,3 @@ export function worktreeMenu({
     onRemoveWorktree: removal.start,
   };
 }
-
-/** The header's title: the active Worktree, else the last folder of the Workspace's directory, as
- * a file browser titles a folder. The bar names the Workspace. */
-export function headerTitle({ view }: WorkspaceScreenProps, worktree: WorktreeMenu | null): string {
-  return worktree?.active.name ?? folderName(view.workspace.directory);
-}
-
-/** The last folder of `directory`: `build-logs` for `~/scratch/build-logs/`, `/` for `/`. */
-export function folderName(directory: string): string {
-  const parts = directory.split("/").filter((part) => part !== "");
-  return parts.at(-1) ?? directory;
-}

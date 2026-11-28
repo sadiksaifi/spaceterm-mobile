@@ -2,6 +2,8 @@
 
 package expo.modules.searchbar
 
+import android.view.Window
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -15,16 +17,27 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.DialogWindowProvider
+import expo.modules.kotlin.views.AsyncFunctionHandle
 import expo.modules.kotlin.views.ComposeProps
 import expo.modules.kotlin.views.FunctionalComposableScope
 import expo.modules.kotlin.views.OptimizedComposeProps
@@ -35,7 +48,21 @@ import expo.modules.ui.UIComposableScope
 import expo.modules.ui.findChildSlotView
 import expo.modules.ui.isSlotWithName
 import expo.modules.ui.renderSlot
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** The longest the search waits for the picture of it on the page, a few frames. */
+private const val PICTURE_SHOWN_MS = 100L
+
+/**
+ * The longest the window takes no touch after search closes over its picture. The page lifts it
+ * sooner, once the next screen covers the page. It outlasts the stack's 450 ms push at twice the
+ * animation scale, and keeps the window from staying untouchable when the page never hears back.
+ */
+private const val SHIELD_MS = 1000L
 
 @OptimizedComposeProps
 data class SearchBarProps(
@@ -51,6 +78,8 @@ data class SearchBarProps(
 @Composable
 fun FunctionalComposableScope.SearchBarContent(
   props: SearchBarProps,
+  cover: AsyncFunctionHandle<Unit>,
+  uncover: AsyncFunctionHandle<Unit>,
   onQueryChange: (GenericEventPayload1<String>) -> Unit,
   onExpandedChange: (GenericEventPayload1<Boolean>) -> Unit
 ) {
@@ -63,6 +92,22 @@ fun FunctionalComposableScope.SearchBarContent(
   // The focus of the window the collapsed bar is in, not the full-screen search's.
   val barFocus = LocalFocusManager.current
   val inputModeManager = LocalInputModeManager.current
+  // The full-screen search's window, from inside that window.
+  var searchWindow by remember { mutableStateOf<Window?>(null) }
+  // Results see no touch once a selection leads away.
+  var resultsEnabled by remember { mutableStateOf(true) }
+  var pageCover by remember { mutableStateOf<PageCover?>(null) }
+  var covering by remember { mutableStateOf<Job?>(null) }
+  // The page lost focus, so search stays closed until it has focus again.
+  var leaving by remember { mutableStateOf(false) }
+  // The page the search bar is on: its host's Compose view, which moves with it.
+  val page = LocalView.current
+  val pageColor = MaterialTheme.colorScheme.surface.toArgb()
+  // Ends the search with no animation, also one that is opening.
+  suspend fun closeAtOnce() {
+    val open = searchBarState.currentValue == SearchBarValue.Expanded
+    if (open || searchBarState.targetValue == SearchBarValue.Expanded) searchBarState.snapTo(0f)
+  }
 
   LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
@@ -79,10 +124,76 @@ fun FunctionalComposableScope.SearchBarContent(
     if (inputModeManager.inputMode == InputMode.Touch) barFocus.clearFocus()
   }
 
+  // The page asks for these when it loses focus. The full-screen search is a window above every
+  // screen, so the next screen would open under it. Search closes at once instead, and a picture
+  // of it stays on the page, so the page never shows before the next screen covers it.
+  cover.handle {
+    try {
+      withContext(scope.coroutineContext) {
+        leaving = true
+        // Search is closed, or it is opening and its window does not exist yet.
+        val window = searchWindow ?: return@withContext closeAtOnce()
+        val job = scope.launch {
+          resultsEnabled = false
+          pageCover?.remove()
+          // A search still opening shows a passing layout, so the page takes its color instead.
+          val settled =
+            searchBarState.currentValue == SearchBarValue.Expanded && !searchBarState.isAnimating
+          val shown = PageCover.over(page, window, pageColor, recordWindow = settled) { gone ->
+            if (pageCover === gone) pageCover = null
+          }
+          pageCover = shown
+          // The search window leaves the screen as soon as it closes, so it waits for the picture.
+          shown?.awaitShown(PICTURE_SHOWN_MS)
+          searchBarState.snapTo(0f)
+          scope.launch {
+            delay(SHIELD_MS)
+            shown?.unshield()
+          }
+        }
+        covering = job
+        job.join()
+      }
+    } catch (_: CancellationException) {
+      // The view went away first, which closed the search and removed the picture with it.
+    }
+  }
+  // The page can show again before cover() is done, so this finishes the close without the picture.
+  uncover.handle {
+    try {
+      withContext(scope.coroutineContext) {
+        leaving = false
+        val owned = pageCover
+        val job = covering
+        covering = null
+        if (job?.isActive == true) {
+          job.cancel()
+          job.join()
+          // A newer cover started meanwhile. The search and the page's cover are its own now.
+          if (covering != null) {
+            owned?.remove()
+            return@withContext
+          }
+          closeAtOnce()
+        }
+        owned?.remove()
+      }
+    } catch (_: CancellationException) {
+      // The view went away first, which closed the search and removed the picture with it.
+    }
+  }
+  // Search can start to open after the page lost focus, as the window opens a frame later.
+  LaunchedEffect(leaving, expanded) {
+    if (leaving && expanded && covering?.isActive != true) closeAtOnce()
+  }
+  // Expo can dispose the search bar as the stack takes the page out of its window, while it draws.
+  DisposableEffect(Unit) { onDispose { pageCover?.removeLater() } }
+
   // Leaving search ends it: the collapsed bar shows the placeholder again.
   LaunchedEffect(searchBarState.currentValue) {
     if (searchBarState.currentValue == SearchBarValue.Collapsed) {
       textFieldState.clearText()
+      resultsEnabled = true
     }
   }
 
@@ -140,7 +251,25 @@ fun FunctionalComposableScope.SearchBarContent(
       // The full-screen search takes the page color, so results look as they do on the page.
       colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-      results.renderSlot()
+      val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+      DisposableEffect(window) {
+        searchWindow = window
+        onDispose { searchWindow = null }
+      }
+      // The parent takes each touch before the results see it.
+      val lock =
+        if (resultsEnabled) {
+          Modifier
+        } else {
+          Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+              while (true) {
+                awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+              }
+            }
+          }
+        }
+      Box(lock) { results.renderSlot() }
     }
   }
 }

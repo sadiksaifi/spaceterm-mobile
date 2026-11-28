@@ -1,10 +1,25 @@
 import type { PrimitiveBaseProps } from "@expo/ui/jetpack-compose";
 import { createViewModifierEventListener } from "@expo/ui/jetpack-compose/modifiers";
 import { requireNativeView } from "expo";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type { NativeSyntheticEvent } from "react-native";
 
+export type SearchBarRef = {
+  /**
+   * Closes the full-screen search at once, also one that is opening, and ends the search, leaving a
+   * still picture of it over the page until `uncover()` or until the page leaves the window. Use it
+   * when the page loses focus: the full-screen search is a window above every screen, and the
+   * picture moves with the page as the next screen opens over it. Search stays closed until
+   * `uncover()`. No touch reaches the app until `uncover()`, or for at most 1 s, as the next screen
+   * takes touches before it shows. With search closed, it only keeps search closed.
+   */
+  cover: () => Promise<void>;
+  /** Removes the picture `cover()` left on the page, and lets search open again. */
+  uncover: () => Promise<void>;
+};
+
 export type SearchBarProps = PrimitiveBaseProps & {
+  ref?: Ref<SearchBarRef>;
   /** Called with the query on every change, and with "" when search ends. */
   onQueryChange?: (query: string) => void;
   /**

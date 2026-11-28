@@ -20,8 +20,8 @@ const MENU_ELEVATION = 3;
 const MENU_WIDTH = 196;
 
 /**
- * The More options button and its menu, at the end of the search bar or the top app bar. New
- * Workspace and Refresh are listed only where Workspaces can be listed.
+ * The More options button and its menu, at the end of the search bar or the top app bar. Refresh
+ * is listed only where Workspaces can be listed. New Workspace is the floating button, not an item.
  */
 export function MoreMenu({ controls }: { controls: HomeControls }) {
   const [expanded, setExpanded] = useState(false);
@@ -55,7 +55,6 @@ export function MoreMenu({ controls }: { controls: HomeControls }) {
         </IconButton>
       </DropdownMenu.Trigger>
       <DropdownMenu.Items>
-        {controls.newWorkspace && item(text.newWorkspace, controls.newWorkspace)}
         {controls.refresh && item(text.refresh, controls.refresh)}
         {item(text.addMachine, controls.addMachine)}
         {item(text.settings, controls.settings)}

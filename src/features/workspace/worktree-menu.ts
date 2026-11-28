@@ -15,6 +15,14 @@ export type WorktreeMenu = {
   onRemoveWorktree: (() => void) | undefined;
 };
 
+/**
+ * The branch the header shows under the Workspace's name: the active Worktree's, or the branch the
+ * Machine reports while it lists no Worktrees. Home rows leave the branch to this header.
+ */
+export function headerBranch(view: WorkspaceScreenProps["view"], menu: WorktreeMenu | null) {
+  return menu?.active.name ?? view.workspace.branch ?? null;
+}
+
 /** The Worktree menu of a Workspace in a repository, or null outside one. */
 export function worktreeMenu({
   view,

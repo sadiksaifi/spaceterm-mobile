@@ -76,15 +76,6 @@ export function WorkspaceRowView({
       {connected ? workspace.directory : connectionStateText(connection)}
     </Text>
   );
-  const branch = connected && workspace.branch !== undefined && (
-    <HStack spacing={3}>
-      <Image
-        systemName="arrow.triangle.branch"
-        modifiers={[font({ textStyle: "caption" }), secondary, accessibilityHidden()]}
-      />
-      <Text modifiers={[detailFont, secondary, ...oneLine]}>{workspace.branch}</Text>
-    </HStack>
-  );
 
   // A row whose command waits for the Machine takes no input until the answer.
   const button = (
@@ -99,12 +90,11 @@ export function WorkspaceRowView({
             {name}
             {machine}
             {directory}
-            {branch}
           </VStack>
         ) : (
           <VStack alignment="leading" spacing={2} modifiers={faded}>
             <Line start={name} end={machine} alignment="firstTextBaseline" />
-            <Line start={directory} end={branch} />
+            {directory}
           </VStack>
         )}
         {largeText && <Spacer />}

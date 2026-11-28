@@ -39,7 +39,7 @@ export function HomeSearch({
         alerts={alerts}
       />
       <Stack.SearchBar
-        placeholder={text.search}
+        placeholder={text.searchWorkspaces}
         onChangeText={(event) => setQuery(event.nativeEvent.text)}
         onCancelButtonPress={() => {
           setQuery("");

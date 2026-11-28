@@ -1,7 +1,6 @@
-import addIcon from "@expo/material-symbols/add.xml";
 import stacksIcon from "@expo/material-symbols/stacks.xml";
-import { Box, Icon, Surface, useMaterialColors } from "@expo/ui/jetpack-compose";
-import { alpha, clip, Shapes, size, type ModifierConfig } from "@expo/ui/jetpack-compose/modifiers";
+import { FilledIconButton, Icon, useMaterialColors } from "@expo/ui/jetpack-compose";
+import { size, type ModifierConfig } from "@expo/ui/jetpack-compose/modifiers";
 import type { ReactNode } from "react";
 
 import { rowCommands, type Control, type RowCommands } from "@/features/home/actions";
@@ -10,20 +9,19 @@ import type { RowAlerts } from "@/features/home/row-alerts";
 import { PillBar, type PillAction } from "@/modules/pill-bar/jetpack-compose";
 
 import { text } from "../../text";
+import type { WorktreeMenu } from "../../worktree-menu";
+import { WorktreeButton } from "./worktree-button";
 
 /** The bar's metrics from the mockups. */
 export const BAR_HEIGHT = 56;
 const SIDE = 16;
-/** An unavailable New Workspace takes Material's disabled opacity. */
-const UNAVAILABLE = 0.38;
 
 /**
- * Workspaces at the left, the Workspaces Home lists as pills in the middle with the one on screen
- * on the indicator, and New Workspace at the right. New Workspace is a filled circle, not the
- * floating action button's rounded square, so the bar's three parts share one round shape. A tap
- * or a sideways drag of the indicator changes Workspace; the pills scroll by themselves when they
- * do not fit. Touch and hold a pill for the menu of its Workspace row. The Workspace's content fills
- * the view under the bar and comes in from the side of the pill it changed to.
+ * The Worktree menu at the left in a repository, the Workspaces Home lists as pills in the middle
+ * with the one on screen on the indicator, and Workspaces at the right. A tap or a sideways drag of
+ * the indicator changes Workspace; the pills scroll by themselves when they do not fit. Touch and
+ * hold a pill for the menu of its Workspace row. The Workspace's content fills the view under the
+ * bar and comes in from the side of the pill it changed to.
  */
 export function WorkspaceBar({
   rows,
@@ -31,10 +29,10 @@ export function WorkspaceBar({
   alerts,
   bottom,
   modifiers,
+  worktree,
   children,
   onSwitch,
   onWorkspaces,
-  onNewWorkspace,
 }: {
   rows: readonly WorkspaceRow[];
   selected: string;
@@ -42,11 +40,12 @@ export function WorkspaceBar({
   /** The bar's distance from the bottom edge. */
   bottom: number;
   modifiers?: ModifierConfig[];
+  /** Null outside a repository, where the pills take its room. */
+  worktree: WorktreeMenu | null;
   /** The selected Workspace's content. */
   children: ReactNode;
   onSwitch: (row: WorkspaceRow) => void;
   onWorkspaces: () => void;
-  onNewWorkspace: (() => void) | undefined;
 }) {
   const material = useMaterialColors();
   const commands = new Map(
@@ -82,33 +81,22 @@ export function WorkspaceBar({
       }}
     >
       <PillBar.Content>{children}</PillBar.Content>
-      <PillBar.Leading>
-        <Surface
-          color={material.surfaceContainerHigh}
-          onClick={onWorkspaces}
-          modifiers={[size(BAR_HEIGHT, BAR_HEIGHT), clip(Shapes.Circle)]}
-        >
-          <Box contentAlignment="center" modifiers={[size(BAR_HEIGHT, BAR_HEIGHT)]}>
-            <Icon source={stacksIcon} contentDescription={text.workspaces} />
-          </Box>
-        </Surface>
-      </PillBar.Leading>
+      {worktree !== null && (
+        <PillBar.Leading>
+          <WorktreeButton menu={worktree} diameter={BAR_HEIGHT} />
+        </PillBar.Leading>
+      )}
       <PillBar.Trailing>
-        <Surface
-          color={material.primaryContainer}
-          contentColor={material.onPrimaryContainer}
-          enabled={!!onNewWorkspace}
-          onClick={onNewWorkspace}
-          modifiers={[
-            size(BAR_HEIGHT, BAR_HEIGHT),
-            clip(Shapes.Circle),
-            ...(onNewWorkspace ? [] : [alpha(UNAVAILABLE)]),
-          ]}
+        <FilledIconButton
+          onClick={onWorkspaces}
+          colors={{
+            containerColor: material.surfaceContainerHigh,
+            contentColor: material.onSurface,
+          }}
+          modifiers={[size(BAR_HEIGHT, BAR_HEIGHT)]}
         >
-          <Box contentAlignment="center" modifiers={[size(BAR_HEIGHT, BAR_HEIGHT)]}>
-            <Icon source={addIcon} contentDescription={text.newWorkspace} />
-          </Box>
-        </Surface>
+          <Icon source={stacksIcon} contentDescription={text.workspaces} />
+        </FilledIconButton>
       </PillBar.Trailing>
     </PillBar>
   );

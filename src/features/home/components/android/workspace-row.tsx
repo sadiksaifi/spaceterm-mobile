@@ -1,5 +1,4 @@
 import deleteIcon from "@expo/material-symbols/delete.xml";
-import branchIcon from "@expo/material-symbols/graph_1.xml";
 import {
   Box,
   CircularProgressIndicator,
@@ -27,7 +26,6 @@ import {
   weight,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { useState } from "react";
-import { useWindowDimensions } from "react-native";
 
 import { maxWidthFraction } from "@/modules/compose-modifiers";
 import { SwipeRow } from "@/modules/swipe-row";
@@ -42,9 +40,7 @@ import { text } from "../../text";
 
 /** Material gives a not connected row the disabled look. */
 const DIMMED = 0.5;
-/** The branch icon matches the bodyMedium text beside it, so it grows with the font scale. */
-const BRANCH_ICON = 13;
-/** Side by side, the Machine and branch leave at least this share of the line to the name and directory. */
+/** Side by side, the Machine leaves at least this share of the line to the name. */
 const DETAIL_SHARE = 0.6;
 /** The touch and hold menu, as wide as the design draws it. */
 const MENU_WIDTH = 220;
@@ -75,12 +71,11 @@ export function WorkspaceRowView({
   const material = useMaterialColors();
   const [held, setHeld] = useState(false);
   const largeText = useLargeText();
-  const { fontScale } = useWindowDimensions();
   const { workspace, connection } = row;
   const connected = connection === "connected";
   const { underway } = commands;
   const shape = groupedCorners(first, last);
-  // Side by side, the name and the directory take the space the Machine and branch leave.
+  // Side by side, the name takes the space the Machine leaves.
   const fill = largeText ? [] : [weight(1)];
   const detail = largeText ? [] : [maxWidthFraction(DETAIL_SHARE)];
   // Side by side, each part keeps to one line. Stacked, each part wraps to show all of it.
@@ -113,23 +108,9 @@ export function WorkspaceRowView({
       overflow="ellipsis"
       style={{ typography: "bodyMedium" }}
       color={colors.secondaryText}
-      modifiers={fill}
     >
       {connected ? workspace.directory : connectionStateText(connection)}
     </Text>
-  );
-  const branch = connected && workspace.branch !== undefined && (
-    <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 4 }} modifiers={detail}>
-      <Icon source={branchIcon} size={BRANCH_ICON * fontScale} tint={colors.secondaryText} />
-      <Text
-        maxLines={maxLines}
-        overflow="ellipsis"
-        style={{ typography: "bodyMedium" }}
-        color={colors.secondaryText}
-      >
-        {workspace.branch}
-      </Text>
-    </Row>
   );
 
   const item = (label: string, { onPress }: Control) => (
@@ -181,7 +162,6 @@ export function WorkspaceRowView({
               {name}
               {machine}
               {directory}
-              {branch}
             </>
           ) : (
             <>
@@ -189,10 +169,7 @@ export function WorkspaceRowView({
                 {name}
                 {machine}
               </Row>
-              <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 12 }}>
-                {directory}
-                {branch}
-              </Row>
+              {directory}
             </>
           )}
         </Column>

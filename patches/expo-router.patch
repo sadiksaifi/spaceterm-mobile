@@ -80,3 +80,23 @@ diff --git a/ios/Toolbar/RouterToolbarHostView.swift b/ios/Toolbar/RouterToolbar
      var responder: UIResponder? = self
      while let r = responder {
        if let screen = r as? RNSScreen {
+diff --git a/ios/Toolbar/RouterToolbarItemView.swift b/ios/Toolbar/RouterToolbarItemView.swift
+--- a/ios/Toolbar/RouterToolbarItemView.swift
++++ b/ios/Toolbar/RouterToolbarItemView.swift
+@@ -101,11 +101,11 @@
+         currentBarButtonItem = nil
+         return
+       }
+-      guard let navController = controller.navigationController else {
+-        currentBarButtonItem = nil
+-        return
+-      }
+-      guard navController.isNavigationBarHidden == false else {
++      // A pushed screen's toolbar items are set before the push, while the screen has no
++      // navigation controller yet. The slot comes from the screen's navigation item, which already
++      // exists, so build it then. Without it, UIKit starts the push with the search bar in the
++      // navigation bar.
++      if let navController = controller.navigationController, navController.isNavigationBarHidden {
+         logger?.warn(
+           "[expo-router] Toolbar.SearchBarPreferredSlot should only be used when stack header is shown."
+         )

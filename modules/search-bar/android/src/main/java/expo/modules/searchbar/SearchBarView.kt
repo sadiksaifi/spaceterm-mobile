@@ -2,6 +2,12 @@
 
 package expo.modules.searchbar
 
+import android.view.Window
+import android.view.WindowManager
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -15,16 +21,26 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.DialogWindowProvider
 import expo.modules.kotlin.views.AsyncFunctionHandle
 import expo.modules.kotlin.views.ComposeProps
 import expo.modules.kotlin.views.FunctionalComposableScope
@@ -37,8 +53,12 @@ import expo.modules.ui.findChildSlotView
 import expo.modules.ui.isSlotWithName
 import expo.modules.ui.renderSlot
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Material's short duration for an exit. */
+private const val FADE_OUT_MS = 150
 
 @OptimizedComposeProps
 data class SearchBarProps(
@@ -55,6 +75,8 @@ data class SearchBarProps(
 fun FunctionalComposableScope.SearchBarContent(
   props: SearchBarProps,
   collapse: AsyncFunctionHandle<Unit>,
+  fadeOut: AsyncFunctionHandle<Int>,
+  setResultsEnabled: AsyncFunctionHandle<Boolean>,
   onQueryChange: (GenericEventPayload1<String>) -> Unit,
   onExpandedChange: (GenericEventPayload1<Boolean>) -> Unit
 ) {
@@ -67,6 +89,11 @@ fun FunctionalComposableScope.SearchBarContent(
   // The focus of the window the collapsed bar is in, not the full-screen search's.
   val barFocus = LocalFocusManager.current
   val inputModeManager = LocalInputModeManager.current
+  // The full-screen search's window and keyboard, from inside that window.
+  var searchWindow by remember { mutableStateOf<Window?>(null) }
+  var searchKeyboard by remember { mutableStateOf<SoftwareKeyboardController?>(null) }
+  // Results that take no input see no touch, as a selection already leads away.
+  var resultsEnabled by remember { mutableStateOf(true) }
 
   LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
@@ -83,20 +110,40 @@ fun FunctionalComposableScope.SearchBarContent(
     if (inputModeManager.inputMode == InputMode.Touch) barFocus.clearFocus()
   }
 
-  // The page asks for this when it leaves, as the bar the search would shrink into leaves with it.
-  // The search closes without its animation, so the next screen's transition is the only motion.
-  collapse.handle {
+  // The page asks for these when it leaves, as the bar the search would shrink into leaves with it.
+  // Either way the search closes without its own animation.
+  suspend fun close(steps: suspend () -> Unit) {
     try {
-      withContext(scope.coroutineContext) { searchBarState.snapTo(0f) }
+      withContext(scope.coroutineContext) {
+        steps()
+        searchBarState.snapTo(0f)
+      }
     } catch (_: CancellationException) {
       // The view went away first, which closed the search with it.
     }
   }
+  collapse.handle { close {} }
+  // The search stays opaque until the screen below it covers the page, then fades out over it.
+  fadeOut.handle { delayMs ->
+    if (searchBarState.currentValue == SearchBarValue.Collapsed) return@handle null
+    close {
+      searchKeyboard?.hide()
+      delay(delayMs.toLong())
+      // The whole window fades, as the search draws in it outside any modifier it takes.
+      val window = searchWindow
+      window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+      Animatable(1f).animateTo(0f, tween(FADE_OUT_MS, easing = LinearEasing)) {
+        window?.attributes = window?.attributes?.apply { alpha = value }
+      }
+    }
+  }
+  setResultsEnabled.handle { enabled -> resultsEnabled = enabled }
 
   // Leaving search ends it: the collapsed bar shows the placeholder again.
   LaunchedEffect(searchBarState.currentValue) {
     if (searchBarState.currentValue == SearchBarValue.Collapsed) {
       textFieldState.clearText()
+      resultsEnabled = true
     }
   }
 
@@ -154,7 +201,30 @@ fun FunctionalComposableScope.SearchBarContent(
       // The full-screen search takes the page color, so results look as they do on the page.
       colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-      results.renderSlot()
+      val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+      val keyboard = LocalSoftwareKeyboardController.current
+      DisposableEffect(window, keyboard) {
+        searchWindow = window
+        searchKeyboard = keyboard
+        onDispose {
+          searchWindow = null
+          searchKeyboard = null
+        }
+      }
+      // The parent takes each touch before the results see it.
+      val lock =
+        if (resultsEnabled) {
+          Modifier
+        } else {
+          Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+              while (true) {
+                awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+              }
+            }
+          }
+        }
+      Box(lock) { results.renderSlot() }
     }
   }
 }

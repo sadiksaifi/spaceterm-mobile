@@ -7,6 +7,16 @@ import type { NativeSyntheticEvent } from "react-native";
 export type SearchBarRef = {
   /** Closes the full-screen search at once, without its animation, and ends the search. */
   collapse: () => Promise<void>;
+  /**
+   * Hides the keyboard, keeps the full-screen search for `delayMs`, then fades it out over what is
+   * below it and ends the search.
+   */
+  fadeOut: (delayMs: number) => Promise<void>;
+  /**
+   * `false` keeps every touch from the results, for example while a selection leads away. The
+   * results take touches again when search ends.
+   */
+  setResultsEnabled: (enabled: boolean) => Promise<void>;
 };
 
 export type SearchBarProps = PrimitiveBaseProps & {

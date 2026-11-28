@@ -2,6 +2,7 @@ import { Box, Text } from "@expo/ui/jetpack-compose";
 import { fillMaxSize, fillMaxWidth, imePadding, padding } from "@expo/ui/jetpack-compose/modifiers";
 import { useNavigation, type NativeStackNavigationProp } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AppState, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar, type SearchBarRef } from "@/modules/search-bar";
@@ -14,10 +15,18 @@ import { text } from "../../text";
 import { HomeContent } from "./home-content";
 import { EMPTY_BOTTOM_IN_SEARCH } from "./states/empty-state";
 import { MoreMenu } from "./more-menu";
+import { createSearchExit, type SearchExit } from "./search-exit";
 
-/** Closes the full-screen search. A search bar Home has already removed took its search with it. */
-function closeSearch(searchBar: SearchBarRef | null) {
-  searchBar?.collapse().catch((error: unknown) => {
+/**
+ * How long after Home's transition starts the next screen covers it. The stack's default push fades
+ * the next screen in over Home: by 133 ms from Android 13, and by 200 ms before, when it also grows
+ * to full size (react-native-screens' `rns_default_enter_in`).
+ */
+const NEXT_SCREEN_COVERS_MS = Number(Platform.Version) >= 33 ? 133 : 200;
+
+/** Settles a call to the search bar. A search bar Home has already removed took its search along. */
+function settle(call: Promise<void> | undefined) {
+  call?.catch((error: unknown) => {
     if ((error as { code?: unknown } | null)?.code !== "ERR_VIEW_NOT_FOUND") console.error(error);
   });
 }
@@ -46,17 +55,50 @@ export function HomeSearchBar({
   const [query, setQuery] = useState("");
   const insets = useSafeAreaInsets();
   const searchBar = useRef<SearchBarRef>(null);
+  const exit = useRef<SearchExit>(null);
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
-  // Search closes once the next screen covers Home, so Home never shows in between. Home loses
-  // focus as the navigation starts, and the next screen draws its first frame only after its
-  // transition starts, so closing at either of those shows Home for a few frames.
-  useEffect(
-    () =>
-      navigation.addListener("transitionEnd", ({ data }) => {
-        if (data.closing) closeSearch(searchBar.current);
+  // Search fades out over the next screen once that screen covers Home, so Home never shows in
+  // between. Home loses focus as the navigation starts, while the next screen still has to mount.
+  useEffect(() => {
+    const current = createSearchExit({
+      fadeOut: () => settle(searchBar.current?.fadeOut(NEXT_SCREEN_COVERS_MS)),
+      collapse: () => settle(searchBar.current?.collapse()),
+      setLeaving: (leaving) => settle(searchBar.current?.setResultsEnabled(!leaving)),
+    });
+    exit.current = current;
+    const unsubscribe = [
+      navigation.addListener("blur", current.blur),
+      navigation.addListener("focus", current.focus),
+      navigation.addListener("transitionStart", ({ data }) => {
+        if (data.closing) current.coverStart();
       }),
-    [navigation],
-  );
+    ];
+    const appState = AppState.addEventListener("change", (state) => {
+      if (state === "active") current.resume();
+    });
+    return () => {
+      for (const remove of unsubscribe) remove();
+      appState.remove();
+      current.dispose();
+      exit.current = null;
+    };
+  }, [navigation]);
+  // Only the first result selected leads away.
+  const once =
+    <A extends unknown[]>(handler: ((...args: A) => void) | undefined) =>
+    (...args: A) => {
+      if (handler && exit.current?.select()) handler(...args);
+    };
+  const { onOpenWorkspace } = actions;
+  const resultActions: HomeActions = {
+    ...actions,
+    onOpenWorkspace: onOpenWorkspace && once(onOpenWorkspace),
+  };
+  const { onNewTab } = alerts.handlers;
+  const resultAlerts: RowAlerts = {
+    ...alerts,
+    handlers: { ...alerts.handlers, onNewTab: onNewTab && once(onNewTab) },
+  };
 
   return (
     <SearchBar
@@ -78,8 +120,8 @@ export function HomeSearchBar({
         <Box modifiers={[fillMaxSize(), imePadding()]}>
           <HomeContent
             view={homeView(snapshot, query)}
-            actions={actions}
-            alerts={alerts}
+            actions={resultActions}
+            alerts={resultAlerts}
             bottomPadding={insets.bottom + 16}
             emptyBottom={EMPTY_BOTTOM_IN_SEARCH}
           />

@@ -214,7 +214,9 @@ struct PillBarView: ExpoSwiftUI.View {
   private func button(
     _ button: BarButton, action: @escaping () -> Void, choose: @escaping (String) -> Void
   ) -> some View {
-    let icon = Image(systemName: button.systemImage)
+    // An icon-only label names the control, so the symbol is not read as a second element.
+    let icon = Label(button.label, systemImage: button.systemImage)
+      .labelStyle(.iconOnly)
       .font(.system(size: 20, weight: .medium))
       .frame(width: Self.height - 16, height: Self.height - 16)
     return Group {
@@ -229,7 +231,6 @@ struct PillBarView: ExpoSwiftUI.View {
     .buttonStyle(.glass)
     .buttonBorderShape(.circle)
     .disabled(button.disabled)
-    .accessibilityLabel(button.label)
     .frame(width: Self.height, height: Self.height)
   }
 

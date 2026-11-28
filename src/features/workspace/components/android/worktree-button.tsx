@@ -42,6 +42,8 @@ export function WorktreeButton({ menu, diameter }: { menu: WorktreeMenu; diamete
   const [expanded, setExpanded] = useState(false);
   const material = useMaterialColors();
   const { connected, choices, onPick, onNewWorktree, onRemoveWorktree } = menu;
+  // A Machine that disconnects while the menu is open closes it.
+  if (expanded && !connected) setExpanded(false);
 
   const run = (onPress: (() => void) | undefined) => () => {
     setExpanded(false);

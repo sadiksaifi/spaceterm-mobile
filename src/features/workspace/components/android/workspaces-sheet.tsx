@@ -6,7 +6,6 @@ import {
   Column,
   DropdownMenu,
   DropdownMenuItem,
-  FloatingActionButton,
   Icon,
   ModalBottomSheet,
   Row,
@@ -145,25 +144,27 @@ export function WorkspacesSheet({
                 </Box>
               </SearchBar.Results>
             </SearchBar>
-            <FloatingActionButton
-              onClick={
-                onNewWorkspace &&
-                (() => {
-                  onClose();
-                  onNewWorkspace();
-                })
-              }
-              containerColor={material.primaryContainer}
+            {/* A surface, not a floating action button, so an unavailable one is disabled for
+                TalkBack too. */}
+            <Surface
+              color={material.primaryContainer}
+              contentColor={material.onPrimaryContainer}
+              enabled={!!onNewWorkspace}
+              onClick={() => {
+                if (!onNewWorkspace) return;
+                onClose();
+                onNewWorkspace();
+              }}
               modifiers={[
                 size(FIELD_HEIGHT, FIELD_HEIGHT),
                 clip(Shapes.Circle),
                 ...(onNewWorkspace ? [] : [alpha(UNAVAILABLE)]),
               ]}
             >
-              <FloatingActionButton.Icon>
+              <Box contentAlignment="center" modifiers={[size(FIELD_HEIGHT, FIELD_HEIGHT)]}>
                 <Icon source={addIcon} contentDescription={text.newWorkspace} />
-              </FloatingActionButton.Icon>
-            </FloatingActionButton>
+              </Box>
+            </Surface>
           </Row>
           {list(rows, material.surfaceContainerLow, undefined)}
         </Column>

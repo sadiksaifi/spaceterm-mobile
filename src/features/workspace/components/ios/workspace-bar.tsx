@@ -112,14 +112,16 @@ function worktreeButton(menu: WorktreeMenu): BarButton {
         label: choice.worktree.name,
         checked: choice.active,
         divided: index === 0,
+        disabled: !menu.connected,
       })),
     ],
     onAction: (action) => {
       if (action === "new") menu.onNewWorktree?.();
       else if (action === "remove") menu.onRemoveWorktree?.();
       else {
+        // A choice made as the Machine disconnected can arrive after the disconnected render.
         const choice = menu.choices.find((each) => id(each) === action);
-        if (choice !== undefined) menu.onPick(choice);
+        if (choice !== undefined && menu.connected) menu.onPick(choice);
       }
     },
   };

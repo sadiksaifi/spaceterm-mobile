@@ -192,9 +192,14 @@ function isRowFailure(failure: TabFailure | RowFailure): failure is RowFailure {
   return "row" in failure;
 }
 
-/** Back, the Workspace's name, and the Workspace menu. */
+/**
+ * Back, the Workspace's name with the active Worktree under it, and the Workspace menu. The top app
+ * bar has no subtitle slot, so the title stacks both in the type Material gives a subtitle.
+ */
 function Header(props: WorkspaceScreenProps) {
   const colors = useColors();
+  const material = useMaterialColors();
+  const worktree = worktreeMenu(props);
   return (
     <TopAppBar colors={{ containerColor: colors.background }}>
       <TopAppBar.NavigationIcon>
@@ -203,14 +208,26 @@ function Header(props: WorkspaceScreenProps) {
         </IconButton>
       </TopAppBar.NavigationIcon>
       <TopAppBar.Title>
-        <Text
-          maxLines={1}
-          overflow="ellipsis"
-          style={{ typography: "titleLarge" }}
-          modifiers={[heading()]}
-        >
-          {props.view.workspace.name}
-        </Text>
+        <Column>
+          <Text
+            maxLines={1}
+            overflow="ellipsis"
+            style={{ typography: "titleLarge" }}
+            modifiers={[heading()]}
+          >
+            {props.view.workspace.name}
+          </Text>
+          {worktree !== null && (
+            <Text
+              maxLines={1}
+              overflow="ellipsis"
+              color={material.onSurfaceVariant}
+              style={{ typography: "labelMedium" }}
+            >
+              {worktree.active.name}
+            </Text>
+          )}
+        </Column>
       </TopAppBar.Title>
       <TopAppBar.Actions>
         <WorkspaceMenu {...props} />

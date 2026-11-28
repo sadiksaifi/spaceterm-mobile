@@ -40,7 +40,7 @@ import { text } from "../../text";
 
 /** Material gives a not connected row the disabled look. */
 const DIMMED = 0.5;
-/** Side by side, the Machine leaves at least this share of the line to the name. */
+/** Side by side, the Machine takes at most this share of the line; the name takes the rest. */
 const DETAIL_SHARE = 0.6;
 /** The touch and hold menu, as wide as the design draws it. */
 const MENU_WIDTH = 220;

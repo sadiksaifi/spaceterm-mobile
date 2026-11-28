@@ -46,7 +46,7 @@ import type { WorkspaceScreenProps } from "./props";
 import type ScreenContract from "./screen";
 import { failureText, text } from "./text";
 import type { TabFailure } from "./use-tab-commands";
-import { worktreeMenu } from "./worktree-menu";
+import { headerBranch, worktreeMenu } from "./worktree-menu";
 
 /** The bar sits this far above the gesture area. */
 const BAR_MARGIN = 16;
@@ -193,13 +193,13 @@ function isRowFailure(failure: TabFailure | RowFailure): failure is RowFailure {
 }
 
 /**
- * Back, the Workspace's name with the active Worktree under it, and the Workspace menu. The top app
+ * Back, the Workspace's name with its branch under it, and the Workspace menu. The top app
  * bar has no subtitle slot, so the title stacks both in the type Material gives a subtitle.
  */
 function Header(props: WorkspaceScreenProps) {
   const colors = useColors();
   const material = useMaterialColors();
-  const worktree = worktreeMenu(props);
+  const branch = headerBranch(props.view, worktreeMenu(props));
   return (
     <TopAppBar colors={{ containerColor: colors.background }}>
       <TopAppBar.NavigationIcon>
@@ -217,14 +217,14 @@ function Header(props: WorkspaceScreenProps) {
           >
             {props.view.workspace.name}
           </Text>
-          {worktree !== null && (
+          {branch !== null && (
             <Text
               maxLines={1}
               overflow="ellipsis"
               color={material.onSurfaceVariant}
               style={{ typography: "labelMedium" }}
             >
-              {worktree.active.name}
+              {branch}
             </Text>
           )}
         </Column>

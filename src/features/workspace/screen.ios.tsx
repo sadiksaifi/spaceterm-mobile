@@ -27,7 +27,7 @@ import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-b
 import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
 import type ScreenContract from "./screen";
 import { text } from "./text";
-import { worktreeMenu } from "./worktree-menu";
+import { headerBranch, worktreeMenu } from "./worktree-menu";
 
 /** The bar's bottom edge sits this far into the bottom safe area, as the mockups place it. */
 const INTO_SAFE_AREA = 6;
@@ -160,8 +160,8 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
           gestureResponseDistance: { bottom: barTop },
         }}
       />
-      {/* The active Worktree under the Workspace's name; the bar's Worktree button changes it. */}
-      <NavigationSubtitle text={worktree?.active.name ?? null} />
+      {/* The branch under the Workspace's name; the bar's Worktree button changes it. */}
+      <NavigationSubtitle text={headerBranch(view, worktree)} />
       <WorkspaceMenu {...props} />
       <Host style={styles.fill}>{alertsView(onScreen)(body)}</Host>
     </>

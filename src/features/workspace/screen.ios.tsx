@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
 import { Unreachable } from "@/features/home/components/ios/states/unreachable";
+import { NavigationSubtitle } from "@/modules/navigation-subtitle";
 
 import { moves } from "./grid";
 import { splitOf } from "./layout";
@@ -159,6 +160,8 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
           gestureResponseDistance: { bottom: barTop },
         }}
       />
+      {/* The active Worktree under the Workspace's name; the bar's Worktree button changes it. */}
+      <NavigationSubtitle text={worktree?.active.name ?? null} />
       <WorkspaceMenu {...props} />
       <Host style={styles.fill}>{alertsView(onScreen)(body)}</Host>
     </>

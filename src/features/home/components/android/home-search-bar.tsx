@@ -1,7 +1,7 @@
 import { Box, Text } from "@expo/ui/jetpack-compose";
 import { fillMaxSize, fillMaxWidth, imePadding, padding } from "@expo/ui/jetpack-compose/modifiers";
-import { useFocusEffect } from "expo-router";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useNavigation, type NativeStackNavigationProp } from "expo-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SearchBar, type SearchBarRef } from "@/modules/search-bar";
@@ -14,6 +14,13 @@ import { text } from "../../text";
 import { HomeContent } from "./home-content";
 import { EMPTY_BOTTOM_IN_SEARCH } from "./states/empty-state";
 import { MoreMenu } from "./more-menu";
+
+/** Closes the full-screen search. A search bar Home has already removed took its search with it. */
+function closeSearch(searchBar: SearchBarRef | null) {
+  searchBar?.collapse().catch((error: unknown) => {
+    if ((error as { code?: unknown } | null)?.code !== "ERR_VIEW_NOT_FOUND") console.error(error);
+  });
+}
 
 /**
  * The search pill in the header's place. It opens a full-screen search of the Workspaces.
@@ -39,13 +46,16 @@ export function HomeSearchBar({
   const [query, setQuery] = useState("");
   const insets = useSafeAreaInsets();
   const searchBar = useRef<SearchBarRef>(null);
-  useFocusEffect(
-    useCallback(
-      () => () => {
-        void searchBar.current?.collapse();
-      },
-      [],
-    ),
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
+  // Search closes once the next screen covers Home, so Home never shows in between. Home loses
+  // focus as the navigation starts, and the next screen draws its first frame only after its
+  // transition starts, so closing at either of those shows Home for a few frames.
+  useEffect(
+    () =>
+      navigation.addListener("transitionEnd", ({ data }) => {
+        if (data.closing) closeSearch(searchBar.current);
+      }),
+    [navigation],
   );
 
   return (

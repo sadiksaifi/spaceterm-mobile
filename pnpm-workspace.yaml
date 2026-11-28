@@ -3,6 +3,7 @@ allowBuilds:
 patchedDependencies:
   "@expo/ui": patches/@expo__ui.patch
   expo-device: patches/expo-device.patch
+  expo-router: patches/expo-router.patch
   expo-sqlite: patches/expo-sqlite.patch
 trustPolicy: no-downgrade
 trustPolicyExclude:

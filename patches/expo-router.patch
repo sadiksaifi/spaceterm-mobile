@@ -1,0 +1,102 @@
+diff --git a/ios/Toolbar/RouterToolbarHostView.swift b/ios/Toolbar/RouterToolbarHostView.swift
+--- a/ios/Toolbar/RouterToolbarHostView.swift
++++ b/ios/Toolbar/RouterToolbarHostView.swift
+@@ -49,8 +49,10 @@
+ 
+     hasPendingToolbarUpdate = true
+ 
+-    // Defer actual update to next run loop iteration
+-    DispatchQueue.main.async { [weak self] in
++    // Defer the update to the end of this run loop pass, before Core Animation commits it. A
++    // screen mounts inside a main queue block, so a block queued on the main queue would run
++    // after the screen's push has started, and UIKit would start the push without these items.
++    RunLoop.main.perform(inModes: [.common]) { [weak self] in
+       guard let self = self else { return }
+       self.hasPendingToolbarUpdate = false
+       self.performToolbarUpdate()
+@@ -170,6 +172,12 @@
+   override func didMoveToWindow() {
+     super.didMoveToWindow()
+     if window == nil {
++      // A screen pushed over this one takes it off the window, but the toolbar still belongs to
++      // it. Its items stay, so UIKit brings them back with the screen when the pushed one pops,
++      // instead of the toolbar appearing once the pop has started.
++      if isInsideCachedScreen {
++        return
++      }
+       // View was removed from window - hide toolbar and clear items
+       // Use cached controller since responder chain may be broken
+       if let controller = cachedController {
+@@ -182,14 +190,51 @@
+     }
+   }
+ 
++  override func willMove(toSuperview newSuperview: UIView?) {
++    super.willMove(toSuperview: newSuperview)
++    // The toolbar leaves its parent while another screen covers it: no window change reports it.
++    // Fabric may only be moving it, removing and inserting it in one mount, so decide at the end
++    // of this run loop pass. The items stay if the toolbar is back inside its screen.
++    if newSuperview == nil, window == nil {
++      RunLoop.main.perform(inModes: [.common]) { [weak self] in
++        guard let self = self, !self.isInsideCachedScreen else { return }
++        self.clearToolbarItems()
++      }
++    }
++  }
++
++  // React deleted the toolbar, perhaps with a view around it, while another screen covered it, so
++  // no window change reached this view. Expo views are never recycled, so Fabric calls invalidate,
++  // not prepareForRecycle. Swift cannot see ExpoFabricViewObjC's invalidate, so this one replaces
++  // it by selector and then runs the inherited one through the runtime.
++  @objc func invalidate() {
++    clearToolbarItems()
++    let selector = NSSelectorFromString("invalidate")
++    guard let method = class_getInstanceMethod(ExpoFabricViewObjC.self, selector) else { return }
++    typealias Invalidate = @convention(c) (AnyObject, Selector) -> Void
++    unsafeBitCast(method_getImplementation(method), to: Invalidate.self)(self, selector)
++  }
++
++  private var isInsideCachedScreen: Bool {
++    guard let view = cachedController?.viewIfLoaded else { return false }
++    return isDescendant(of: view)
++  }
++
++  private func clearToolbarItems() {
++    cachedController?.setToolbarItems(nil, animated: false)
++    cachedController = nil
++  }
++
+   func updateMenu() {
+     updateToolbarItems()
+   }
+ 
+   func findViewController() -> RNSScreen? {
+-    if let cached = cachedController {
++    // The toolbar may have left the screen it was cached for.
++    if let cached = cachedController, isInsideCachedScreen {
+       return cached
+     }
++    cachedController = nil
+     var responder: UIResponder? = self
+     while let r = responder {
+       if let screen = r as? RNSScreen {
+diff --git a/ios/Toolbar/RouterToolbarItemView.swift b/ios/Toolbar/RouterToolbarItemView.swift
+--- a/ios/Toolbar/RouterToolbarItemView.swift
++++ b/ios/Toolbar/RouterToolbarItemView.swift
+@@ -101,11 +101,11 @@
+         currentBarButtonItem = nil
+         return
+       }
+-      guard let navController = controller.navigationController else {
+-        currentBarButtonItem = nil
+-        return
+-      }
+-      guard navController.isNavigationBarHidden == false else {
++      // A pushed screen's toolbar items are set before the push, while the screen has no
++      // navigation controller yet. The slot comes from the screen's navigation item, which already
++      // exists, so build it then. Without it, UIKit starts the push with the search bar in the
++      // navigation bar.
++      if let navController = controller.navigationController, navController.isNavigationBarHidden {
+         logger?.warn(
+           "[expo-router] Toolbar.SearchBarPreferredSlot should only be used when stack header is shown."
+         )

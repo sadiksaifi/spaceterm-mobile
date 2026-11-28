@@ -29,6 +29,7 @@ import { RowAlertsView } from "@/features/home/components/android/row-alerts";
 import { Unreachable } from "@/features/home/components/android/states/unreachable";
 import type { RowFailure } from "@/features/home/row-alerts";
 import { text as homeText } from "@/features/home/text";
+import { heading } from "@/modules/compose-modifiers";
 import { useColors } from "@/shared/theme/colors";
 import { ScreenHost } from "@/shared/ui/android/screen-host";
 import { SnackbarSlot, useSnackbar } from "@/shared/ui/android/snackbar";
@@ -39,13 +40,13 @@ import { RemovalDialogs } from "./components/android/removal-dialogs";
 import { TabDialogs } from "./components/android/tab-dialogs";
 import { BAR_HEIGHT, WorkspaceBar } from "./components/android/workspace-bar";
 import { WorkspacesSheet } from "./components/android/workspaces-sheet";
-import { WorkspaceTitle } from "./components/android/workspace-title";
 import { moves } from "./grid";
 import { splitOf } from "./layout";
 import type { WorkspaceScreenProps } from "./props";
 import type ScreenContract from "./screen";
 import { failureText, text } from "./text";
 import type { TabFailure } from "./use-tab-commands";
+import { headerTitle, worktreeMenu } from "./worktree-menu";
 
 /** The bar sits this far above the gesture area. */
 const BAR_MARGIN = 16;
@@ -91,9 +92,9 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
               alerts={alerts}
               bottom={bottom}
               modifiers={[fillMaxWidth(), weight(1)]}
+              worktree={worktreeMenu(props)}
               onSwitch={props.onSwitch}
               onWorkspaces={() => setSheet(true)}
-              onNewWorkspace={props.onNewWorkspace}
             >
               {connected ? (
                 <Column
@@ -194,7 +195,6 @@ function isRowFailure(failure: TabFailure | RowFailure): failure is RowFailure {
 /** Back, the Worktree or directory, and the Workspace menu. The bar names the Workspace. */
 function Header(props: WorkspaceScreenProps) {
   const colors = useColors();
-  const { view, commands } = props;
   return (
     <TopAppBar colors={{ containerColor: colors.background }}>
       <TopAppBar.NavigationIcon>
@@ -203,14 +203,14 @@ function Header(props: WorkspaceScreenProps) {
         </IconButton>
       </TopAppBar.NavigationIcon>
       <TopAppBar.Title>
-        <WorkspaceTitle
-          directory={view.workspace.directory}
-          worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}
-          connected={view.kind === "tabs"}
-          onPickWorktree={({ worktree }) => commands.pickWorktree(worktree)}
-          onNewWorktree={props.onNewWorktree}
-          onRemoveWorktree={props.removal.start}
-        />
+        <Text
+          maxLines={1}
+          overflow="ellipsis"
+          style={{ typography: "titleLarge" }}
+          modifiers={[heading()]}
+        >
+          {headerTitle(props, worktreeMenu(props))}
+        </Text>
       </TopAppBar.Title>
       <TopAppBar.Actions>
         <WorkspaceMenu {...props} />

@@ -1,79 +1,47 @@
 import addIcon from "@expo/material-symbols/add.xml";
-import dropDownIcon from "@expo/material-symbols/keyboard_arrow_down.xml";
 import checkIcon from "@expo/material-symbols/check.xml";
 import deleteIcon from "@expo/material-symbols/delete.xml";
 import branchIcon from "@expo/material-symbols/graph_1.xml";
 import {
+  Box,
   DropdownMenu,
   DropdownMenuItem,
   HorizontalDivider,
   Icon,
-  Row,
+  Surface,
   Text,
   useMaterialColors,
 } from "@expo/ui/jetpack-compose";
 import {
+  alpha,
   background,
-  clickable,
   clip,
   defaultMinSize,
   padding,
   Shapes,
+  size,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { useState } from "react";
 
-import { flexible, heading } from "@/modules/compose-modifiers";
-
-import type { WorktreeChoice } from "../../grid";
 import { text } from "../../text";
+import type { WorktreeMenu } from "../../worktree-menu";
 
 const MENU_CORNER = 16;
 const MENU_ELEVATION = 3;
 const MENU_WIDTH = 220;
 /** The active Worktree's band, inset 4 dp in the menu. */
 const BAND_CORNER = 12;
-/** The title's touch area reaches past its text, as a button's would. */
-const TITLE_CORNER = 20;
+/** An unavailable button takes Material's disabled opacity. */
+const UNAVAILABLE = 0.38;
 
 /**
- * The top app bar's title. In a repository, the active Worktree, which opens the Worktree menu:
- * New Worktree and Remove Worktree, then the Worktrees with the active one filled. Otherwise, the
- * Workspace's directory, which opens nothing. The bar names the Workspace. No item is red.
+ * The bar's Worktree button, a circle as wide as the bar is tall, which opens the Worktree menu:
+ * New Worktree and Remove Worktree, then the Worktrees with the active one filled. No item is red.
  */
-export function WorkspaceTitle({
-  directory,
-  worktrees,
-  connected,
-  onPickWorktree,
-  onNewWorktree,
-  onRemoveWorktree,
-}: {
-  directory: string;
-  /** The repository's Worktrees, empty outside one. */
-  worktrees: readonly WorktreeChoice[];
-  /** A Workspace whose Machine is not connected shows its Worktree without the menu. */
-  connected: boolean;
-  onPickWorktree: (choice: WorktreeChoice) => void;
-  onNewWorktree: (() => void) | undefined;
-  /** Absent for the Main Worktree and while a removal is under way. */
-  onRemoveWorktree: (() => void) | undefined;
-}) {
+export function WorktreeButton({ menu, diameter }: { menu: WorktreeMenu; diameter: number }) {
   const [expanded, setExpanded] = useState(false);
   const material = useMaterialColors();
-  const active = worktrees.find((choice) => choice.active);
-
-  if (active === undefined) {
-    return (
-      <Text
-        maxLines={1}
-        overflow="ellipsis"
-        style={{ typography: "titleLarge" }}
-        modifiers={[heading()]}
-      >
-        {directory}
-      </Text>
-    );
-  }
+  const { connected, choices, onPick, onNewWorktree, onRemoveWorktree } = menu;
 
   const run = (onPress: (() => void) | undefined) => () => {
     setExpanded(false);
@@ -89,33 +57,23 @@ export function WorkspaceTitle({
       shadowElevation={MENU_ELEVATION}
     >
       <DropdownMenu.Trigger>
-        <Row
-          verticalAlignment="center"
-          horizontalArrangement={{ spacedBy: 8 }}
+        <Surface
+          color={material.surfaceContainerHigh}
+          enabled={connected}
+          onClick={() => setExpanded(true)}
           modifiers={[
-            clip(Shapes.RoundedCorner(TITLE_CORNER)),
-            ...(connected ? [clickable(() => setExpanded(true))] : []),
-            padding(8, 6, 4, 6),
+            size(diameter, diameter),
+            clip(Shapes.Circle),
+            ...(connected ? [] : [alpha(UNAVAILABLE)]),
           ]}
         >
-          <Icon source={branchIcon} contentDescription={text.worktree} />
-          <Text
-            maxLines={1}
-            overflow="ellipsis"
-            style={{ typography: "titleLarge" }}
-            modifiers={[flexible(), heading()]}
-          >
-            {active.worktree.name}
-          </Text>
-          {/* A chevron, as Material 3 Expressive's menu buttons have, quieter than the name. */}
-          {connected && (
+          <Box contentAlignment="center" modifiers={[size(diameter, diameter)]}>
             <Icon
-              source={dropDownIcon}
-              tint={material.onSurfaceVariant}
-              contentDescription={undefined}
+              source={branchIcon}
+              contentDescription={`${text.worktree}, ${menu.active.name}`}
             />
-          )}
-        </Row>
+          </Box>
+        </Surface>
       </DropdownMenu.Trigger>
       <DropdownMenu.Items>
         <DropdownMenuItem
@@ -143,7 +101,7 @@ export function WorkspaceTitle({
           </DropdownMenuItem.Text>
         </DropdownMenuItem>
         <HorizontalDivider modifiers={[padding(0, 8, 0, 8)]} />
-        {worktrees.map((choice) => (
+        {choices.map((choice) => (
           <DropdownMenuItem
             key={choice.worktree.path}
             modifiers={[
@@ -153,7 +111,7 @@ export function WorkspaceTitle({
                 ? [clip(Shapes.RoundedCorner(BAND_CORNER)), background(material.primaryContainer)]
                 : []),
             ]}
-            onClick={run(() => onPickWorktree(choice))}
+            onClick={run(() => onPick(choice))}
           >
             {choice.active && (
               <DropdownMenuItem.LeadingIcon>

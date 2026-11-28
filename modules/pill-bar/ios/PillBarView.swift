@@ -2,15 +2,18 @@ import ExpoModulesCore
 import ExpoUI
 import SwiftUI
 
-/** An entry of a pill's menu. */
+/** An entry of a pill's menu or a button's menu. */
 struct PillAction: Record {
   @Field var id: String = ""
   @Field var label: String = ""
+  /** An SF Symbol, or empty for none. */
   @Field var systemImage: String = ""
   @Field var destructive: Bool = false
   @Field var disabled: Bool = false
   /** A divider goes above it. */
   @Field var divided: Bool = false
+  /** Present for one of a set of choices, which the menu shows with a check while true. */
+  @Field var checked: Bool?
 }
 
 struct Pill: Record {
@@ -19,10 +22,12 @@ struct Pill: Record {
   @Field var actions: [PillAction] = []
 }
 
-/** A round glass button beside the pills. */
+/** A round glass button beside the pills. With a menu, it opens the menu instead of acting. */
 struct BarButton: Record {
   @Field var systemImage: String = ""
   @Field var label: String = ""
+  @Field var menu: [PillAction]?
+  @Field var disabled: Bool = false
 }
 
 final class PillBarProps: UIBaseViewProps {
@@ -37,6 +42,8 @@ final class PillBarProps: UIBaseViewProps {
   var onAction = EventDispatcher()
   var onLeading = EventDispatcher()
   var onTrailing = EventDispatcher()
+  var onLeadingAction = EventDispatcher()
+  var onTrailingAction = EventDispatcher()
 }
 
 /**
@@ -183,14 +190,14 @@ struct PillBarView: ExpoSwiftUI.View {
     let held = drag != nil
     return HStack(spacing: 0) {
       if let leading = props.leading {
-        button(leading) { props.onLeading() }
+        button(leading) { props.onLeading() } choose: { props.onLeadingAction(["action": $0]) }
           .frame(width: held ? 0 : Self.height + Self.gap, alignment: .leading)
           .offset(x: held ? -(Self.height + Self.gap) : 0)
           .opacity(held ? 0 : 1)
       }
       capsule
       if let trailing = props.trailing {
-        button(trailing) { props.onTrailing() }
+        button(trailing) { props.onTrailing() } choose: { props.onTrailingAction(["action": $0]) }
           .frame(width: held ? 0 : Self.height + Self.gap, alignment: .trailing)
           .offset(x: held ? Self.height + Self.gap : 0)
           .opacity(held ? 0 : 1)
@@ -204,14 +211,24 @@ struct PillBarView: ExpoSwiftUI.View {
   }
 
   /** A held capsule takes the buttons' room, so they slide off to the sides. */
-  private func button(_ button: BarButton, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: button.systemImage)
-        .font(.system(size: 20, weight: .medium))
-        .frame(width: Self.height - 16, height: Self.height - 16)
+  private func button(
+    _ button: BarButton, action: @escaping () -> Void, choose: @escaping (String) -> Void
+  ) -> some View {
+    let icon = Image(systemName: button.systemImage)
+      .font(.system(size: 20, weight: .medium))
+      .frame(width: Self.height - 16, height: Self.height - 16)
+    return Group {
+      if let menu = button.menu {
+        Menu { entries(menu, choose: choose) } label: { icon }
+          .menuStyle(.button)
+          .menuIndicator(.hidden)
+      } else {
+        Button(action: action) { icon }
+      }
     }
     .buttonStyle(.glass)
     .buttonBorderShape(.circle)
+    .disabled(button.disabled)
     .accessibilityLabel(button.label)
     .frame(width: Self.height, height: Self.height)
   }
@@ -344,16 +361,30 @@ struct PillBarView: ExpoSwiftUI.View {
     }
   }
 
-  @ViewBuilder
   private func menu(_ pill: Pill) -> some View {
-    ForEach(pill.actions, id: \.id) { action in
+    entries(pill.actions) { props.onAction(["key": pill.key, "action": $0]) }
+  }
+
+  /** A menu's entries, which report the `id` of the one chosen. */
+  @ViewBuilder
+  private func entries(_ actions: [PillAction], choose: @escaping (String) -> Void) -> some View {
+    ForEach(actions, id: \.id) { action in
       if action.divided { Divider() }
-      Button(role: action.destructive ? .destructive : nil) {
-        props.onAction(["key": pill.key, "action": action.id])
-      } label: {
-        Label(action.label, systemImage: action.systemImage)
+      if let checked = action.checked {
+        Toggle(action.label, isOn: Binding(get: { checked }, set: { _ in choose(action.id) }))
+          .disabled(action.disabled)
+      } else {
+        Button(role: action.destructive ? .destructive : nil) {
+          choose(action.id)
+        } label: {
+          if action.systemImage.isEmpty {
+            Text(action.label)
+          } else {
+            Label(action.label, systemImage: action.systemImage)
+          }
+        }
+        .disabled(action.disabled)
       }
-      .disabled(action.disabled)
     }
   }
 

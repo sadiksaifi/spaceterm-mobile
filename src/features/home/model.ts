@@ -11,7 +11,7 @@ export type WorkspaceRow = {
   machineId: string;
   machineName: string;
   workspace: Workspace;
-  /** `connected` rows show the directory and branch; the others show the state and are dimmed. */
+  /** `connected` rows show the directory; the others show the state and are dimmed. */
   connection: ConnectionState;
 };
 

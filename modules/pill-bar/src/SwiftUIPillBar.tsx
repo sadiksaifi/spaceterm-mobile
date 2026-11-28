@@ -3,26 +3,35 @@ import { createViewModifierEventListener } from "@expo/ui/swift-ui/modifiers";
 import { requireNativeView } from "expo";
 import type { ReactNode } from "react";
 
-/** An entry of a pill's menu. */
+/** An entry of a pill's menu or a button's menu. */
 export type PillAction = {
   id: string;
   label: string;
   /** An SF Symbol. */
-  systemImage: string;
+  systemImage?: string;
   destructive?: boolean;
   disabled?: boolean;
   /** A divider goes above it. */
   divided?: boolean;
+  /** Present for one of a set of choices, which the menu shows with a check while true. */
+  checked?: boolean;
 };
 
 export type Pill = { key: string; name: string; actions: readonly PillAction[] };
 
-/** A round glass button beside the pills. */
+/** A round glass button beside the pills, which acts on a tap or opens its menu. */
 export type BarButton = {
   /** An SF Symbol. */
   systemImage: string;
   label: string;
-  onPress: () => void;
+  disabled?: boolean;
+} & (
+  | { onPress: () => void; menu?: never; onAction?: never }
+  | { menu: readonly PillAction[]; onAction: (action: string) => void; onPress?: never }
+);
+
+type NativeButton = Pick<BarButton, "systemImage" | "label" | "disabled"> & {
+  menu?: readonly PillAction[];
 };
 
 export type PillBarProps = CommonViewModifierProps & {
@@ -46,8 +55,8 @@ export type PillBarProps = CommonViewModifierProps & {
 type NativeProps = CommonViewModifierProps & {
   pills: readonly Pill[];
   selected: string;
-  leading?: Omit<BarButton, "onPress">;
-  trailing?: Omit<BarButton, "onPress">;
+  leading?: NativeButton;
+  trailing?: NativeButton;
   bottom?: number;
   side?: number;
   children?: ReactNode;
@@ -55,6 +64,8 @@ type NativeProps = CommonViewModifierProps & {
   onAction: (event: { nativeEvent: { key: string; action: string } }) => void;
   onLeading: () => void;
   onTrailing: () => void;
+  onLeadingAction: (event: { nativeEvent: { action: string } }) => void;
+  onTrailingAction: (event: { nativeEvent: { action: string } }) => void;
 };
 
 const NativePillBar = requireNativeView<NativeProps>("SpaceTermPillBar", "PillBarView");
@@ -79,12 +90,19 @@ export function PillBar({
       modifiers={modifiers}
       {...(modifiers ? createViewModifierEventListener(modifiers) : undefined)}
       {...rest}
-      leading={leading && { systemImage: leading.systemImage, label: leading.label }}
-      trailing={trailing && { systemImage: trailing.systemImage, label: trailing.label }}
+      leading={leading && native(leading)}
+      trailing={trailing && native(trailing)}
       onSelect={({ nativeEvent }) => onSelect(nativeEvent.key)}
       onAction={({ nativeEvent }) => onAction(nativeEvent.key, nativeEvent.action)}
-      onLeading={() => leading?.onPress()}
-      onTrailing={() => trailing?.onPress()}
+      onLeading={() => leading?.onPress?.()}
+      onTrailing={() => trailing?.onPress?.()}
+      onLeadingAction={({ nativeEvent }) => leading?.onAction?.(nativeEvent.action)}
+      onTrailingAction={({ nativeEvent }) => trailing?.onAction?.(nativeEvent.action)}
     />
   );
+}
+
+/** The button without its callbacks, which the native view cannot take. */
+function native({ systemImage, label, disabled, menu }: BarButton): NativeButton {
+  return { systemImage, label, disabled, menu };
 }

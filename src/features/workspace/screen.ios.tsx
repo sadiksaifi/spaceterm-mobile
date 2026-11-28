@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RowAlertsView } from "@/features/home/components/ios/row-alerts";
 import { Unreachable } from "@/features/home/components/ios/states/unreachable";
+import { NavigationSubtitle } from "@/modules/navigation-subtitle";
 
 import { moves } from "./grid";
 import { splitOf } from "./layout";
@@ -24,15 +25,13 @@ import { RemovalAlertsView } from "./components/ios/removal-alerts";
 import { TabAlertsView } from "./components/ios/tab-alerts";
 import { BAR_HEIGHT, menuItem, WorkspaceBar } from "./components/ios/workspace-bar";
 import { WorkspacesSheet } from "./components/ios/workspaces-sheet";
-import { WorkspaceTitle } from "./components/ios/workspace-title";
 import type ScreenContract from "./screen";
 import { text } from "./text";
+import { headerBranch, worktreeMenu } from "./worktree-menu";
 
 /** The bar's bottom edge sits this far into the bottom safe area, as the mockups place it. */
 const INTO_SAFE_AREA = 6;
 const MIN_BOTTOM = 16;
-/** The most of the screen's width the header's top left takes. */
-const TITLE_SHARE = 0.6;
 
 export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const { view, rows, row, commands, alerts } = props;
@@ -44,6 +43,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
   const barTop = window.height - bottom - BAR_HEIGHT;
   const connected = view.kind === "tabs";
   const panes = connected ? commands.panes : null;
+  const worktree = worktreeMenu(props);
 
   // A system alert shows over the topmost view: an open sheet, else the screen. Each view always
   // carries the alerts, so a sheet that closes leaves every view in place.
@@ -126,7 +126,7 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
         selected={row.key}
         alerts={alerts}
         bottom={bottom}
-        onBack={props.onBack}
+        worktree={worktree}
         onSwitch={props.onSwitch}
         onWorkspaces={() => setSheet(true)}
       >
@@ -153,28 +153,15 @@ export default function WorkspaceScreen(props: WorkspaceScreenProps) {
 
   return (
     <>
-      {/* Back sits in the bar, so the Worktree takes its place at the top left and the middle stays
-          empty. The swipe back starts above the bar only, so a swipe on the bar stays there. */}
+      {/* The swipe back starts above the bar only, so a swipe on the bar stays there. */}
       <Stack.Screen
         options={{
           title: view.workspace.name,
-          headerTitle: "",
           gestureResponseDistance: { bottom: barTop },
         }}
       />
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.View hidesSharedBackground>
-          <WorkspaceTitle
-            directory={view.workspace.directory}
-            worktrees={view.workspace.repository === null ? [] : commands.grid.worktrees}
-            connected={connected}
-            width={window.width * TITLE_SHARE}
-            onPickWorktree={({ worktree }) => commands.pickWorktree(worktree)}
-            onNewWorktree={props.onNewWorktree}
-            onRemoveWorktree={props.removal.start}
-          />
-        </Stack.Toolbar.View>
-      </Stack.Toolbar>
+      {/* The branch under the Workspace's name; the bar's Worktree button changes it. */}
+      <NavigationSubtitle text={headerBranch(view, worktree)} />
       <WorkspaceMenu {...props} />
       <Host style={styles.fill}>{alertsView(onScreen)(body)}</Host>
     </>

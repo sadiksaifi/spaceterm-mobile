@@ -1,8 +1,7 @@
 diff --git a/ios/Toolbar/RouterToolbarHostView.swift b/ios/Toolbar/RouterToolbarHostView.swift
-index b10810d4207786561e53aa93e77cfa0adb2d8d3f..86f81b90f7dfabd97334f16419a9e858a053a1ff 100644
 --- a/ios/Toolbar/RouterToolbarHostView.swift
 +++ b/ios/Toolbar/RouterToolbarHostView.swift
-@@ -49,8 +49,10 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+@@ -49,8 +49,10 @@
  
      hasPendingToolbarUpdate = true
  
@@ -15,36 +14,51 @@ index b10810d4207786561e53aa93e77cfa0adb2d8d3f..86f81b90f7dfabd97334f16419a9e858
        guard let self = self else { return }
        self.hasPendingToolbarUpdate = false
        self.performToolbarUpdate()
-@@ -170,6 +172,12 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+@@ -170,6 +172,12 @@
    override func didMoveToWindow() {
      super.didMoveToWindow()
      if window == nil {
 +      // A screen pushed over this one takes it off the window, but the toolbar still belongs to
 +      // it. Its items stay, so UIKit brings them back with the screen when the pushed one pops,
 +      // instead of the toolbar appearing once the pop has started.
-+      if let view = cachedController?.viewIfLoaded, isDescendant(of: view) {
++      if isInsideCachedScreen {
 +        return
 +      }
        // View was removed from window - hide toolbar and clear items
        // Use cached controller since responder chain may be broken
        if let controller = cachedController {
-@@ -182,14 +190,36 @@ class RouterToolbarHostView: RouterViewWithLogger, LinkPreviewMenuUpdatable {
+@@ -182,14 +190,51 @@
      }
    }
  
 +  override func willMove(toSuperview newSuperview: UIView?) {
 +    super.willMove(toSuperview: newSuperview)
-+    // The toolbar leaves its screen while another screen covers it: no window change reports it.
++    // The toolbar leaves its parent while another screen covers it: no window change reports it.
++    // Fabric may only be moving it, removing and inserting it in one mount, so decide at the end
++    // of this run loop pass. The items stay if the toolbar is back inside its screen.
 +    if newSuperview == nil, window == nil {
-+      clearToolbarItems()
++      RunLoop.main.perform(inModes: [.common]) { [weak self] in
++        guard let self = self, !self.isInsideCachedScreen else { return }
++        self.clearToolbarItems()
++      }
 +    }
 +  }
 +
-+  // React removed the toolbar, perhaps with a view around it that left the screen while another
-+  // screen covered it, so no window or superview change reached this view.
-+  override func prepareForRecycle() {
-+    super.prepareForRecycle()
++  // React deleted the toolbar, perhaps with a view around it, while another screen covered it, so
++  // no window change reached this view. Expo views are never recycled, so Fabric calls invalidate,
++  // not prepareForRecycle. Swift cannot see ExpoFabricViewObjC's invalidate, so this one replaces
++  // it by selector and then runs the inherited one through the runtime.
++  @objc func invalidate() {
 +    clearToolbarItems()
++    let selector = NSSelectorFromString("invalidate")
++    guard let method = class_getInstanceMethod(ExpoFabricViewObjC.self, selector) else { return }
++    typealias Invalidate = @convention(c) (AnyObject, Selector) -> Void
++    unsafeBitCast(method_getImplementation(method), to: Invalidate.self)(self, selector)
++  }
++
++  private var isInsideCachedScreen: Bool {
++    guard let view = cachedController?.viewIfLoaded else { return false }
++    return isDescendant(of: view)
 +  }
 +
 +  private func clearToolbarItems() {
@@ -59,7 +73,7 @@ index b10810d4207786561e53aa93e77cfa0adb2d8d3f..86f81b90f7dfabd97334f16419a9e858
    func findViewController() -> RNSScreen? {
 -    if let cached = cachedController {
 +    // The toolbar may have left the screen it was cached for.
-+    if let cached = cachedController, let view = cached.viewIfLoaded, isDescendant(of: view) {
++    if let cached = cachedController, isInsideCachedScreen {
        return cached
      }
 +    cachedController = nil

@@ -1,12 +1,14 @@
 package expo.modules.searchbar
 
-import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.Paint
+import android.graphics.Picture
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
@@ -15,54 +17,55 @@ import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** The class of a react-native-screens screen, the page a stack shows and moves in transitions. */
-private const val SCREEN_CLASS = "com.swmansion.rnscreens.Screen"
-
 /**
- * A still picture laid over the page a view is on. It sits in the stack's own container for that
- * page, so it moves with the page in the stack's transitions. Until `unshield()`, the whole window
- * takes no touch either, as the next screen takes touches before it shows.
+ * A still picture of a window, drawn over a page in the page's own overlay, so it moves with the
+ * page in the stack's transitions. Until `unshield()`, the whole window takes no touch either, as
+ * the next screen takes touches before it shows. The picture goes when the page leaves its window.
  */
-@SuppressLint("ViewConstructor")
 internal class PageCover private constructor(
-  page: ViewGroup,
-  private val picture: Bitmap?,
+  private val page: View,
+  private val picture: Picture,
   private val pictureX: Float,
   private val pictureY: Float,
   color: Int
-) : View(page.context) {
+) : View.OnAttachStateChangeListener {
   private val shield = View(page.context)
+  private val background = Paint().apply { this.color = color }
+  private val drawable =
+    object : Drawable() {
+      override fun draw(canvas: Canvas) {
+        canvas.drawRect(bounds, background)
+        canvas.save()
+        canvas.translate(pictureX, pictureY)
+        canvas.drawPicture(picture)
+        canvas.restore()
+      }
+
+      override fun setAlpha(alpha: Int) = Unit
+
+      override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+
+      @Deprecated("Deprecated in Java")
+      override fun getOpacity() = PixelFormat.OPAQUE
+    }
 
   init {
-    setBackgroundColor(color)
-    isClickable = true
-    importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-    // Above the stack's header container, without a shadow at the edges.
-    outlineProvider = null
-    elevation = 10_000f
-    page.addView(this, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-    // React Native lays out its views only when it mounts them, and it ignores layout requests from
-    // inside them, so the picture takes the page's size here to show in the next frame.
-    measure(
-      MeasureSpec.makeMeasureSpec(page.width, MeasureSpec.EXACTLY),
-      MeasureSpec.makeMeasureSpec(page.height, MeasureSpec.EXACTLY)
-    )
-    layout(0, 0, page.width, page.height)
+    drawable.setBounds(0, 0, page.width, page.height)
+    page.overlay.add(drawable)
+    page.addOnAttachStateChangeListener(this)
 
     shield.isClickable = true
-    shield.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    shield.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     (page.rootView as? ViewGroup)?.let { root ->
       root.addView(shield, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+      // React Native ignores layout requests from inside its views, so the shield takes the
+      // window's size here to take touches at once.
       shield.measure(
-        MeasureSpec.makeMeasureSpec(root.width, MeasureSpec.EXACTLY),
-        MeasureSpec.makeMeasureSpec(root.height, MeasureSpec.EXACTLY)
+        View.MeasureSpec.makeMeasureSpec(root.width, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(root.height, View.MeasureSpec.EXACTLY)
       )
       shield.layout(0, 0, root.width, root.height)
     }
-  }
-
-  override fun onDraw(canvas: Canvas) {
-    picture?.let { canvas.drawBitmap(it, pictureX, pictureY, null) }
   }
 
   /** Waits until the screen shows the picture, at most `timeoutMs`. */
@@ -70,8 +73,8 @@ internal class PageCover private constructor(
     withTimeoutOrNull(timeoutMs) {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         suspendCancellableCoroutine { continuation ->
-          viewTreeObserver.registerFrameCommitCallback { continuation.resume(Unit) }
-          invalidate()
+          page.viewTreeObserver.registerFrameCommitCallback { continuation.resume(Unit) }
+          page.invalidate()
         }
       } else {
         // Two frames: one draws the picture, and the next shows it.
@@ -87,42 +90,34 @@ internal class PageCover private constructor(
 
   fun remove() {
     unshield()
-    (parent as? ViewGroup)?.removeView(this)
-    picture?.recycle()
+    page.removeOnAttachStateChangeListener(this)
+    page.overlay.remove(drawable)
+  }
+
+  override fun onViewAttachedToWindow(view: View) = Unit
+
+  // The stack takes a page out of the window once the next screen covers it, and nothing on the
+  // page shows until the page is back. It can do so while the window draws, when no view may leave
+  // the window, so the shield leaves after that.
+  override fun onViewDetachedFromWindow(view: View) {
+    Handler(Looper.getMainLooper()).post(::remove)
   }
 
   companion object {
-    /** What `window` shows now, or null when Android cannot copy it. */
-    suspend fun capture(window: Window): Bitmap? {
-      val decor = window.decorView
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || decor.width == 0 || decor.height == 0) return null
-      val bitmap = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888)
-      val copied = suspendCancellableCoroutine { continuation ->
-        PixelCopy.request(
-          window,
-          bitmap,
-          { result -> continuation.resume(result == PixelCopy.SUCCESS) },
-          Handler(Looper.getMainLooper())
-        )
-      }
-      if (copied) return bitmap
-      bitmap.recycle()
-      return null
-    }
-
     /**
-     * Covers the page `view` is on with `picture`, taken of `window`, over `color`. Returns null,
-     * and recycles the picture, when `view` is on no page of a stack.
+     * Covers `page` with a picture of what `window` shows now, over `color`. Returns null when
+     * either has no size.
      */
-    fun over(view: View, window: Window, picture: Bitmap?, color: Int): PageCover? {
-      val screen = generateSequence(view.parent) { it.parent }.firstOrNull { it.javaClass.name == SCREEN_CLASS }
-      val page = screen?.parent as? ViewGroup
-      if (page == null) {
-        picture?.recycle()
-        return null
-      }
+    fun over(page: View, window: Window, color: Int): PageCover? {
+      val decor = window.decorView
+      if (page.width == 0 || page.height == 0 || decor.width == 0 || decor.height == 0) return null
+      // A recording of the window's drawing, not a copy of its pixels: Android draws it again
+      // with the page, which needs no copy from the screen and holds little memory.
+      val picture = Picture()
+      decor.draw(picture.beginRecording(decor.width, decor.height))
+      picture.endRecording()
       val pageAt = IntArray(2).also { page.getLocationOnScreen(it) }
-      val windowAt = IntArray(2).also { window.decorView.getLocationOnScreen(it) }
+      val windowAt = IntArray(2).also { decor.getLocationOnScreen(it) }
       return PageCover(
         page,
         picture,

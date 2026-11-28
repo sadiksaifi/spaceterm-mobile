@@ -98,7 +98,16 @@ fun FunctionalComposableScope.SearchBarContent(
   var resultsEnabled by remember { mutableStateOf(true) }
   var pageCover by remember { mutableStateOf<PageCover?>(null) }
   var covering by remember { mutableStateOf<Job?>(null) }
+  // The page lost focus, so search stays closed until it has focus again.
+  var leaving by remember { mutableStateOf(false) }
+  // The page the search bar is on: its host's Compose view, which moves with it.
+  val page = LocalView.current
   val pageColor = MaterialTheme.colorScheme.surface.toArgb()
+  // Ends the search with no animation, also one that is opening.
+  suspend fun closeAtOnce() {
+    val open = searchBarState.currentValue == SearchBarValue.Expanded
+    if (open || searchBarState.targetValue == SearchBarValue.Expanded) searchBarState.snapTo(0f)
+  }
 
   LaunchedEffect(textFieldState) {
     snapshotFlow { textFieldState.text.toString() }
@@ -115,23 +124,19 @@ fun FunctionalComposableScope.SearchBarContent(
     if (inputModeManager.inputMode == InputMode.Touch) barFocus.clearFocus()
   }
 
-  // The page asks for these when a selection leaves it. The full-screen search is a window above
-  // every screen, so the next screen would open under it. Search closes at once instead, and a
-  // picture of it stays on the page, so the page never shows before the next screen covers it.
+  // The page asks for these when it loses focus. The full-screen search is a window above every
+  // screen, so the next screen would open under it. Search closes at once instead, and a picture
+  // of it stays on the page, so the page never shows before the next screen covers it.
   cover.handle {
     try {
       withContext(scope.coroutineContext) {
-        val window = searchWindow ?: return@withContext
+        leaving = true
+        // Search is closed, or it is opening and its window does not exist yet.
+        val window = searchWindow ?: return@withContext closeAtOnce()
         val job = scope.launch {
           resultsEnabled = false
-          val picture = PageCover.capture(window)
-          // The search closed, or another one opened, while Android copied it.
-          if (searchWindow !== window) {
-            picture?.recycle()
-            return@launch
-          }
           pageCover?.remove()
-          val shown = PageCover.over(view, window, picture, pageColor)
+          val shown = PageCover.over(page, window, pageColor)
           pageCover = shown
           // The search window leaves the screen as soon as it closes, so it waits for the picture.
           shown?.awaitShown(PICTURE_SHOWN_MS)
@@ -152,12 +157,13 @@ fun FunctionalComposableScope.SearchBarContent(
   uncover.handle {
     try {
       withContext(scope.coroutineContext) {
+        leaving = false
         val job = covering
         covering = null
         if (job?.isActive == true) {
           job.cancel()
           job.join()
-          if (searchBarState.currentValue == SearchBarValue.Expanded) searchBarState.snapTo(0f)
+          closeAtOnce()
         }
         pageCover?.remove()
         pageCover = null
@@ -165,6 +171,10 @@ fun FunctionalComposableScope.SearchBarContent(
     } catch (_: CancellationException) {
       // The view went away first, which closed the search and removed the picture with it.
     }
+  }
+  // Search can start to open after the page lost focus, as the window opens a frame later.
+  LaunchedEffect(leaving, expanded) {
+    if (leaving && expanded && covering?.isActive != true) closeAtOnce()
   }
   DisposableEffect(Unit) { onDispose { pageCover?.remove() } }
 

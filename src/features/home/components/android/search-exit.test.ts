@@ -21,7 +21,7 @@ describe("createSearchExit", () => {
     expect(exit.select()).toBe(true);
     expect(effects.cover).toHaveBeenCalledOnce();
     expect(exit.select()).toBe(false);
-    exit.blur(true);
+    exit.blur();
     expect(exit.select()).toBe(false);
     expect(effects.cover).toHaveBeenCalledOnce();
   });
@@ -29,7 +29,7 @@ describe("createSearchExit", () => {
   it("uncovers Home once the next screen covers it, and takes no selection until focus", () => {
     const { effects, exit } = setup();
     exit.select();
-    exit.blur(true);
+    exit.blur();
     exit.hidden();
     expect(effects.uncover).toHaveBeenCalledOnce();
     expect(exit.select()).toBe(false);
@@ -41,7 +41,7 @@ describe("createSearchExit", () => {
   it("uncovers Home when it has focus again before the next screen covers it", () => {
     const { effects, exit } = setup();
     exit.select();
-    exit.blur(true);
+    exit.blur();
     exit.focus();
     expect(effects.uncover).toHaveBeenCalledOnce();
     expect(exit.select()).toBe(true);
@@ -60,7 +60,7 @@ describe("createSearchExit", () => {
   it("keeps Home covered while the navigation runs, whatever its length", () => {
     const { effects, exit } = setup();
     exit.select();
-    exit.blur(true);
+    exit.blur();
     vi.advanceTimersByTime(NAVIGATION_TIMEOUT_MS * 10);
     expect(effects.uncover).not.toHaveBeenCalled();
   });
@@ -68,7 +68,7 @@ describe("createSearchExit", () => {
   it("uncovers Home on resume when the transition's events never came", () => {
     const { effects, exit } = setup();
     exit.select();
-    exit.blur(true);
+    exit.blur();
     exit.resume();
     expect(effects.uncover).toHaveBeenCalledOnce();
   });
@@ -88,23 +88,13 @@ describe("createSearchExit", () => {
     expect(effects.uncover).not.toHaveBeenCalled();
   });
 
-  it("covers Home once for a navigation that is no selection while search is open", () => {
+  it("covers Home once for a navigation that is no selection", () => {
     const { effects, exit } = setup();
-    exit.blur(true);
+    exit.blur();
     expect(effects.cover).toHaveBeenCalledOnce();
     exit.hidden();
     expect(effects.uncover).toHaveBeenCalledOnce();
     exit.focus();
     expect(effects.uncover).toHaveBeenCalledOnce();
-  });
-
-  it("does nothing for a navigation while search is closed", () => {
-    const { effects, exit } = setup();
-    exit.blur(false);
-    exit.hidden();
-    exit.resume();
-    exit.focus();
-    expect(effects.uncover).not.toHaveBeenCalled();
-    expect(effects.cover).not.toHaveBeenCalled();
   });
 });

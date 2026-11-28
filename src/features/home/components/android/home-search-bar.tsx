@@ -49,7 +49,6 @@ export function HomeSearchBar({
   const insets = useSafeAreaInsets();
   const searchBar = useRef<SearchBarRef>(null);
   const exit = useRef<SearchExit>(null);
-  const searching = useRef(false);
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
   // A selection closes search at once behind a picture of it, and the next screen opens over the
   // picture. Home loses focus as the navigation starts, while the next screen still has to mount.
@@ -60,7 +59,7 @@ export function HomeSearchBar({
     });
     exit.current = current;
     const unsubscribe = [
-      navigation.addListener("blur", () => current.blur(searching.current)),
+      navigation.addListener("blur", current.blur),
       navigation.addListener("focus", current.focus),
       navigation.addListener("transitionEnd", ({ data }) => {
         if (data.closing) current.hidden();
@@ -97,10 +96,7 @@ export function HomeSearchBar({
     <SearchBar
       ref={searchBar}
       onQueryChange={setQuery}
-      onExpandedChange={(expanded) => {
-        searching.current = expanded;
-        onSearchingChange(expanded);
-      }}
+      onExpandedChange={onSearchingChange}
       backLabel={text.back}
       clearLabel={text.clearText}
       modifiers={[fillMaxWidth(), padding(16, insets.top + 4, 16, 0)]}

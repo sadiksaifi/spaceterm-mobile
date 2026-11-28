@@ -5,7 +5,10 @@
 export const NAVIGATION_TIMEOUT_MS = 1000;
 
 export type SearchExitEffects = {
-  /** Closes search at once and leaves a picture of it over Home, which takes no touch under it. */
+  /**
+   * Closes search at once, also while it opens, and leaves a picture of it over Home, which takes
+   * no touch under it. Does nothing while search is closed.
+   */
   cover: () => void;
   /** Removes the picture from Home. */
   uncover: () => void;
@@ -19,8 +22,8 @@ export type SearchExitEffects = {
 export type SearchExit = {
   /** A result was selected. Returns whether it may lead away; only the first does. */
   select: () => boolean;
-  /** Home lost focus: a navigation started. `searching` is whether search is open. */
-  blur: (searching: boolean) => void;
+  /** Home lost focus: a navigation started. */
+  blur: () => void;
   /** Home's transition to the next screen ended, so that screen covers Home. */
   hidden: () => void;
   /** Home has focus again. */
@@ -63,12 +66,13 @@ export function createSearchExit(effects: SearchExitEffects): SearchExit {
       navigationTimer = setTimeout(release, NAVIGATION_TIMEOUT_MS);
       return true;
     },
-    blur: (searching) => {
+    blur: () => {
       focused = false;
       stopTimer();
       // Every navigation ends search, not only a selection: an Invitation Link opened in another
-      // app, for example, opens Add Machine over Home.
-      if (searching && !covered) {
+      // app, for example, opens Add Machine over Home. Search can be opening, and only the search
+      // bar knows, so it decides.
+      if (!covered) {
         covered = true;
         effects.cover();
       }
